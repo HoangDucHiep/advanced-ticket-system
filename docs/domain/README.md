@@ -1,4 +1,4 @@
-# Lớp 2 — Domain Model
+﻿# Lớp 2 — Domain Model
 
 Thư mục này chứa **mô hình miền**. Nó nói các khái niệm nghiệp vụ là gì, chúng thuộc về
 bounded context nào, và những điều phải luôn đúng.
@@ -12,7 +12,7 @@ Những thứ đó là Lớp 3.
 |---|---|---|
 | `ubiquitous-language.md` | Thuật ngữ đã chốt, từ nào nên tránh dùng | T05 |
 | `context-map.md` | Bounded context và quan hệ giữa chúng | T06 |
-| `aggregates.md` | Aggregate, boundary, invariant | T07 |
+| `aggregates/` | Aggregate, boundary, invariant, cơ chế bảo vệ (1 file index + 6 file theo context) | T07 |
 | `state-machines.md` | Vòng đời booking, payment, ticket, seat | T08 |
 | `cross-context-contracts.md` | Hợp đồng giữa các context | T09 |
 
@@ -26,5 +26,8 @@ hành vi cụ thể.
 
 ## Trạng thái
 
-**Gate B được mở** (2026-11-20) sau khi Gate A đóng. Việc đầu tiên: T05 — ubiquitous
-language workshop. Xem exit checklist tại [`../README.md`](../README.md).
+**Gate B được mở** (2026-11-20) sau khi Gate A đóng. Đã xong: T05 (ubiquitous language),
+T06 (context map), T07 (aggregates và invariants — 8 aggregate, 47 invariant). Xem exit checklist
+tại [`../README.md`](../README.md).
+
+Tiếp theo: T08 — state machines.

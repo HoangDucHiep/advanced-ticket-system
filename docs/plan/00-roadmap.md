@@ -150,8 +150,8 @@ Chi tiết từng ticket nằm ở `.scratch/advanced-ticket-system/issues/`.
 | # | Ticket | Mode | Blocked by | Traces to |
 |---|---|---|---|---|
 | T05 | Ubiquitous language workshop (phim, suất chiếu, loại ghế, chỗ giữ ghế) | `explain` | T04 | — | **xong 2026-11-20** |
-| T06 | Context map | `co-design` | T05 | — |
-| T07 | Aggregates và invariants (một suất chiếu = một aggregate) | `co-design` | T06 | BR-01..BR-30 |
+| T06 | Context map | `co-design` | T05 | — | **xong 2026-11-20** |
+| T07 | Aggregates và invariants (một suất chiếu = một aggregate) | `co-design` | T06 | BR-01..BR-30 | **xong 2026-11-21** |
 | T08 | State machines (ghế: trống / giữ / đã bán / bị chặn; đơn: chờ / hết hạn / đã thanh toán) | `co-design` | T07 | BR-03, BR-04, BR-09, BR-10, BR-13 |
 | T09 | Cross-context contracts | `co-design` | T07 | — |
 
@@ -211,14 +211,21 @@ Ghi lại ở đây mỗi khi có quyết định nào ảnh hưởng tới toà
 | 2026-11-20 | **Phân biệt "ghế của phòng" và "ghế của suất chiếu"** | Chốt ở T05. Cùng một từ "ghế" cho cả hai khiến người đọc hiểu một người đã mua D7 thì D7 hết ở *mọi* suất — và hệ thống báo lỗi sai | `docs/domain/ubiquitous-language.md` |
 | 2026-11-20 | **`FR-23` có bốn con số, không phải ba** | Sửa mâu thuẫn với `BR-11`: ghế `Bị chặn` vẫn tính vào tổng số ghế phòng nhưng không thuộc nhóm "trống / giữ / bán" | `docs/prd/01-requirements.md` |
 | 2026-11-20 | **Mỗi thuật ngữ domain có cả tên tiếng Việt lẫn tên tiếng Anh** | Code viết bằng tiếng Anh — tên class, biến, bảng, trạng thái lấy từ tên tiếng Anh trong glossary. Tên tiếng Việt chỉ dùng để trao đổi trong tài liệu | `docs/domain/ubiquitous-language.md` |
+| 2026-11-20 | **Sáu bounded context: `Scheduling`, `Inventory`, `Booking`, `Payment`, `Ticketing`, `Identity & Access`** | Chốt ở T06 từ 7 journey ở T04. Ranh giới chính: `Seat hold` ở `Inventory` (bất biến hết hạn không bị cắt), vé + check-in ở `Ticketing` (bất biến 1 vé = 1 check-in không bị cắt), Stripe là hệ thống bên ngoài nên `Payment` → Stripe là ACL | `docs/domain/context-map.md` |
+| 2026-11-20 | **Bounded context ≠ transaction boundary** | Trong modular monolith hai thứ không trùng nhau. Ba nơi bất biến bị cắt ngang ranh giới được liệt kê tường minh kèm hậu quả khi tách service | `docs/domain/context-map.md` |
+| 2026-11-21 | **`Seat hold` là aggregate root của tồn kho ghế (≤6 ghế), KHÔNG phải `Showtime`** | `BR-02` (giữ n ghế all-or-nothing) không được phép bị cắt: nếu mỗi ghế là một aggregate thì all-or-nothing phải dùng compensating transaction ⇒ có thời điểm hệ thống vi phạm `BR-02`. Aggregate lớn (`Showtime` chứa 200 ghế) lại gây contention dồn khi mở bán phim hot | `docs/domain/aggregates/`, `docs/adr/0004-seat-hold-aggregate-boundary.md` |
+| 2026-11-21 | **`BR-01` ép bằng điều kiện lệnh, không bằng khoá đọc-sửa-ghi** | `UPDATE ... WHERE status = 'Available'` không có cửa sổ TOCTOU; hai lệnh đồng thời trên cùng một ghế thì chỉ một thắng, lệnh còn lại ảnh hưởng 0 dòng và phải coi là thất bại | `docs/domain/aggregates/02-inventory.md` |
+| 2026-11-21 | **`BR-08` (10 ghế/người/suất) không bảo vệ được bằng aggregate — chấp nhận cửa sổ race** | Nó đếm theo *người* qua *nhiều đơn* ⇒ tích luỹ xuyên nhiều aggregate, về nguyên tắc không thể nằm trong một aggregate. Hậu quả của cửa sổ race là *người dùng tự gian lận*, không phải *bán quá số ghế có thật* — nên chấp nhận được, và rẻ hơn một điểm tranh chấp toàn cục ở tầng DB | `docs/domain/aggregates/03-booking.md` |
+| 2026-11-21 | **`BR-10` (1 vé = 1 check-in) ép bằng ràng buộc duy nhất, không cần transaction xuyên nhiều vé** | Nó là invariant về **một vé**: hai lượt quét đồng thời là hai transaction cùng tranh một dòng. Bài học: một invariant trông "toàn cục" có thể hoá thành "cục bộ" nếu đặt ranh giới aggregate đúng chỗ | `docs/domain/aggregates/05-ticketing.md` |
+| 2026-11-21 | **`BR-20` (không có suất chiếu chồng nhau) ép bằng exclusion constraint, nằm ngoài ranh giới aggregate** | Đây là quan hệ *giữa hai `Showtime` khác nhau* — aggregate không thể ghi ra ngoài ranh giới của mình. Ràng buộc loại trừ ở tầng lưu trữ mạnh hơn kiểm tra ứng dụng, vì chặn được cả hai lệnh tạo suất chạy đồng thời | `docs/domain/aggregates/01-scheduling.md` |
 
 ## Câu hỏi còn mở
 
 | Câu hỏi | Quyết ở gate nào |
 |---|---|
-| Một suất chiếu có hàng trăm ghế — aggregate có phải chia nhỏ không? | Gate B (T07, ADR-0003) |
-| Giới hạn "10 ghế mỗi người mỗi suất" có nằm trong cùng aggregate với tồn kho ghế không? Nó đếm theo **người**, tồn kho ghế đếm theo **ghế** | Gate B (T07, T09) |
-| Check-in thuộc bounded context nào — cùng context với vé, hay context riêng? | Gate B (T06) |
+| Một suất chiếu có hàng trăm ghế — aggregate có phải chia nhỏ không? | ~~Gate B (T07, ADR-0003)~~ → **đã trả lời 2026-11-21: KHÔNG — `Seat hold` là aggregate root (≤6 ghế); xem `docs/domain/aggregates/`** |
+| Giới hạn "10 ghế mỗi người mỗi suất" có nằm trong cùng aggregate với tồn kho ghế không? Nó đếm theo **người**, tồn kho ghế đếm theo **ghế** | ~~Gate B (T07, T09)~~ → **đã trả lời 2026-11-21: KHÔNG — tích luỹ xuyên nhiều aggregate, chấp nhận cửa sổ race; xem `docs/domain/aggregates/03-booking.md`** |
+| Check-in thuộc bounded context nào — cùng context với vé, hay context riêng? | ~~Gate B (T06)~~ → **đã trả lời 2026-11-20: `Ticketing` giữ cả vé và check-in** |
 | Ranh giới aggregate quanh thanh toán và hoàn tiền (`FR-39`) | Gate B (T07, T08) |
 | Giá vé theo loại ghế có đổi giữa các suất của cùng một phim không? | Gate B (T07, T11) |
 | Ghế `Blocked` (vệ sinh, dành riêng) có được bán online không, ai quyết định? | ~~Gate B (T07, T08)~~ → **đã trả lời 2026-11-20: KHÔNG bán lại online; quản lý rạp quyết định; xem `BR-11`** |

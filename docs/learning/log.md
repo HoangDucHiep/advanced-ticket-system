@@ -453,3 +453,173 @@ Tên tiếng Anh chốt: `Room seat` / `Showtime seat` / `Ticket` / `Booking` / 
 Bổ sung thêm: mục "Quy tắc đặt tên trong code" và bảng tra nhanh 27 dòng
 tiếng Việt → tiếng Anh. Tên entity/bảng cụ thể (`ShowtimeSeat`, `RoomSeat`, `SeatHold`) để
 T07/T11 chốt — hiện mới là **gợi ý**, ghi rõ là chưa chốt.
+
+---
+
+## 2026-11-20 — T06: Context map workshop (Gate B)
+
+**Bối cảnh**: T06 (mode `co-design`) — cắt domain model thành các bounded context. Artifact:
+`docs/domain/context-map.md`, 6 context, 8 quan hệ (R1–R8).
+
+**Đã học**:
+
+- **Bounded context là ranh giới *ngôn ngữ*, không phải ranh giới *transaction*.** Đây là
+  điều dễ hiểu sai nhất của DDD khi áp dụng vào modular monolith. Vì ta chưa tách service,
+  ranh giới context và ranh giới transaction **không trùng nhau** — và sẽ có những chỗ bất
+  biến bị cắt ngang ranh giới context.
+- **Cách tìm ranh giới context là tìm chỗ bất biến KHÔNG bị cắt.** Ví dụ: bất biến "mỗi vé chỉ
+  check-in một lần" (`FR-07`) → vé và check-in phải cùng context (`Ticketing`). Bất biến "ghế
+  `Held` luôn có thời điểm hết hạn" → `Seat hold` phải ở `Inventory`. Ranh giới đặt sai chỗ thì
+  bất biến bị cắt, và lúc đó bạn buộc phải bịa cơ chế phối hợp (saga/outbox) — hoặc âm thầm
+  để invariant hỏng.
+- **Anti-Corruption Layer là chỗ "mô hình của hai bên gặp nhau".** Ở R1, `Scheduling` nói "phòng
+  có 100 ghế", `Inventory` nói "mỗi ghế phải có trạng thái riêng". Lớp dịch nằm đúng chỗ đó.
+  Ở R5, Stripe nói `payment_intent` / `requires_payment_method`, ta nói `Paid` / "chờ thanh
+  toán" — không có lớp dịch thì mô hình của Stripe lấn át vào bên trong và ta sẽ có code kiểu
+  `if (paymentIntent.Status == "requires_confirmation")` rải khắp nơi.
+- **`Customer/Supplier` và `Shared Kernel` khác nhau ở chỗ ai sở hữu.** `Identity & Access` là
+  Supplier: một bên sở hữu, bên kia chỉ **hỏi**. `Shared Kernel` là hai bên **cùng sở hữu**
+  một phần mô hình — cùng kiểu dữ liệu, cùng quy ước, đổi một bên thì cả hai đều đổi. Ta
+  không có trường hợp nào thứ hai.
+- **Stripe là L3, không phải context của ta.** Nên `Payment` → Stripe là `Anti-Corruption Layer`,
+  không phải `Customer/Supplier`. Lẫn hệ thống bên ngoài vào bản đồ context là lỗi phân loại
+  làm mờ ranh giới Lớp 1 và Lớp 3.
+
+**Làm được**:
+
+- `docs/domain/context-map.md` — 6 bounded context (`Scheduling`, `Inventory`, `Booking`,
+  `Payment`, `Ticketing`, `Identity & Access`), 22 thuật ngữ riêng theo context, sơ đồ mermaid,
+  8 quan hệ R1–R8 (mỗi quan hệ ghi dạng / ai gọi ai / hướng dữ liệu / cơ chế), 3 ACL, bảng
+  **nguồn sự thật** 11 dòng, và mục **"Nhóm ba ranh giới bị cắt"** liệt kê 3 nơi invariant bị
+  cắt kèm hậu quả nếu tách service.
+- Mục "Đối chiếu với điểm tranh chấp ở T04" — 12 dòng khớp 12 điểm tranh chấp ở
+  `docs/prd/03-user-journeys.md`, kèm cột "Cắt ranh giới?".
+- 6 quyết định được chốt trong phiên (xem ticket T06), trong đó 3 quyết định về **vị trí** của
+  `Seat hold`, `Room seat`, `Ticket price` — mỗi quyết định đều dựa trên câu hỏi "bất biến nào
+  không được bị cắt".
+
+**Vấp ở đâu**:
+
+- **Có lúc tôi suýt đặt ranh giới theo "tên entity" thay vì theo bất biến.** Ví dụ suýt tách
+  `Check-in` thành context riêng vì nó là một khái niệm riêng — nhưng như vậy là cắt bất biến
+  `FR-07`. Nguyên nhân thật: **tách theo cây từ vựng thì dễ, tách theo bất biến thì phải suy
+  nghĩ**. Bài học: khi phân vị trí một khái niệm, hãy hỏi "bất biến nào của nó sẽ bị cắt" —
+  đó là câu hỏi duy nhất có ích.
+- **Còn một mâu thuẫn PRD đã sửa ở T05 mà bị ảnh hưởng bởi T06.** Mốc thời gian hết hạn hold và
+  mốc hết hạn vé: người học nhận ra giữ ghế hết hạn lúc 20:15 còn vé chỉ hết hạn khi suất
+  chiếu bắt đầu — hai mốc khác nhau, và ranh giới `Inventory`/`Booking` phải tôn trọng cả hai.
+- Việc viết file bằng `Add-Content` từng khối làm mất dấu tiếng Việt ở phần đuôi file
+  (không còn dấu). Nguyên nhân: shell script ghi bằng encoding không đúng. Bài học: **sau khi
+  ghi file bằng script, phải đọc lại file** — không tin script.
+
+**Còn mở**:
+
+- Một suất chiếu có hàng trăm ghế — có nên là một aggregate không? → T07, ADR-0003.
+- `FR-09` (giới hạn ghế mỗi người mỗi suất) có nằm trong cùng aggregate với tồn kho ghế
+  không? → T07 (Q15).
+- Ranh giới aggregate quanh **thanh toán và hoàn tiền** → T08 (Q17).
+- Lịch sử trạng thái đơn (cho `FR-31` truy vết) nằm ở `Booking` hay mỗi context giữ riêng
+  → T07/T08 (Q19).
+- `Seat hold` khi tách service sẽ nằm ở `Inventory` hay `Booking`? → T07 (Q18).
+- Ba "ranh giới bị cắt" có cần chuyển sang saga khi tách service không? → T10 (Q20).
+
+Xem thêm: [`open-questions.md`](open-questions.md).
+
+---
+
+## 2026-11-21 — T07: Aggregates và invariants workshop (Gate B)
+
+**Bối cảnh**: T07 (mode `co-design`) — chốt ranh giới aggregate cho 6 bounded context. Artifact:
+`docs/domain/aggregates/` — 1 file index + 6 file theo context, **8 aggregate**, **47 invariant**.
+
+**Đã học**:
+
+- **Aggregate boundary KHÔNG phải lúc nào cũng đủ để bảo vệ invariant.** Đây là bài học lớn
+  nhất của ticket, và nó chỉ hiện ra khi bắt buộc phải trả lời câu hỏi "invariant nào **không**
+  thể bảo vệ bằng transaction đơn lẻ". Có **ba dạng** khác nhau:
+  1. **Tích luỹ xuyên nhiều aggregate** — `BR-08` (10 ghế/người/mỗi suất): đếm theo *người* qua
+     *nhiều đơn*. Về nguyên tắc không thể nằm trong một aggregate.
+  2. **Quan hệ giữa hai aggregate** — `BR-20` (không có suất chiếu chồng nhau): hai `Showtime`
+     khác nhau; aggregate không thể ghi ra ngoài ranh giới của mình.
+  3. **Cần điều phối nhiều bước qua nhiều context** — `BR-17` (webhook đến lặp): tiền → đơn →
+     vé, ở ba context khác nhau.
+  Cả ba đều có **cùng một nguyên nhân gốc: ranh giới aggregate không trùng ranh giới
+  transaction**. Và điều này chỉ hiện ra khi ta **ghi ra tường minh** hậu quả, chứ không phải khi
+  ta "chọn ranh giới cho đẹp".
+- **Một invariant trông như "toàn cục" có thể hoá thành "cục bộ"** nếu đặt ranh giới aggregate
+  đúng chỗ. `BR-10` (mỗi vé chỉ check-in một lần) nghe như cần transaction xuyên nhiều vé —
+  nhưng nó là invariant về **một vé**, và hai lượt quét đồng thời là hai transaction cùng tranh
+  **một dòng**. Ràng buộc duy nhất là đủ. Ngược lại, `BR-08` trông như cục bộ (nằm trong một
+  đơn) nhưng hoá thành toàn cục. **Cái quyết định là ranh giới, không phải bản chất của luật.**
+- **Aggregate lớn là mùi code, nhưng "aggregate nhỏ" không tự động là đúng.** Bài toán thật ở T07
+  là mâu thuẫn giữa hai nguyên tắc: `BR-02` (giữ n ghế all-or-nothing) kéo ranh giới **bao
+  trọn** n ghế, còn "aggregate không được quá to" kéo ranh giới **thu nhỏ**. Giải pháp không
+  phải chọn một bên, mà là nhận ra: **all-or-nothing chỉ cần bao trọn n ghế của *một lần giữ***
+  (≤6 ghế theo `BR-06`), không cần bao trọn cả suất chiếu. Đó là ranh giới `Seat hold`.
+- **"Ranh giới aggregate đúng" và "invariant do aggregate bảo vệ" là hai câu hỏi khác nhau.**
+  `Seat hold` không bảo vệ được `BR-01` (một ghế = một chủ) bằng ranh giới của nó — nó bảo vệ
+  bằng **điều kiện lệnh**. Đây là điều mà nhiều người học DDD hiểu sai: aggregate là **một**
+  cách bảo vệ invariant, không phải cách duy nhất. Với seat-based, điều kiện lệnh còn **mạnh
+  hơn** khoá đọc-sửa-ghi: không có cửa sổ TOCTOU, và hai lệnh đồng thời trên cùng một ghế thì
+  chỉ một thắng (lệnh còn lại ảnh hưởng 0 dòng và phải coi là thất bại).
+- **Số dòng trong aggregate không quan trọng bằng tần suất ghi.** `Room` chứa hàng trăm
+  `Room seat` — nghe thì giống hệt trường hợp "suất chiếu 200 ghế" mà ta lo. Nhưng ghế vật lý
+  **tĩnh**: nó không bao giờ đổi trạng thái. Contention chỉ sinh ra khi có **ghi**. Cùng số dòng,
+  khác hẳn hành vi.
+- **Tính bất biến trong mô hình cũng là một cơ chế bảo vệ.** `BR-12` (một đơn = một suất chiếu)
+  được ép bằng **hình dạng dữ liệu**: `Booking` mang một tham chiếu suất chiếu, `Booking line`
+  không có trường suất chiếu. "Trộn suất chiếu" **không thể biểu diễn được** — mạnh hơn là
+  kiểm tra lúc ghi.
+
+**Làm được**:
+
+- `docs/domain/aggregates/README.md` — index: bảng tổng hợp aggregate → invariant → cơ chế (24
+  dòng), bảng **3 invariant không bảo vệ được bằng transaction đơn lẻ** (tách 3 dạng), sơ đồ
+  mermaid, bảng entity vs value object (14 dòng), và bảng kiểm tra "không aggregate nào chứa
+  thứ của aggregate khác" (đối chiếu bảng nguồn sự thật ở T06).
+- 6 file theo context: `01-scheduling.md`, `02-inventory.md`, `03-booking.md`,
+  `04-payment.md`, `05-ticketing.md`, `06-identity-access.md`. Mỗi aggregate có mục **Bản chất**,
+  **Chứa**, **Boundary**, danh sách invariant (mỗi cái ghi cơ chế bảo vệ + **ai có thể vi phạm** +
+  `Traces to`), và **Transaction boundary** mô tả bằng hành vi.
+- 8 aggregate: `Seat hold`, `Booking`, `Payment intent`, `Ticket`, `Showtime`, `Room`, `Movie`,
+  `User`. 47 invariant.
+- Đồng bộ: `docs/domain/README.md`, `docs/README.md` (Gate B), `docs/domain/ubiquitous-language.md`
+  (mục "Câu hỏi còn mở cho T07" → đã trả lời), ticket T07 tick đủ 7 tiêu chí,
+  `docs/plan/00-roadmap.md` (T06→T07 xong, +5 dòng log quyết định, 2 câu hỏi đóng),
+  `docs/learning/open-questions.md` (Q12/Q15/Q17/Q18/Q19 đóng, thêm Q21–Q24).
+
+**Vấp ở đâu**:
+
+- **Tôi suýt viết "3 dạng" là "1 dạng" khi đọc lại ticket.** Ticket chỉ yêu cầu "ít nhất một
+  invariant không thể bảo vệ bằng transaction đơn lẻ". Nhưng khi thực sự phân tích, ba bất biến
+  bất khả bảo vệ **khác nhau về nguyên nhân**, và mỗi nguyên nhân cần một cơ chế khác nhau.
+  Nguyên nhân thật: tôi đã đọc tiêu chí theo nghĩa "điền một ô checkbox" thay vì đọc nó như
+  một **câu hỏi cần trả lời đúng**. Bài học: tiêu chí hoàn thành có giá trị nhất khi nó ép ta
+  **đào sâu hơn mức tối thiểu**, chứ không phải khi ta lấp đúng số ô.
+- **Tôi đã từng nghĩ "mọi invariant đều phải do aggregate bảo vệ"** — và viết `INV-07` (ghế
+  `Blocked` không bán) như thể đó là sự thật hiển nhiên. May mắn là khi viết tới phần "cơ chế
+  bảo vệ" mới lộ ra: nó thực ra là **hệ quả** của `INV-01` (ghế chỉ chuyển sang `Held` khi
+  đang `Available`). Bài học: **cơ chế bảo vệ là chỗ dễ dùng lời hứa suông**, nên phải hỏi
+  "cơ chế nào **thật sự** ép được nó" cho từng invariant.
+- Ghi file bằng `Add-Content` từng khối lần nữa mất dấu tiếng Việt ở một đoạn. Đã sửa bằng
+  cách đọc lại file và viết lại đoạn đó. Bài học lặp lại: **sau khi ghi file bằng script, phải
+  đọc lại file** — không tin script.
+
+**Còn mở**:
+
+- `BR-08` có nên nâng lên ràng buộc ở tầng lưu trữ không? → Q21, Gate C.
+- Giá trị khoảng đệm giữa hai suất chiếu cùng phòng → Q22, T13.
+- `BR-08` có cần test concurrency thật để thấy rõ cửa sổ race không? → Q23, T22.
+- `Gate assignment` hiện không thuộc aggregate nào — xem lại nếu cần bảo vệ "một cổng không
+  phục vụ hai suất chồng nhau" → Q24.
+- Ba "ranh giới bị cắt" có cần chuyển sang saga khi tách service không? → Q20, T10.
+- ADR-0003: đề xuất chuyển `provisional → accepted` — **chờ người học duyệt**.
+- ADR-0004 (ranh giới aggregate của tồn kho ghế): **đã tạo**, `status: provisional` — chờ người học
+  duyệt nội dung rồi mới chuyển `accepted` ở Gate C. Ranh giới `Seat hold` được xem lại khi T11
+  (data model) và T12 (concurrency design) chốt xong.
+- Ranh giới aggregate quanh state machine của ghế và đơn → T08.
+
+Xem thêm: [`open-questions.md`](open-questions.md).
+- ADR-0004 (ranh giới aggregate của tồn kho ghế): **đã tạo**, `status: provisional` — chờ người học
+  duyệt nội dung rồi mới chuyển `accepted` ở Gate C. Ranh giới `Seat hold` được xem lại khi T11
+  (data model) và T12 (concurrency design) chốt xong.

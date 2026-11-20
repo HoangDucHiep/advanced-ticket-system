@@ -1,4 +1,4 @@
-# Tài liệu Advanced Ticket System
+﻿# Tài liệu Advanced Ticket System
 
 Project học tập dùng để xây CV. Mục tiêu là chứng minh năng lực backend ở mức **concurrency,
 tính đúng đắn, idempotency và hiệu năng đo được** — trên một nghiệp vụ đủ khó để các bài toán
@@ -62,8 +62,11 @@ Hỗ trợ:
 
 - [x] `docs/domain/ubiquitous-language.md` — thuật ngữ đã chốt, từ nào tránh dùng (T05, 27 thuật
   ngữ trong 6 nhóm — bản làm việc, sẽ gom vào `GLOSSARY.md` ở cuối Gate B)
-- [ ] `docs/domain/context-map.md` — bounded context và quan hệ giữa chúng
-- [ ] `docs/domain/aggregates.md` — aggregate, boundary, invariant
+- [x] `docs/domain/context-map.md` — bounded context và quan hệ giữa chúng (T06, 6 context,
+  8 quan hệ R1–R8)
+- [x] `docs/domain/aggregates/` — aggregate, boundary, invariant, cơ chế bảo vệ (T07, 8 aggregate
+  / 47 invariant; gồm 3 invariant **không** bảo vệ được bằng một transaction đơn lẻ: `BR-08`,
+  `BR-20`, `BR-17`)
 - [ ] `docs/domain/state-machines.md` — vòng đời booking, payment, ticket, seat
 - [ ] `docs/domain/cross-context-contracts.md` — hợp đồng giữa các context
 - [ ] `GLOSSARY.md` ở root (single-context) hoặc `GLOSSARY-MAP.md` + glossary per context

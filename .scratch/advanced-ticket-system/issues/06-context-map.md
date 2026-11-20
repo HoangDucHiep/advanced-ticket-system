@@ -54,13 +54,34 @@ AI ghi vào `docs/domain/context-map.md`.
 
 ## Tiêu chí hoàn thành
 
-- [ ] Có ít nhất 3 bounded context, mỗi cái có trách nhiệm ghi rõ bằng một câu
-- [ ] Mỗi context liệt kê thuật ngữ riêng của nó
-- [ ] Mỗi quan hệ giữa hai context có dạng quan hệ ghi tên, không phải mũi tên trần
-- [ ] Có ít nhất một quan hệ được ghi là `Anti-Corruption Layer` hoặc `Published Language`,
-      kèm lý do
-- [ ] Có ghi rõ context nào là nguồn sự thật cho dữ liệu nào
-- [ ] Ranh giới context khớp với các điểm tranh chấp đã đánh dấu ở T04
+- [x] Có ít nhất 3 bounded context, mỗi cái có trách nhiệm ghi rõ bằng một câu — **6 context**:
+  `Scheduling`, `Inventory`, `Booking`, `Payment`, `Ticketing`, `Identity & Access`
+- [x] Mỗi context liệt kê thuật ngữ riêng của nó — mục "Thuật ngữ riêng của từng context" (22 mục)
+- [x] Mỗi quan hệ giữa hai context có dạng quan hệ ghi tên, không phải mũi tên trần — R1..R8,
+  mỗi quan hệ ghi rõ dạng, ai gọi ai, hướng dữ liệu, và cơ chế
+- [x] Có ít nhất một quan hệ được ghi là `Anti-Corruption Layer` hoặc `Published Language`,
+  kèm lý do — **ACL ở R1** (sinh ghế suất chiếu từ sơ đồ phòng), **ACL ở R3** (lớp dịch phía
+  `Booking`), **ACL ở R5** (Stripe). Ngoài ra có `Customer/Supplier` ở R1, R2, R4, R6, R7, R8
+- [x] Có ghi rõ context nào là nguồn sự thật cho dữ liệu nào — mục "Nguồn sự thật" (11 dòng)
+- [x] Ranh giới context khớp với các điểm tranh chấp đã đánh dấu ở T04 — mục "Đối chiếu với
+  điểm tranh chấp ở T04" (12 dòng, khớp 12 điểm trong `docs/prd/03-user-journeys.md`), kèm cột
+  "Cắt ranh giới?" đánh dấu 3 nơi bất biến bị cắt
+
+> **Ghi chú — các quyết định chính đã chốt trong phiên:**
+>
+> 1. `Seat hold` + thời điểm hết hạn thuộc **`Inventory`**, không phải `Booking` — vì bất biến
+>    "ghế `Held` luôn có thời điểm hết hạn" không được cắt ngang ranh giới.
+> 2. Ghế của phòng (`Room seat`) thuộc **`Scheduling`**; `Inventory` chỉ giữ ghế của suất chiếu.
+> 3. `Ticket price` thuộc **`Scheduling`** (cùng chỗ với `Seat type` và `Showtime`).
+> 4. `Payment` là Supplier của `Booking`; Stripe là **hệ thống bên ngoài**, không phải context
+>    của ta — nên `Payment` → Stripe là `Anti-Corruption Layer`.
+> 5. Vé **và** check-in cùng thuộc **`Ticketing`** — bất biến "mỗi vé chỉ check-in một lần" không
+>    được cắt.
+> 6. `Identity & Access` tách riêng, chỉ giữ "ai là ai, quyền gì"; **không** phải `Shared Kernel`.
+>
+> **Bài học ghi nhận:** bounded context ≠ transaction boundary. Ba nơi bất biến bị cắt ngang
+> ranh giới được liệt kê tường minh trong mục "Nhóm ba ranh giới bị cắt", kèm hậu quả khi tách
+> service — để T10/T12 không vô tình phá invariant đã chốt.
 
 > **Ghi chú (2026-11-19):** nghiệp vụ đổi sang đặt vé xem phim. Điểm cần chú ý khi vẽ context
 > map: **"ghế của phòng"** và **"ghế của suất chiếu"** là hai thuật ngữ khác nhau và thuộc

@@ -5,6 +5,7 @@ status: provisional
 date: 2026-11-19
 Supersedes: ADR-0001
 Revalidate at Gate B
+Revalidated at: 2026-11-21 (T07) — đề xuất chuyển `accepted`, chờ người học duyệt
 ---
 
 # Mô hình tồn kho theo ghế của suất chiếu
@@ -100,3 +101,34 @@ Quyết định này được chốt **tạm** — nghiệp vụ đã đổi nh�
 
 Nếu câu trả lời là "giữ nguyên", chuyển `status` thành `accepted`. Nếu không, viết ADR thay
 thế và đặt `status: superseded by ADR-NNNN`.
+
+---
+
+## Kết quả xem lại ở Gate B (2026-11-21) — T07
+
+Cả ba câu hỏi đã được trả lời. Xem [`../domain/aggregates/`](../domain/aggregates/).
+
+| Câu hỏi | Trả lời |
+|---|---|
+| Một suất chiếu có phải là một aggregate không? | **KHÔNG.** `Seat hold` là aggregate root, chứa ≤ 6 `Showtime seat` |
+| Trạng thái ghế và trạng thái đơn có cùng aggregate không? | **KHÔNG.** Chúng ở hai context khác nhau (`Inventory` / `Booking`), và việc giữ ghế ghi cả hai trong **cùng một transaction** (ranh giới bị cắt R3) |
+| "Một ghế = đúng một chủ" bảo vệ thế nào khi chia nhỏ? | Bằng **điều kiện lệnh** (`UPDATE ... WHERE status = 'Available'`), không phải bằng ranh giới aggregate |
+
+**Quyết định của ADR này vẫn giữ nguyên:** mô hình seat-based, ghế suất chiếu là đơn vị bán,
+không có `capacity`. Điều được bổ sung là **ranh giới aggregate** — và đó là một quyết định
+riêng, đáng ghi riêng.
+
+### Trạng thái đề xuất
+
+**Đề xuất (chờ người học duyệt): `status: accepted`.**
+
+Lý do: cả ba câu hỏi "Revalidate at Gate B" đều đã có câu trả lời rõ ràng và ghi vào
+`docs/domain/aggregates/`. Quyết định "seat-based" không còn lý do để nghi ngờ.
+
+**Đề xuất thêm:** viết **ADR-0004** cho quyết định "ranh giới aggregate của tồn kho ghế"
+(`Seat hold` là aggregate root, `BR-01` ép bằng điều kiện lệnh, `BR-02` không được cắt) —
+vì đó là một quyết định **khó đảo ngược**, **ngạc nhiên nếu không có context** (vì sao một
+"giữ ghế" lại là aggregate root?), và là **kết quả của một đánh đổi thật** (an toàn của
+`BR-02` vs contention khi mở bán phim hot).
+
+> **AI không tự tạo ADR.** Người học duyệt nội dung và trạng thái trước khi file được tạo.

@@ -1,4 +1,4 @@
-# 07: Aggregates và invariants
+﻿# 07: Aggregates và invariants
 
 Mode: co-design
 Gate: B
@@ -77,12 +77,73 @@ bạn, AI chỉ phản biện.
 
 ## Tiêu chí hoàn thành
 
-- [ ] Có ít nhất 4 aggregate, mỗi cái ghi rõ boundary
-- [ ] Mỗi aggregate có ít nhất 2 invariant, mỗi invariant ghi rõ cơ chế bảo vệ
-- [ ] Có ít nhất một invariant được ghi rõ là **không thể** bảo vệ bằng transaction đơn lẻ,
-      kèm hệ quả
-- [ ] Transaction boundary của mỗi aggregate được mô tả bằng hành vi, không phải bằng SQL
-- [ ] Có phân biệt rõ entity và value object
-- [ ] Không aggregate nào bị coi là chứa thứ vốn thuộc về aggregate khác
-- [ ] **Câu hỏi về kích thước aggregate (một suất chiếu có phải một aggregate không) đã được
-      trả lời rõ ràng**, kèm lý do
+- [x] Có ít nhất 4 aggregate, mỗi cái ghi rõ boundary — **8 aggregate**: `Seat hold`,
+  `Booking`, `Payment intent`, `Ticket`, `Showtime`, `Room`, `Movie`, `User`
+  (mỗi file ghi rõ mục **Boundary**: thứ nằm ngoài aggregate)
+- [x] Mỗi aggregate có ít nhất 2 invariant, mỗi invariant ghi rõ cơ chế bảo vệ — **47 invariant**,
+  mỗi cái ghi: cơ chế bảo vệ + **ai có thể vi phạm** + `Traces to` về `BR-nn` / `FR-nn`
+- [x] Có ít nhất một invariant được ghi rõ là **không thể** bảo vệ bằng transaction đơn lẻ,
+      kèm hệ quả — **3 cái**, tách thành 3 dạng khác nhau:
+  1. `BR-08` (tích luỹ xuyên nhiều aggregate) → quy tắc tầng ứng dụng, chấp nhận cửa sổ race
+     vì hậu quả là *người dùng tự gian lận* chứ không phải *bán quá số ghế*
+  2. `BR-20` (quan hệ giữa hai aggregate) → exclusion constraint ở tầng lưu trữ
+  3. `BR-17` (cần điều phối nhiều bước qua 3 context) → unique constraint trên `event.id` +
+     transaction chung trong modular monolith
+- [x] Transaction boundary của mỗi aggregate được mô tả bằng hành vi, không phải bằng SQL —
+  mỗi mục mô tả "một transaction duy nhất cho hành vi X", kèm kết quả thành công / thất bại
+- [x] Có phân biệt rõ entity và value object — mục "Entity và Value Object" trong
+  `aggregates/README.md`, bảng 14 dòng
+- [x] Không aggregate nào bị coi là chứa thứ vốn thuộc về aggregate khác — mục "Không aggregate
+  nào chứa thứ thuộc về aggregate khác", đối chiếu với bảng nguồn sự thật ở T06 (7 dòng, tất cả
+  đều "Không"). Nêu rõ ngoại lệ `Gate assignment` và lý do
+- [x] **Câu hỏi về kích thước aggregate (một suất chiếu có phải một aggregate không) đã được
+      trả lời rõ ràng**, kèm lý do — **KHÔNG**. `Seat hold` là aggregate root (chứa ≤ 6
+      `Showtime seat`). Lý do: `BR-02` không được phép bị cắt; ở phương án "mỗi ghế là một
+      aggregate" thì all-or-nothing phải dùng compensating transaction ⇒ có thời điểm hệ thống
+      vi phạm `BR-02`. Xem `aggregates/README.md` và `02-inventory.md`.
+
+> **Các quyết định chính đã chốt trong phiên:**
+>
+> 1. **Ranh giới tồn kho ghế** → `Seat hold` là aggregate root (≤6 ghế); `Showtime seat` là entity
+>    được bảo vệ bằng **điều kiện lệnh** (`UPDATE ... WHERE status = 'Available'`), không phải
+>    bằng khoá đọc-sửa-ghi.
+> 2. **`BR-01` được ép bằng điều kiện lệnh** — không có cửa sổ TOCTOU; hai lệnh đồng thời trên
+>    cùng một ghế thì chỉ một thắng, lệnh còn lại ảnh hưởng 0 dòng và phải coi là thất bại.
+> 3. **`Booking line` là entity bên trong** aggregate `Booking` — tổng tiền của đơn là hành vi của
+>    aggregate, không phải phép cộng ở tầng khác.
+> 4. **`BR-08` không nằm trong aggregate nào** — chấp nhận cửa sổ race, vì hậu quả là *người
+>    dùng tự gian lận*, không phải *bán quá số ghế có thật*.
+> 5. **`Ticket` là aggregate root** (1 vé = 1 aggregate); `BR-10` ép bằng **ràng buộc duy nhất**
+>    trên `ticket_id` ở bảng check-in.
+> 6. **`Payment intent` là aggregate root**, chứa lịch sử `Payment event` và ≤1 `Refund`;
+>    "hoàn đúng một lần" ép bằng ràng buộc duy nhất 1↔≤1.
+> 7. **`Showtime` là aggregate root** của `Scheduling` (chứa `Ticket price` theo `Seat type`);
+>    `Room` và `Movie` là aggregate riêng. `Room seat` nằm trong `Room` dù phòng có hàng trăm
+>    ghế — vì ghế vật lý **tĩnh**, và contention chỉ sinh ra khi có **ghi**.
+> 8. **`User` là aggregate root**; đây là context duy nhất mà aggregate của nó **không** tham
+>    chiếu aggregate nào khác — hệ quả của việc chọn `Customer/Supplier` thay vì
+>    `Shared Kernel` ở T06.
+>
+> **Bài học ghi nhận:** aggregate boundary **không phải lúc nào cũng đủ** để bảo vệ invariant.
+> Ba dạng "không bảo vệ được" — *tích luỹ xuyên nhiều aggregate* (`BR-08`), *quan hệ giữa hai
+> aggregate* (`BR-20`), *cần điều phối nhiều bước qua nhiều context* (`BR-17`) — đều có cùng một
+> nguyên nhân gốc: **ranh giới aggregate không trùng ranh giới transaction**. Ngược lại, một
+> invariant trông như "toàn cục" (`BR-10`) có thể hoá thành "cục bộ" nếu đặt ranh giới đúng chỗ.
+
+## Tài liệu tạo ra
+
+`docs/domain/aggregates/` — 1 file index + 6 file theo context:
+
+| File | Nội dung |
+|---|---|
+| `README.md` | Bảng tổng hợp aggregate → invariant → cơ chế, bảng 3 invariant không bảo vệ được, sơ đồ mermaid, phân biệt entity/value object, kiểm tra "không aggregate nào chứa thứ của aggregate khác" |
+| `01-scheduling.md` | `Showtime`, `Room`, `Movie` |
+| `02-inventory.md` | `Seat hold` — kèm lý do chi tiết vì sao không phải `Showtime` |
+| `03-booking.md` | `Booking` — kèm phân tích `BR-08` |
+| `04-payment.md` | `Payment intent` |
+| `05-ticketing.md` | `Ticket` |
+| `06-identity-access.md` | `User` |
+
+> **Ghi chú (2026-11-19):** nghiệp vụ đổi sang đặt vé xem phim. Điểm cần chú ý khi vẽ context
+> map: **"ghế của phòng"** và **"ghế của suất chiếu"** là hai thuật ngữ khác nhau và thuộc
+> hai vùng ngôn ngữ có thể khác nhau — đó là ứng viên mạnh nhất cho một `Anti-Corruption Layer`.

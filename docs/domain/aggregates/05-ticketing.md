@@ -1,0 +1,145 @@
+# Ticketing — Aggregate và invariant
+
+Bounded context `Ticketing` (xem [`../context-map.md`](../context-map.md)).
+
+Thuật ngữ: [`../ubiquitous-language.md`](../ubiquitous-language.md).
+
+## Trách nhiệm
+
+Quản lý vé (mã QR) và việc check-in tại cổng.
+
+`Ticketing` **không** biết giá, không biết đơn đặt vé, không biết trạng thái ghế. Nó chỉ biết
+"vé này của ghế này, thuộc suất chiếu này" và "vé này đã được quét hay chưa".
+
+---
+
+## Aggregate: `Ticket`
+
+**Bản chất**: entity. Một vé — có định danh (mã QR), có vòng đời, thuộc **đúng một** ghế của
+**đúng một** suất chiếu.
+
+**Chứa**:
+
+| Thành phần | Bản chất | Vai trò |
+|---|---|---|
+| Mã vé (QR) | value object / định danh | Chuỗi ký HMAC, xác minh offline |
+| Tham chiếu ghế (`Showtime seat id`) | tham chiếu | Vé gắn với **một** ghế |
+| Tham chiếu suất chiếu | tham chiếu | Vé thuộc **một** suất chiếu |
+| Tham chiếu đơn (`Booking id`) | tham chiếu | Vé đến từ đơn nào |
+| Bản ghi check-in | entity | Vé đã quét lúc nào, ở cổng nào |
+
+**Boundary**: nằm **ngoài** aggregate này —
+
+- `Booking` (thuộc `Booking`) — đơn đặt vé, trạng thái đơn, lịch sử;
+- `Showtime` (thuộc `Scheduling`) — suất chiếu, phân công cổng;
+- `Payment` (thuộc `Payment`) — trạng thái tiền;
+- `Identity & Access` — người quét (quyền, không phải dữ liệu vé).
+
+### Invariants
+
+- **INV-01** — Mỗi vé gắn với **đúng một** ghế của **đúng một** suất chiếu, và mỗi ghế sinh
+  ra **đúng một** vé.
+  - *Cơ chế bảo vệ*: ràng buộc **duy nhất** trên `(showtime_seat_id)` ở bảng vé — một ghế không
+    thể có hai vé. Và mỗi vé mang **một** tham chiếu suất chiếu, nên vé không thể thuộc hai suất.
+  - *Ai có thể vi phạm*: code cấp vé lại cho cùng một ghế (ví dụ webhook thanh toán đến lặp và
+    cấp vé lần hai). Ràng buộc duy nhất chặn ở tầng lưu trữ, bất kể logic ứng dụng có kiểm tra
+    hay không.
+  - *Traces to*: `BR-09`, `FR-05`, `FR-08`, `FR-16`.
+
+- **INV-02** — Vé **chỉ tồn tại sau khi** đơn đã thanh toán thành công. Trước đó, đơn không có
+  vé nào.
+  - *Cơ chế bảo vệ*: cấp vé là **hành vi của `Booking`** (xem [`03-booking.md`](03-booking.md),
+    `INV-04`), thực hiện trong **cùng transaction** với việc đánh dấu đơn đã thanh toán. Không có
+    đường nào tạo vé cho một đơn chưa thanh toán — vì lệnh cấp vé luôn đi kèm lệnh đánh dấu.
+  - *Ai có thể vi phạm*: một endpoint cấp vé riêng, không nằm trong luồng thanh toán. Đây là
+    lý do quyền tạo vé phải thuộc `Ticketing` **và** chỉ được gọi từ đúng một chỗ.
+  - *Traces to*: `BR-09`, `BR-17`, `FR-05`, `FR-38`.
+
+- **INV-03** — Một vé chỉ ghi nhận check-in **một lần duy nhất**, trong suất chiếu của nó, ở một
+  cổng.
+  - *Cơ chế bảo vệ*: **ràng buộc duy nhất** trên cột `ticket_id` ở bảng ghi nhận check-in. Hai
+    nhân viên cổng quét cùng một vé cùng lúc: một lượt thành công, lượt còn lại vi phạm ràng
+    buộc → bị từ chối. Cơ chế này chặn được cả trường hợp **hai tiến trình quét đồng thời**, mà
+    một kiểm tra "đã check-in chưa" trong bộ nhớ ứng dụng thì không.
+  - *Ai có thể vi phạm*: không ai, miễn là mọi lượt quét đều ghi vào bảng ghi nhận check-in
+    với ràng buộc duy nhất. Lỗi có thể nằm ở chỗ **bỏ qua** việc ghi bản ghi này khi lượt quét
+    thất bại — nhưng lượt quét thất bại thì không được ghi (xem `INV-05`).
+  - *Traces to*: `BR-10`, `FR-07`, `FR-25`.
+
+- **INV-04** — Mỗi lượt check-in thành công được **đếm** vào suất chiếu, và tổng số lượt ghi
+  nhận của một suất chiếu **không vượt quá** số vé đã bán của suất chiếu đó.
+  - *Cơ chế bảo vệ*: đây là **hệ quả trực tiếp** của `INV-03` — mỗi vé một lượt, và mỗi vé
+    chỉ sinh ra khi đơn đã thanh toán. Số vé đã bán = số vé tồn tại; số lượt check-in = số dòng
+    ghi nhận. Vì mỗi vé có nhiều nhất một dòng ghi nhận, số lượt ≤ số vé.
+  - *Ai có thể vi phạm*: không ai, nếu `INV-03` giữ. Ghi lại để thấy rõ đây là invariant **dẫn
+    xuất**, không phải invariant độc lập — và để trả lời câu hỏi "số check-in có vượt số vé
+    không" bằng phép đếm chứ không bằng niềm tin.
+  - *Traces to*: `BR-25`, `FR-27`.
+
+- **INV-05** — Một lượt quét lại vé đã check-in phải bị **từ chối**, kèm **thời điểm** và
+  **cổng** đã check-in lần đầu. Không ghi thêm một dòng ghi nhận nào.
+  - *Cơ chế bảo vệ*: khi ràng buộc duy nhất (`INV-03`) bị vi phạm, hệ thống **đọc** dòng ghi
+    nhận đã có để trả lời. Dòng ghi nhận chỉ có **một** và không bao giờ bị sửa.
+  - *Ai có thể vi phạm*: code ghi đè dòng ghi nhận cũ thay vì từ chối — đây là lỗi làm mất
+    dấu vết, và làm hỏng chính thứ mà `BR-25` cần để đếm.
+  - *Traces to*: `BR-10`, `FR-07`.
+
+- **INV-06** — Vé mang **suất chiếu** và **ghế** của nó, kèm mã dùng được tại cổng. Danh sách vé
+  chỉ chứa vé **đã thanh toán**.
+  - *Cơ chế bảo vệ*: `Ticket` mang các tham chiếu này như **dữ liệu bắt buộc** — không có
+    vé mà thiếu suất chiếu hoặc thiếu ghế. Phần "chỉ chứa vé đã thanh toán" được bảo đảm bởi
+    `INV-02`.
+  - *Ai có thể vi phạm*: code tạo vé với tham chiếu null — bị chặn bởi ràng buộc NOT NULL ở
+    tầng lưu trữ.
+  - *Traces to*: `BR-30`, `FR-17`.
+
+- **INV-07** — Mỗi vé thuộc về **một người xem** (chủ sở hữu của đơn), và người xem đó chỉ
+  thấy vé của chính mình.
+  - *Cơ chế bảo vệ*: vé tham chiếu `Booking id`, đơn tham chiếu chủ sở hữu; quyền truy cập
+    được kiểm tra ở biên aggregate. Với quyền theo vai trò (quản lý rạp xem vé của rạp mình)
+    thì điều kiện là **sở hữu lịch chiếu**.
+  - *Ai có thể vi phạm*: endpoint tải vé bằng mã vé mà không kiểm tra chủ sở hữu — mã QR
+    chính là thứ mang tính bí mật, nên lộ mã là lộ vé.
+  - *Traces to*: `BR-14`, `FR-10`, `FR-17`.
+
+### Transaction boundary
+
+Một transaction duy nhất cho **mỗi lượt quét vé**:
+
+1. Kiểm tra vé tồn tại, thuộc suất chiếu đang diễn ra, và quyền của người quét hợp lệ;
+2. Ghi **một** dòng ghi nhận check-in (chứa thời điểm, cổng, người quét).
+
+Nếu dòng ghi nhận đó đã tồn tại → lượt quét bị **từ chối**, transaction rollback, và hệ thống
+trả lại thời điểm + cổng của lượt quét đầu tiên.
+
+Ranh giới transaction = **ranh giới aggregate**. Một lượt quét = một transaction.
+
+> **Bất biến bị cắt ngang ranh giới.** "Đơn đã thanh toán" (`Booking`) và "đã cấp vé"
+> (`Ticketing`) phải xảy ra cùng lúc — đó là ranh giới **R6**. Trong modular monolith, hai bên
+> **dùng chung một transaction**. Nếu tách thành service, phải có outbox + consumer idempotent,
+> và nếu làm sai thì **cấp vé hai lần** — vi phạm `BR-17`.
+
+---
+
+## Không có invariant nào ở đây không bảo vệ được bằng một transaction đơn lẻ
+
+Cả bốn invariant của `Ticketing` đều thuộc phạm vi một aggregate `Ticket` (một vé) hoặc là
+hệ quả trực tiếp của nó. Điểm đáng chú ý: `BR-10` — "mỗi vé chỉ check-in một lần" — nghe thì
+cần một transaction **xuyên nhiều** vé, nhưng thực ra **không**: nó là invariant về **một
+vé**, và hai lượt quét đồng thời là hai transaction cùng tranh **một dòng**. Ràng buộc duy nhất
+là đủ.
+
+Đây là điểm đáng học: **một invariant trông như "toàn cục" có thể hoá thành "cục bộ"** nếu ta
+đặt ranh giới aggregate đúng chỗ. Ngược lại, `BR-08` (10 ghế mỗi người mỗi suất) trông như
+cục bộ nhưng hoá thành toàn cục — vì nó đếm theo **người** qua **nhiều đơn**.
+
+---
+
+## Nguồn sự thật
+
+| Dữ liệu | Nguồn sự thật | Ai được đọc |
+|---|---|---|
+| Vé và trạng thái check-in | `Ticketing` | `Booking` (qua đơn), quản lý rạp (`FR-27`) |
+| Phân công cổng cho suất chiếu | `Scheduling` | `Ticketing` |
+| Đơn và chủ sở hữu đơn | `Booking` | `Ticketing` |
+| Quyền của người quét | `Identity & Access` | `Ticketing` |

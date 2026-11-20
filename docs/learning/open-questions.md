@@ -19,12 +19,19 @@ research là một file Markdown có trích dẫn trong repo, đưa vào lại f
 | Q09 | Refresh token: lưu hash bằng thuật toán nào, và rotate secret theo chu kỳ thế nào? | T16 | Chốt ở T16 | chưa biết |
 | Q10 | Khi nào chuyển tài liệu sang tiếng Anh để đưa lên CV? | T26 | Chốt ở T26 | chưa biết |
 | Q11 | Có dùng skill `teach` (sinh lesson HTML) cho phần lý thuyết concurrency không, hay chỉ giải thích trong chat? | T12 | Chốt ở Gate C | chưa biết |
-| Q12 | Một suất chiếu có hàng trăm ghế — aggregate có phải chia nhỏ không? Nếu chia, invariant "một ghế thuộc đúng một chủ" bảo vệ thế nào? | T07, ADR-0003 | Chốt ở Gate B | chưa biết |
+| Q12 | ~~Một suất chiếu có hàng trăm ghế — aggregate có phải chia nhỏ không? Nếu chia, invariant "một ghế thuộc đúng một chủ" bảo vệ thế nào?~~ | T07, ADR-0003 | — | **ĐÃ ĐÓNG 2026-11-21 — KHÔNG chia theo suất chiếu. `Seat hold` là aggregate root (≤6 ghế); `BR-01` ép bằng điều kiện lệnh. Xem `docs/domain/aggregates/`** |
 | Q13 | Giá vé theo loại ghế có đổi giữa các suất của cùng một phim không (vd cuối tuần đắt hơn)? | T07, T11 | Chốt ở Gate B | chưa biết |
 | Q14 | ~~Ghế `Blocked` (vệ sinh, dành riêng) có được bán lại online không, và ai quyết định?~~ | T07, T08 | — | **ĐÃ ĐÓNG 2026-11-20 — `BR-11`: không bán lại online, quyền của quản lý rạp** |
-| Q15 | Giới hạn "10 ghế mỗi người mỗi suất" (`FR-09`) có nằm trong cùng aggregate với tồn kho ghế không? Nó đếm theo **người**, tồn kho ghế đếm theo **ghế** — nếu tách, thao tác giữ ghế phải đọc tồn kho của người khác, tức là đọc ngoài ranh giới. | T07, T09 | Chốt ở Gate B | chưa biết |
-| Q16 | Check-in thuộc bounded context nào — cùng context với `Vé`, hay context riêng? Ảnh hưởng tới việc một vé bị quét hai lần có cần xử lý xuyên context không. | T06 | Chốt ở Gate B | chưa biết |
-| Q17 | Ranh giới aggregate quanh **thanh toán** và **hoàn tiền** (`FR-39`): đơn có phải aggregate gốc, và giao dịch thanh toán bên ngoài có thuộc aggregate không? | T07, T08 | Chốt ở Gate B | chưa biết |
+| Q15 | ~~Giới hạn "10 ghế mỗi người mỗi suất" (`FR-09`) có nằm trong cùng aggregate với tồn kho ghế không?~~ | T07 | — | **ĐÃ ĐÓNG 2026-11-21 — KHÔNG. Nó đếm theo *người* qua *nhiều đơn* ⇒ tích luỹ xuyên nhiều aggregate, về nguyên tắc không thể nằm trong một aggregate. Chấp nhận cửa sổ race (hậu quả là người dùng tự gian lận, không phải bán quá số ghế). Xem `docs/domain/aggregates/03-booking.md` `INV-10`** |
+| Q16 | ~~Check-in thuộc bounded context nào~~ | T06 | — | **ĐÃ ĐÓNG 2026-11-20 — `Ticketing` giữ cả vé và check-in** |
+| Q17 | ~~Ranh giới aggregate quanh **thanh toán** và **hoàn tiền** (`FR-39`): đơn có phải aggregate gốc, và giao dịch thanh toán bên ngoài có thuộc aggregate không?~~ | T07, T08 | — | **ĐÃ ĐÓNG 2026-11-21 — `Payment intent` là aggregate root riêng ở context `Payment`, chứa lịch sử `Payment event` và ≤1 `Refund`. Đơn KHÔNG phải aggregate gốc. Xem `docs/domain/aggregates/04-payment.md`** |
+| Q18 | ~~Ranh giới `Booking` vs `Inventory` khi tách service: đặt `Seat hold` ở đâu — ở `Inventory` hay ở `Booking`?~~ | T07 | — | **ĐÃ ĐÓNG 2026-11-21 — `Seat hold` ở `Inventory`. Lý do: bất biến "ghế `Held` luôn có thời điểm hết hạn" không được cắt ngang ranh giới. Xem `docs/domain/aggregates/02-inventory.md`** |
+| Q19 | ~~`Booking` có cần giữ bản ghi lịch sử trạng thái (cho `FR-31` truy vết) hay `Ticketing`/`Payment` giữ riêng?~~ | T07, T08 | — | **ĐÃ ĐÓNG 2026-11-21 — `Booking` giữ lịch sử trạng thái của chính nó (append-only, `INV-07`). `Ticketing` và `Payment` giữ lịch sử riêng của mình. Xem `docs/domain/aggregates/03-booking.md`** |
+| Q20 | Ba "ranh giới bị cắt" có được giữ nguyên trong một transaction khi tách thành microservice không, hay phải chuyển sang saga? | T10 | Chốt ở Gate C | chưa biết |
+| Q21 | `BR-08` (10 ghế/người/mỗi suất) có nên nâng từ quy tắc tầng ứng dụng lên ràng buộc ở tầng lưu trữ (bảng tổng hợp số ghế theo cặp người+suất)? | T11, T12, T22 | Chốt ở Gate C | chưa biết |
+| Q22 | Giá trị **khoảng đệm** giữa hai suất chiếu cùng một phòng — cần đủ dài để dọn dẹp, nhưng không quá dài. Ảnh hưởng trực tiếp tới việc `BR-20` báo lỗi đúng hay không. | T13 | Chốt ở Gate C | chưa biết |
+| Q23 | `BR-08` có cần được kiểm chứng bằng **test concurrency thật** để thấy rõ cửa sổ race, hay chỉ test logic ở tầng ứng dụng? | T22 | Chốt ở Gate C | chưa biết |
+| Q24 | `Gate assignment` (phân công cổng) hiện **không** thuộc aggregate nào. Nếu sau này cần bảo vệ "một cổng không phục vụ hai suất chồng nhau" bằng transaction đơn lẻ thì phải xem lại ranh giới aggregate nào. | T07, T11 | Chốt ở Gate C | chưa biết |
 
 ## Quy tắc
 

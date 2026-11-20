@@ -207,6 +207,11 @@ sinh** — thông báo kết quả thanh toán đến sau không đưa được 
 
 ## Ranh giới aggregate: phần giảng trong buổi nay
 
+> **Đã chuyển (2026-11-21).** Phần giảng này được ghi lại ở
+> [`aggregates/README.md`](aggregates/README.md) kèm quyết định chính thức. Mục dưới đây giữ
+> lại như **ghi chú buổi học** — nó giải thích *tại sao* câu hỏi ranh giới được đặt ra, không
+> phải kết quả chốt.
+
 Ranh giới aggregate **là** transaction boundary **là** phạm vi của một lệnh SQL atomic. Chốt
 được ranh giới ở T07 thì Lớp 3 gần như chỉ còn là hệ quả kỹ thu.
 
@@ -248,13 +253,16 @@ toán" — không thể.
 Ranh giới aggregate nằm ở giữa hai điểm đó. Phần trước (giữ ghế + trạng thái ghế + đơn) là
 một khối. Phần sau (thanh toán) là khối khác.
 
-### Câu hỏi còn mở cho T07
+### Câu hỏi đã trả lời ở T07
 
 > **Một suất chiếu có hàng trăm ghế — có nên là một aggregate không?**
 
 Nếu tất cả ghế của suất chiếu nằm trong cùng aggregate với đơn, đó là hàng trăm dòng bị khoá
 trong một transaction. Đây là câu hỏi lớn nhất của Gate B. Xem
 `docs/adr/0003-seat-based-inventory.md`.
+
+**Đã trả lời (2026-11-21): KHÔNG.** `Seat hold` là aggregate root, chứa ≤ 6 `Showtime seat`.
+Lý do đầy đủ: [`aggregates/README.md`](aggregates/README.md).
 
 ## Thuật ngữ mà không dùng
 
