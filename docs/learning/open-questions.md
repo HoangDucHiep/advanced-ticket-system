@@ -32,6 +32,11 @@ research là một file Markdown có trích dẫn trong repo, đưa vào lại f
 | Q22 | Giá trị **khoảng đệm** giữa hai suất chiếu cùng một phòng — cần đủ dài để dọn dẹp, nhưng không quá dài. Ảnh hưởng trực tiếp tới việc `BR-20` báo lỗi đúng hay không. | T13 | Chốt ở Gate C | chưa biết |
 | Q23 | `BR-08` có cần được kiểm chứng bằng **test concurrency thật** để thấy rõ cửa sổ race, hay chỉ test logic ở tầng ứng dụng? | T22 | Chốt ở Gate C | chưa biết |
 | Q24 | `Gate assignment` (phân công cổng) hiện **không** thuộc aggregate nào. Nếu sau này cần bảo vệ "một cổng không phục vụ hai suất chồng nhau" bằng transaction đơn lẻ thì phải xem lại ranh giới aggregate nào. | T07, T11 | Chốt ở Gate C | chưa biết |
+| Q25 | Ghế `Held` có cần **trạng thái riêng** cho "đang giữ nhưng đã quá hạn chưa được giải phóng" không? Hiện tại `Held` được giải phóng bằng tác vụ nền quét lô, nên tồn tại một khoảng thời gian ghế `Held` đã quá hạn nhưng chưa được giải phóng — trong khoảng đó người khác không đặt được ghế đó. | T08, T12, T21 | Chốt ở Gate C | chưa biết |
+| Q26 | Một `Booking` có cần trạng thái **"đã cấp vé"** riêng, hay cờ + số lượng vé chỉ là thuộc tính bên trong trạng thái `Paid`? | T08, T11 | Chốt ở Gate C | chưa biết |
+| Q27 | Khi quản lý rạp hủy suất chiếu, đơn `Paid` của suất đó có cần **trạng thái riêng** (ví dụ `Refunded`) để phản ánh "đã hoàn tiền", hay thuộc tính hoàn tiền phía `Payment` là đủ? | T08, T09, T11 | Chốt ở Gate C | ~~đã trả lời 2026-11-24: KHÔNG — `Booking` giữ `Paid`, dấu vết hoàn tiền ở `Payment intent.Refunded`; xem `docs/domain/cross-context-contracts.md`~~ |
+| Q28 | Trạng thái "chờ kết quả" của `Payment intent` dùng **cùng tên** `AwaitingPayment` với `Booking` — hai thứ khác nhau nhưng cùng tên. Có nên đổi tên để tránh nhầm khi đọc log? | T08, T09, T11 | Chốt ở Gate C | chưa biết |
+| Q29 | Hủy suất chiếu chạy **N đơn** (mọi đơn `Paid` của suất). Trong modular monolith, có nên gộp tất cả vào **một** transaction, hay chia thành N transaction riêng để tránh transaction quá dài? Cân bằng giữa tính nhất quán và thời gian khoá. | T08, T10, T12 | Chốt ở Gate C | chưa biết |
 
 ## Quy tắc
 

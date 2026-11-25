@@ -619,7 +619,209 @@ Xem thêm: [`open-questions.md`](open-questions.md).
   (data model) và T12 (concurrency design) chốt xong.
 - Ranh giới aggregate quanh state machine của ghế và đơn → T08.
 
-Xem thêm: [`open-questions.md`](open-questions.md).
+---
+
+## 2026-11-24 — T08: State machines workshop (Gate B)
+
+**Bối cảnh**: T08 (mode `co-design`) — vẽ vòng đời của các thứ có trạng thái. Artifact:
+`docs/domain/state-machines.md` — **5 máy trạng thái**, 22 `FR-nn` có bảng truy vết.
+
+**Đã học**:
+
+- **State machine là nơi định nghĩa idempotency — và bảng "Transitions bị từ chối" mới là nơi
+  định nghĩa nó.** Bảng "Transitions" chỉ nói *đường đi hợp lệ*; bảng "bị từ chối" mới nói
+  *đường đi không hợp lệ thì kết quả mong đợi là gì*. Một transition bị từ chối **không phải
+  là lỗi** — nó là một kết quả hợp lệ có thông điệp riêng (`FR-36`). Đây là lý do ticket yêu
+  cầu bảng này và cũng là lý do nó là phần dễ bị bỏ sót nhất.
+- **"Idempotent" có hai nghĩa khác nhau, và phải ghi rõ đang nói nghĩa nào.** Ở `Showtime
+  seat`, `Held → Sold` chạy lại là **no-op** (cùng kết quả). Ở `Ticket`, check-in chạy lại
+  là **bị từ chối** (kết quả *khác* — trả về thời điểm + cổng lần đầu). Cả hai đều đúng, và
+  cả hai đều chống được việc ghi hai lần. Nếu ghi chung chung "idempotent" thì tài liệu sẽ
+  nói sai một trong hai.
+- **Bài toán race "hết hạn đúng lúc webhook đến" chốt được TRÊN GIẤY** — không cần
+  `/prototype`, dù ticket gợi ý dùng. Lý do: nó **không** phải bài toán "hệ thống biết gì",
+  mà là bài toán "ai đến trước". Cả hai luồng ghi vào **cùng một trạng thái nguồn** của cùng
+  một aggregate bằng **điều kiện lệnh** ⇒ chỉ một lệnh thắng, và nhánh "thua" đã được định
+  nghĩa sẵn. Kết quả **không** phụ thuộc thứ tự **đọc**.
+  > Bài học: trước khi dựng prototype, hãy hỏi "câu hỏi này có phụ thuộc thứ tự **đọc**
+  > không". Nếu không thì nó thường chốt được trên giấy. Prototype là đắn nhất — dùng nó
+  > khi câu hỏi *thực sự* không trả lời được trên giấy, không phải khi ticket gợi ý.
+- **Một trạng thái thừa tốn kém một transition.** Vé bị vô hiệu do hủy suất chiếu (`FR-24`)
+  *đáng lẽ* là trạng thái thứ ba của `Ticket` — nhưng nếu thêm vào, ta phải nghĩ xem nó đi
+  được đâu, ai chuyển nó, và ai đọc nó. Nó không đi đâu: nó là **điều kiện tiên quyết** của
+  transition check-in. Vậy nên nó là **tác dụng phụ** của transition hủy suất chiếu, không phải
+  một trạng thái. Máy `Ticket` chỉ có `Issued` → `CheckedIn`.
+- **Tên trạng thái là quyết định *kiến trúc*, không phải quyết định *ngôn ngữ*.** `Pending` bị
+  glossary cấm (dễ nhầm với `Held`), nên trạng thái "chờ thanh toán" phải đặt tên khác ⇒
+  `AwaitingPayment`. Và `Payment intent` **không** dùng `Paid` (đã là trạng thái của `Booking`)
+  mà dùng `Captured` — vì hai context khác nhau dùng cùng một tên trạng thái sẽ khiến log dễ
+  đọc sai. Tên này sẽ thành tên cột trong schema, nên phải chốt **trước** Lớp 3.
+- **Trạng thái "thất bại" là một trạng thái bị lãng phí nếu nghiệp vụ không cần nó.** Kết quả
+  thanh toán thất bại **không** cần trạng thái riêng: intent bị **bỏ**, đơn đi theo đường
+  `Expired`/`Cancelled` bình thường. Đây là hệ quả của `INV-04` — ta cố tình **không** mô
+  hình hoá trạng thái của Stripe.
+- **Ranh giới bị cắt thứ tư: hủy suất chiếu.** T06 đã liệt kê ba chỗ. T08 phát hiện chỗ thứ
+  tư — và nó **khác** ba chỗ kia ở một điểm cốt lõi: nó chạy **N đơn**, không phải một
+  aggregate. Khi tách service, ba chỗ kia là "một lệnh phải chia thành nhiều bước", còn chỗ
+  này là "**một lệnh sinh ra N lượt**", mỗi lượt phải idempotent. Đó là lý do nó cần được ghi
+  tường minh.
+
+**Làm được**:
+
+- `docs/domain/state-machines.md` — 5 máy trạng thái: `Showtime seat`, `Booking`,
+  `Payment intent`, `Ticket`, `Showtime`. Mỗi máy có **4 phần** (States / Transitions /
+  Transitions bị từ chối / Điều kiện tiên quyết) **+ bảng Idempotency riêng** ghi rõ
+  transition nào phải idempotent và idempotent **bằng cơ chế nào**.
+- Tên trạng thái chốt (dùng trong code): `Available`/`Held`/`Sold`/`Blocked`;
+  `AwaitingPayment`/`Paid`/`Expired`/`Cancelled`; `AwaitingPayment`/`Captured`/`Refunded`;
+  `Issued`/`CheckedIn`; `NotOnSale`/`OnSale`/`Cancelled`.
+- Bảng truy vết phủ **22 `FR-nn`**: 20 `FR` có transition riêng, **+ bảng "FR không có transition
+  riêng"** giải thích 2 `FR` là hệ quả (`FR-08`, `FR-19`) — vì "không có transition" cũng là
+  một câu trả lời cần viết ra, không phải một chỗ trống.
+- Mục riêng về race hết hạn vs webhook, kèm lý do **vì sao không cần prototype**.
+- Bảng **"Ranh giới bị cắt — bốn chỗ"** (3 chỗ của T06 + 1 chỗ mới).
+- Đồng bộ: ticket T08 tick đủ 7 tiêu chí + ghi chú hoàn thành, `docs/domain/README.md`,
+  `docs/README.md` (Gate B), `docs/plan/00-roadmap.md` (T08 xong + 6 dòng log quyết định +
+  đóng 1 câu hỏi), `docs/learning/open-questions.md` (thêm Q25–Q29).
+
+**Vấp ở đâu**:
+
+- **Lần đầu tiên trong project này, tôi phải *hỏi* tên trạng thái thay vì *đặt* tên.** Ở T07
+  tôi tự chọn tên entity (`Seat hold`, `Booking`) — vì tên entity thì suy ra từ nghiệp vụ, còn
+  tên **trạng thái** thì phải khớp với tên trạng thái của các thứ khác trong hệ thống. Đặt
+  `Pending` là tự tạo vấn đề mà glossary đã cảnh báo trước. Bài học: **tên trạng thái phải
+  được hỏi, không được đặt** — vì nó sẽ thành tên cột, và sửa tên cột sau khi có dữ liệu là
+  việc đắt.
+- **Suýt cho rằng cần prototype cho bài toán race.** Ticket gợi ý `/prototype` cho tình huống
+  "giữ ghế hết hạn đúng lúc webhook đến", và tôi đã chuẩn bị dựng mô hình. Nhưng khi viết
+  ra cơ chế (cả hai luồng dùng cùng một điều kiện lệnh trên cùng một cột trạng thái) thì
+  câu trả lời đã rõ. Nguyên nhân thật: tôi làm theo **gợi ý của ticket** thay vì theo **đặc
+  tính của câu hỏi**. Bài học: `/prototype` là công cụ để giải bài toán **không** chốt được
+  trên giấy — không phải để làm theo lịch trình.
+- **Ghi file bằng `Write` với nội dung dài tiếng Việt vẫn hỏng một ký tự** (`thứ` bị thay
+  bằng ký tự thay thế, dòng 3). Đã phát hiện bằng `Grep` tìm ký tự thay thế (U+FFFD) và sửa.
+  Bài học lặp lại lần thứ ba: **sau khi ghi file, phải quét lại bằng regex tìm ký tự thay
+  thế** — đọc bằng mắt thì dễ bỏ sót vì não tự điền chữ đúng.
+- **Cần 4 vòng hỏi (8 câu) thay vì 1 vòng.** Ban đầu tôi dự định hỏi gộp mọi thứ trong
+  một lần, nhưng đó là cách nhanh nhất để tạo ra một tài liệu dài mà ít sâu. Hỏi từng máy một,
+  mỗi câu có khuyến nghị và đánh đổi rõ ràng, thì mỗi câu trả lời đều có lý do — và tài liệu
+  viết ra được là **bằng chứng** của các quyết định đó, không phải một bản tóm tắt.
+
+**Còn mở**:
+
+- Ghế `Held` đã quá hạn nhưng chưa được giải phóng → Q25, T12/T21.
+- Đơn `Paid` khi hủy suất chiếu có cần trạng thái `Refunded` riêng không → Q27, T09/T11.
+- `AwaitingPayment` dùng chung cho hai context → Q28, T11.
+- Hủy suất chiếu: một transaction hay N transaction → Q29, T10/T12.
+- `BR-08` có nên nâng lên ràng buộc ở tầng lưu trữ không? → Q21, Gate C.
+- Giá trị khoảng đệm giữa hai suất chiếu cùng phòng → Q22, T13.
+- `BR-08` có cần test concurrency thật để thấy rõ cửa sổ race không? → Q23, T22.
+- `Gate assignment` hiện không thuộc aggregate nào → Q24.
+- Ba "ranh giới bị cắt" (nay là **bốn**) có cần chuyển sang saga khi tách service không? →
+  Q20, T10.
+- ADR-0003: đề xuất chuyển `provisional → accepted` — **chờ người học duyệt**.
 - ADR-0004 (ranh giới aggregate của tồn kho ghế): **đã tạo**, `status: provisional` — chờ người học
-  duyệt nội dung rồi mới chuyển `accepted` ở Gate C. Ranh giới `Seat hold` được xem lại khi T11
-  (data model) và T12 (concurrency design) chốt xong.
+  duyệt nội dung rồi mới chuyển `accepted` ở Gate C.
+
+> **Đề xuất ADR (chưa tạo — chờ người học duyệt):** quyết định "hủy suất chiếu là ranh giới
+> bị cắt thứ tư, và nó chạy N đơn chứ không phải một aggregate" đủ điều kiện để làm ADR —
+> khó đảo ngược, ngạc nhiên nếu không có context, và là kết quả của một đánh đổi thật.
+
+Xem thêm: [`open-questions.md`](open-questions.md).
+
+---
+
+## 2026-11-24 — T09: Cross-context contracts workshop (Gate B)
+
+**Bối cảnh**: T09 (mode `co-design`) — định nghĩa hợp đồng giữa các bounded context. Artifact:
+`docs/domain/cross-context-contracts.md` — 8 hợp đồng (R1–R8), 7 cặp thuật ngữ khác nghĩa, 4 ranh giới bị cắt.
+
+**Đã học**:
+
+- **Hợp đồng context là nơi dữ liệu bị dịch, thuật ngữ bị hiểu khác, và ranh giới rõ ràng được
+  ghi lại.** Nếu không ghi, khi triển khai code sẽ đọc thẳng bảng của context khác vì "nhanh
+  hơn", và bạn quay lại với ranh giới module chỉ còn trên giấy.
+- **Mô hình đọc chéo context: qua interface/contract, không đọc trực tiếp bảng.** Cách này giữ
+  ranh giới module rõ ràng ngay từ design stage, và tránh tình trạng "nhanh hơn" thành lý do
+  xoá sạch ranh giới ở tầng code.
+- **Anti-Corruption Layer xuất hiện khi mô hình của hai bên gặp nhau.** Ở R1, `Scheduling`
+  nói "phòng có 100 ghế", `Inventory` nói "mỗi ghế phải có trạng thái riêng" ⇒ ACL ở phía
+  `Inventory` dịch `Room seat` → `Showtime seat`. Ở R5, Stripe nói `payment_intent`,
+  `requires_payment_method` — ta nói `Captured`, "chờ thanh toán" ⇒ ACL ở phía `Payment` dịch
+  Stripe lại.
+- **Bảng thuật ngữ "Có phải cùng nghĩa?" chính là chỗ phát hiện ACL.** Nếu cùng nghĩa thì
+  không cần dịch; nếu khác thì phải ghi rõ nơi dịch. Đây là cách biến "loại từ dựa trên trực
+  giác" thành "loại từ dựa trên định nghĩa".
+- **R1 và R2 tách riêng (không gộp bidirectional) giúp nhìn rõ ứng viên tách service.** R2
+  (`Inventory → Scheduling` đọc-duy-nhất 4 con số) rõ ràng là ứng viên hàng đầu — và cách gom
+  hợp đồng ảnh hưởng tới cách nhìn service boundary sau này. Nếu gộp lại, R2 sẽ bị "nhấn chìm"
+  trong một hợp đồng hai chiều, và sự thật "nó là một service candidate" sẽ không rõ ràng.
+- **Q27 decision (Booking KHÔNG có trạng thái `Refunded`)** ảnh hưởng trực tiếp cách mô hình
+  "hoàn tiền" ở hợp đồng R4. Dấu vết hoàn tiền nằm ở `Payment intent.Refunded`, không phải
+  ở `Booking`. Lý do: `Booking` đã kết thúc chu kỳ chính (giữ → thanh toán → cấp vé); hoàn
+  tiền do hủy suất là sự kiện ngoại lai, không phải một bước trong chu kỳ.
+- **8 cặp thuật ngữ khác nghĩa là những chỗ DDD gặp nhau.** Mỗi cặp cần một lớp dịch, và mỗi
+  lớp dịch cần được ghi tường minh nơi chúng được tạo. Nếu không ghi, hai team code (hoặc một
+  team vài tháng sau) sẽ "khám phá lại" lớp dịch ấy, hoặc quên nó đi.
+
+**Làm được**:
+
+- `docs/domain/cross-context-contracts.md` — 8 hợp đồng (R1–R8):
+  - **R1** `Scheduling → Inventory` — ghi chung transaction; bảng 4 thuật ngữ; `Room seat` vs
+    `Showtime seat` khác nghĩa.
+  - **R2** `Inventory → Scheduling` — đọc-duy-nhất; bảng 1 thuật ngữ (4 con số); ứng viên tách
+    service **hàng đầu**.
+  - **R3** `Inventory ↔ Booking` — ghi chung transaction; bảng 3 thuật ngữ; `Seat hold` vs
+    `Booking` khác nghĩa; **ranh giới bị cắt #1 & #3**.
+  - **R4** `Booking ↔ Payment` — ghi chung transaction khi thanh toán; bảng 4 thuật ngữ;
+    `AwaitingPayment` (Booking) vs `AwaitingPayment` (Payment intent) cùng tên khác aggregate
+    (Q28); Q27 decision ghi rõ.
+  - **R5** `Payment → Stripe` — API + webhook; bảng 7 thuật ngữ; `Payment intent` vs
+    `payment_intent` khác nghĩa; bảng so sánh Stripe vs ta; **ranh giới bị cắt #2 kèm R6**.
+  - **R6** `Booking → Ticketing` — ghi chung transaction khi cấp vé; bảng 3 thuật ngữ;
+    **ranh giới bị cắt #2 kèm R4 + R5**.
+  - **R7** `Scheduling → Ticketing` — đọc-duy-nhất (suất chiếu + cổng); bảng 2 thuật ngữ; ứng
+    viên tách service.
+  - **R8** `Identity & Access → tất cả` — đọc-duy-nhất (kiểm tra quyền); bảng 4 vai trò; ứng
+    viên tách service.
+
+- Mục "Ranh giới bị cắt — bốn chỗ" — tường minh hóa 4 chỗ; mục "Các cặp thuật ngữ khác nghĩa"
+  — 8 cặp; mục "Ứng viên tách service" — ma trận (8 hợp đồng × 5 tiêu chí) + ghi chú ứng viên
+  hàng đầu (R2, R7, R8); mục "Câu hỏi còn mở" — Q27 đã giải, Q26/Q28/Q20 defer.
+
+- Ticket T09 tick đủ 6 tiêu chí, ghi chú hoàn thành. Đồng bộ: `docs/domain/README.md`,
+  `docs/README.md` (Gate B), `docs/plan/00-roadmap.md` (T09 xong + 5 dòng log quyết định),
+  `docs/learning/open-questions.md` (Q27 resolve kèm lý do).
+
+**Vấp ở đâu**:
+
+- **Hỏi nhiều quyết định cùng lúc (3 câu hỏi) thay vì 1 vòng hỏi-trả-lời đơn lẻ.** Ban đầu
+  plan định hỏi về mô hình đọc chéo, cấu trúc gom hợp đồng, và Q27 cùng lúc. Tôi phát hiện ngay
+  là quá nhiều, nên chia thành 2 vòng. Bài học: **một vòng hỏi nên chứa một quyết định duy
+  nhất**, hoặc tối đa 2 quyết định có liên quan (như cấu trúc gom + Q27, vì cả hai đều ảnh hưởng
+  cách viết R4). Nhiều hơn thì tôi suýt chôn một quyết định trong "quá nhiều tùy chọn".
+- **Người học trả lời "tôi không rõ" cho câu hỏi về cách gom hợp đồng R1/R2.** Đúng như tinh
+  thần `co-design`: người học chưa biết đáp án thì **dạy trước rồi hỏi lại**, đừng chỉ đưa
+  lựa chọn để họ bấm bừa. Sau khi giảng (vì sao cách gom ảnh hưởng tới việc nhìn service
+  boundary), câu hỏi mới có giá trị.
+
+**Còn mở**:
+
+- Tên `AwaitingPayment` dùng chung cho hai context → Q28, T11.
+- Hủy suất chiếu: một transaction hay N transaction → Q29, T10/T12.
+- Ba "ranh giới bị cắt" (nay là **bốn**) có cần chuyển sang saga khi tách service không? →
+  Q20, T10.
+- `BR-08` có nên nâng lên ràng buộc ở tầng lưu trữ không? → Q21, Gate C.
+- Giá trị khoảng đệm giữa hai suất chiếu cùng phòng → Q22, T13.
+- `BR-08` có cần test concurrency thật để thấy rõ cửa sổ race không? → Q23, T22.
+- `Gate assignment` hiện không thuộc aggregate nào → Q24.
+- Ghế `Held` đã quá hạn nhưng chưa được giải phóng → Q25, T12/T21.
+- Cờ "đã cấp vé" trong `Booking` → Q26, T11.
+- ADR-0003: đề xuất chuyển `provisional → accepted` — **chờ người học duyệt**.
+
+> **Đề xuất ADR (chưa tạo — chờ người học duyệt):** quyết định "mọi đọc chéo context đều qua
+> interface của context sở hữu, không đọc trực tiếp bảng" đủ điều kiện để làm ADR — khó đảo
+> ngược, ngạc nhiên nếu không có context, và là kết quả của một đánh đổi thật (tiện lợi ở tầng
+> code vs. giữ ranh giới module).
+
+Xem thêm: [`open-questions.md`](open-questions.md).

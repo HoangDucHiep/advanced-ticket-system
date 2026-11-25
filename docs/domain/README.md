@@ -13,7 +13,7 @@ Những thứ đó là Lớp 3.
 | `ubiquitous-language.md` | Thuật ngữ đã chốt, từ nào nên tránh dùng | T05 |
 | `context-map.md` | Bounded context và quan hệ giữa chúng | T06 |
 | `aggregates/` | Aggregate, boundary, invariant, cơ chế bảo vệ (1 file index + 6 file theo context) | T07 |
-| `state-machines.md` | Vòng đời booking, payment, ticket, seat | T08 |
+| `state-machines.md` | Vòng đời booking, payment, ticket, seat, showtime (5 máy trạng thái) | T08 |
 | `cross-context-contracts.md` | Hợp đồng giữa các context | T09 |
 
 ## Vì sao lớp này tồn tại
@@ -27,7 +27,7 @@ hành vi cụ thể.
 ## Trạng thái
 
 **Gate B được mở** (2026-11-20) sau khi Gate A đóng. Đã xong: T05 (ubiquitous language),
-T06 (context map), T07 (aggregates và invariants — 8 aggregate, 47 invariant). Xem exit checklist
-tại [`../README.md`](../README.md).
+T06 (context map), T07 (aggregates và invariants — 8 aggregate, 47 invariant), T08 (state
+machines — 5 máy trạng thái), T09 (cross-context contracts — 8 hợp đồng, 7 cặp khác nghĩa). Xem exit checklist tại [`../README.md`](../README.md).
 
-Tiếp theo: T08 — state machines.
+Tiếp theo: T10 — kiến trúc module.

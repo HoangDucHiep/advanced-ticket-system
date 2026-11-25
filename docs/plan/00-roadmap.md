@@ -152,8 +152,8 @@ Chi tiết từng ticket nằm ở `.scratch/advanced-ticket-system/issues/`.
 | T05 | Ubiquitous language workshop (phim, suất chiếu, loại ghế, chỗ giữ ghế) | `explain` | T04 | — | **xong 2026-11-20** |
 | T06 | Context map | `co-design` | T05 | — | **xong 2026-11-20** |
 | T07 | Aggregates và invariants (một suất chiếu = một aggregate) | `co-design` | T06 | BR-01..BR-30 | **xong 2026-11-21** |
-| T08 | State machines (ghế: trống / giữ / đã bán / bị chặn; đơn: chờ / hết hạn / đã thanh toán) | `co-design` | T07 | BR-03, BR-04, BR-09, BR-10, BR-13 |
-| T09 | Cross-context contracts | `co-design` | T07 | — |
+| T08 | State machines (ghế: trống / giữ / đã bán / bị chặn; đơn: chờ / hết hạn / đã thanh toán) | `co-design` | T07 | BR-03, BR-04, BR-09, BR-10, BR-13 | **xong 2026-11-24** |
+| T09 | Cross-context contracts | `co-design` | T07 | — | **xong 2026-11-24** |
 
 ### Gate C — Design (T10–T14)
 
@@ -218,6 +218,16 @@ Ghi lại ở đây mỗi khi có quyết định nào ảnh hưởng tới toà
 | 2026-11-21 | **`BR-08` (10 ghế/người/suất) không bảo vệ được bằng aggregate — chấp nhận cửa sổ race** | Nó đếm theo *người* qua *nhiều đơn* ⇒ tích luỹ xuyên nhiều aggregate, về nguyên tắc không thể nằm trong một aggregate. Hậu quả của cửa sổ race là *người dùng tự gian lận*, không phải *bán quá số ghế có thật* — nên chấp nhận được, và rẻ hơn một điểm tranh chấp toàn cục ở tầng DB | `docs/domain/aggregates/03-booking.md` |
 | 2026-11-21 | **`BR-10` (1 vé = 1 check-in) ép bằng ràng buộc duy nhất, không cần transaction xuyên nhiều vé** | Nó là invariant về **một vé**: hai lượt quét đồng thời là hai transaction cùng tranh một dòng. Bài học: một invariant trông "toàn cục" có thể hoá thành "cục bộ" nếu đặt ranh giới aggregate đúng chỗ | `docs/domain/aggregates/05-ticketing.md` |
 | 2026-11-21 | **`BR-20` (không có suất chiếu chồng nhau) ép bằng exclusion constraint, nằm ngoài ranh giới aggregate** | Đây là quan hệ *giữa hai `Showtime` khác nhau* — aggregate không thể ghi ra ngoài ranh giới của mình. Ràng buộc loại trừ ở tầng lưu trữ mạnh hơn kiểm tra ứng dụng, vì chặn được cả hai lệnh tạo suất chạy đồng thời | `docs/domain/aggregates/01-scheduling.md` |
+| 2026-11-24 | **Trạng thái "chờ thanh toán" tên là `AwaitingPayment`, không phải `Pending`** | `Pending` đã bị glossary ghi là nên tránh (dễ nhầm với `Held` của ghế). Tên trạng thái là tên sẽ dùng trong code — nên phải chốt sớm, trước khi viết schema | `docs/domain/state-machines.md` |
+| 2026-11-24 | **`Payment intent` dùng `Captured` / `Refunded`, KHÔNG dùng `Paid`** | `Paid` đã là trạng thái của `Booking`. Trùng tên ở hai context khiến log dễ đọc sai — "booking `Paid`" và "payment `Paid`" là hai sự kiện khác nhau và không xảy ra cùng lúc | `docs/domain/state-machines.md` |
+| 2026-11-24 | **`Payment intent` KHÔNG có trạng thái "thất bại"** | Bám theo `INV-04`: ta chỉ có **một** trạng thái "chờ thanh toán" cho tới khi có kết quả. Kết quả thất bại làm intent bị **bỏ**, đơn đi theo đường `Expired`/`Cancelled` bình thường — không tạo ra trạng thái mới | `docs/domain/state-machines.md` |
+| 2026-11-24 | **Vé bị vô hiệu do hủy suất chiếu là TÁC DỤNG PHỤ, không phải trạng thái thứ ba của `Ticket`** | Máy `Ticket` chỉ có `Issued` → `CheckedIn`. "Vé này còn dùng được không" là **điều kiện tiên quyết** của transition check-in, không phải trạng thái. Thêm trạng thái thứ ba sẽ tạo ra một đường chuyển trạng thái mà không ai dùng tới | `docs/domain/state-machines.md` |
+| 2026-11-24 | **Race "hết hạn đúng lúc webhook đến": ai chuyển trạng thái trước thì thắng, chốt được trên giấy** | Cả hai luồng ghi vào **cùng một trạng thái nguồn** (`AwaitingPayment`) của cùng một aggregate bằng **điều kiện lệnh** ⇒ chỉ một lệnh thắng, nhánh thua định nghĩa sẵn. Không cần prototype vì kết quả **không** phụ thuộc thứ tự **đọc** | `docs/domain/state-machines.md` |
+| 2026-11-24 | **Ranh giới bị cắt thứ tư: hủy suất chiếu** | `OnSale → Cancelled` kéo theo vô hiệu vé (`Ticketing`) + hoàn tiền mọi đơn (`Payment`) — cắt qua ba context. Khác ba chỗ đã biết ở T06 ở chỗ nó chạy **nhiều đơn**, không phải một aggregate: một suất có thể có hàng trăm đơn đã trả tiền | `docs/domain/state-machines.md` |
+| 2026-11-24 | **Mô hình đọc chéo context: qua interface/contract, không đọc trực tiếp bảng** | Giữ ranh giới module rõ ràng ngay từ design stage; tất cả đọc dữ liệu xuyên context đều có "chủ sở hữu" và "khách hàng". Tránh tình trạng "nhanh hơn" thành lý do lợn lại ranh giới ở tầng code | `docs/domain/cross-context-contracts.md` |
+| 2026-11-24 | **Hợp đồng R1 và R2 tách riêng (không gộp bidirectional)** | Giúp nhìn rõ R2 (`Inventory → Scheduling` đọc-duy-nhất 4 con số) là ứng viên tách service hàng đầu. Cách gom hợp đồng ảnh hưởng tới cách nhìn service boundary sau này | `docs/domain/cross-context-contracts.md` |
+| 2026-11-24 | **Q27 decision: `Booking.Paid` KHÔNG chuyển sang `Refunded` khi hủy suất** | Dấu vết hoàn tiền ở `Payment intent.Refunded`. Lý do: `Booking` đã kết thúc chu kỳ chính (giữ → thanh toán → cấp vé); hoàn tiền do hủy suất là sự kiện ngoại lai. Giữ trạng thái đơn giản, không tạo ranh giới trạng thái mới | `docs/domain/cross-context-contracts.md`, Q27 |
+| 2026-11-24 | **7 cặp thuật ngữ khác nghĩa + Anti-Corruption Layer cho mỗi cặp** | `Room seat` vs `Showtime seat`, `Cancelled` (booking) vs `Cancelled` (showtime), giá gốc vs giá frozen, `Seat hold` vs `Booking`, `Payment intent` (ours) vs `payment_intent` (Stripe), `Sold` vs `Ticket`, cùng tên `AwaitingPayment` ở hai context khác nhau. Ghi tường minh nơi dịch | `docs/domain/cross-context-contracts.md` |
 
 ## Câu hỏi còn mở
 
@@ -226,7 +236,8 @@ Ghi lại ở đây mỗi khi có quyết định nào ảnh hưởng tới toà
 | Một suất chiếu có hàng trăm ghế — aggregate có phải chia nhỏ không? | ~~Gate B (T07, ADR-0003)~~ → **đã trả lời 2026-11-21: KHÔNG — `Seat hold` là aggregate root (≤6 ghế); xem `docs/domain/aggregates/`** |
 | Giới hạn "10 ghế mỗi người mỗi suất" có nằm trong cùng aggregate với tồn kho ghế không? Nó đếm theo **người**, tồn kho ghế đếm theo **ghế** | ~~Gate B (T07, T09)~~ → **đã trả lời 2026-11-21: KHÔNG — tích luỹ xuyên nhiều aggregate, chấp nhận cửa sổ race; xem `docs/domain/aggregates/03-booking.md`** |
 | Check-in thuộc bounded context nào — cùng context với vé, hay context riêng? | ~~Gate B (T06)~~ → **đã trả lời 2026-11-20: `Ticketing` giữ cả vé và check-in** |
-| Ranh giới aggregate quanh thanh toán và hoàn tiền (`FR-39`) | Gate B (T07, T08) |
+| Ranh giới aggregate quanh thanh toán và hoàn tiền (`FR-39`) | ~~Gate B (T07, T08)~~ → **đã trả lời 2026-11-24: `Payment intent` là aggregate root riêng ở `Payment`; hoàn tiền là transition `Captured → Refunded` của nó, còn quyết định "có hoàn không" dựa trên cả tiền đã thu lẫn trạng thái đơn; xem `docs/domain/state-machines.md`** |
+| Đơn `Paid` khi hủy suất chiếu có cần trạng thái `Refunded` riêng không | ~~Gate B (T08, T09)~~ → **đã trả lời 2026-11-24: KHÔNG — `Booking` giữ `Paid`, dấu vết hoàn tiền ở `Payment intent.Refunded`; xem `docs/domain/cross-context-contracts.md`** |
 | Giá vé theo loại ghế có đổi giữa các suất của cùng một phim không? | Gate B (T07, T11) |
 | Ghế `Blocked` (vệ sinh, dành riêng) có được bán online không, ai quyết định? | ~~Gate B (T07, T08)~~ → **đã trả lời 2026-11-20: KHÔNG bán lại online; quản lý rạp quyết định; xem `BR-11`** |
 | Có cần `SERIALIZABLE` ở đâu không, hay conditional update đủ? | Gate C (ADR-0002) |

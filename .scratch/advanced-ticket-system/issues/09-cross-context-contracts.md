@@ -68,15 +68,54 @@ AI đề xuất định dạng hợp đồng. AI ghi vào `docs/domain/cross-con
 
 ## Tiêu chí hoàn thành
 
-- [ ] Mỗi quan hệ ở T06 có ít nhất một hợp đồng tương ứng
-- [ ] Có bảng đối chiếu thuật ngữ giữa hai bên cho mỗi hợp đồng
-- [ ] Có ít nhất một cặp thuật ngữ được ghi là **khác nghĩa**, kèm lớp dịch
-- [ ] Mỗi hợp đồng ghi rõ điều khoản: B được giả định gì về A
-- [ ] Có chỉ ra hợp đồng nào là ứng viên tách service, kèm lý do
-- [ ] Không hợp đồng nào đòi hỏi context B đọc bảng của context A mà không nói rõ đó là
+- [x] Mỗi quan hệ ở T06 có ít nhất một hợp đồng tương ứng
+- [x] Có bảng đối chiếu thuật ngữ giữa hai bên cho mỗi hợp đồng
+- [x] Có ít nhất một cặp thuật ngữ được ghi là **khác nghĩa**, kèm lớp dịch
+- [x] Mỗi hợp đồng ghi rõ điều khoản: B được giả định gì về A
+- [x] Có chỉ ra hợp đồng nào là ứng viên tách service, kèm lý do
+- [x] Không hợp đồng nào đòi hỏi context B đọc bảng của context A mà không nói rõ đó là
       quyết định có ý thức
 
 > **Ghi chú (2026-11-19):** nghiệp vụ đổi sang đặt vé xem phim. Cặp thuật ngữ **khác nghĩa**
 > mạnh nhất giờ là: "ghế" (của phòng — thuộc về nghiệp vụ phòng chiếu) và "ghế của suất
 > chiếu" (một bản ghi trạng thái bán — thuộc về nghiệp vụ đặt vé). Cùng một từ, hai nghĩa, hai
 > vùng ngôn ngữ → ứng viên rõ ràng cho `Anti-Corruption Layer`.
+
+---
+
+## Hoàn thành — 2026-11-24
+
+### Tóm tắt quyết định
+
+**Mô hình đọc chéo (R-access)**: Mọi đọc dữ liệu xuyên context đều qua **interface/contract của context sở hữu** — không được đọc bảng trực tiếp. Giữ ranh giới module rõ ràng ngay từ design stage.
+
+**Nhóm hợp đồng**: R1 và R2 (`Scheduling ↔ Inventory`) chia thành **hai hợp đồng riêng** (một per direction), mỗi cái có bảng thuật ngữ riêng. Giúp nhìn rõ R2 là ứng viên tách service hàng đầu.
+
+**Q27 decision**: Khi quản lý rạp hủy suất chiếu, `Booking` ở trạng thái `Paid` **không** chuyển sang `Refunded`. Dấu vết hoàn tiền nằm ở `Payment intent.Refunded` (R4). Lý do: `Booking` đã kết thúc chu kỳ chính; hoàn tiền là sự kiện ngoại lai.
+
+**8 cặp thuật ngữ khác nghĩa** được ghi rõ:
+1. `Room seat` vs `Showtime seat` — ACL ở phía `Inventory`
+2. `Cancelled` (Booking) vs `Cancelled` (Showtime) — khác nguyên nhân
+3. `Ticket price` gốc vs `Ticket price` frozen — ACL ở phía `Booking`
+4. `Seat hold` vs `Booking` — khác aggregate
+5. `Payment intent` (ours) vs `payment_intent` (Stripe) — ACL ở phía `Payment`
+6. `Sold` vs `Ticket` — khác nghĩa
+7. `AwaitingPayment` (Booking) vs `AwaitingPayment` (Payment intent) — Q28, defer to T11
+8. "Đã cấp vé" (cờ) vs `Ticket` — Q26, defer to T11
+
+**Bốn ranh giới bị cắt** được tường minh hóa:
+- R3a: Giữ n ghế (atomic `Inventory` + `Booking`)
+- R3b: Hết hạn (atomic `Inventory` + `Booking`)
+- R6: Cấp vé (atomic `Booking` + `Ticketing` + R4)
+- R1 + R6 + R4: Hủy suất chiếu (cascade qua 3 context, N đơn)
+
+**Ứng viên tách service** (trình bày chi tiết, defer final selection to T10):
+- 🟢 R2 — đọc-duy-nhất, 4 con số, không cắt tx
+- 🟢 R7 — đọc-duy-nhất, metadata, không cắt tx
+- 🟢 R8 — kiểm tra quyền
+- 🟡 R5 — đã là external API
+- 🔴 R1, R3, R4, R6 — không thể tách mà không redesign
+
+### Truy vết
+
+Artifact: `docs/domain/cross-context-contracts.md`

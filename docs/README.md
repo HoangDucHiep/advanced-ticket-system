@@ -67,8 +67,10 @@ Hỗ trợ:
 - [x] `docs/domain/aggregates/` — aggregate, boundary, invariant, cơ chế bảo vệ (T07, 8 aggregate
   / 47 invariant; gồm 3 invariant **không** bảo vệ được bằng một transaction đơn lẻ: `BR-08`,
   `BR-20`, `BR-17`)
-- [ ] `docs/domain/state-machines.md` — vòng đời booking, payment, ticket, seat
-- [ ] `docs/domain/cross-context-contracts.md` — hợp đồng giữa các context
+- [x] `docs/domain/state-machines.md` — vòng đời booking, payment, ticket, seat, showtime
+      (T08, 5 máy trạng thái; mỗi máy có bảng transitions + **transitions bị từ chối** + cơ
+      chế idempotency; phát hiện **ranh giới bị cắt thứ tư** — hủy suất chiếu)
+- [x] `docs/domain/cross-context-contracts.md` — hợp đồng giữa các context (T09, 8 hợp đồng R1–R8, 8 cặp thuật ngữ khác nghĩa, 4 ranh giới bị cắt)
 - [ ] `GLOSSARY.md` ở root (single-context) hoặc `GLOSSARY-MAP.md` + glossary per context
 - [ ] Mỗi `FR-nn` của Gate A map được tới ít nhất một khái niệm domain
 - [ ] ADR-0003 đã được xem lại: chốt hay đổi? (đặc biệt: một suất chiếu có phải là một aggregate không)
