@@ -1,0 +1,26 @@
+name: backend
+
+on:
+    push:
+        branches: [main]
+        paths: ["backend/**", ".github/workflows/backend.yml"]
+    pull_request:
+        paths: ["backend/**", ".github/workflows/backend.yml"]
+
+jobs:
+    build-test:
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: backend
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-dotnet@v4
+              with:
+                  global-json-file: backend/global.json
+
+            - run: dotnet restore
+            - run: dotnet build --no-restore --configuration Release
+            # Runner ubuntu already has .NET SDK installed, so we can skip installing it again
+            - run: dotnet test --no-build --configuration Release

@@ -1009,3 +1009,39 @@ code nên được rà lại ngay khi design chốt, không đợi lúc bắt đ
 **Còn mở**: Q07 và các ngưỡng hiệu năng — đo ở T23.
 
 Xem thêm: [`open-questions.md`](open-questions.md).
+
+---
+
+## 2026-11-26 — T15: skeleton backend, Compose, CI
+
+**Bối cảnh**: ticket `ai-implements`, nhưng người học chọn tự gõ theo hướng dẫn từng bước; AI hướng dẫn,
+verify và commit phần tài liệu.
+
+**Quyết định trong lúc làm**:
+
+- Bố cục repo `backend/` + `frontend/` (AI quyết, `architecture.md` D2): mỗi toolchain một thư mục gốc —
+  `global.json` / `Directory.Build.props` chỉ có hiệu lực từ thư mục chứa nó trở xuống. Thêm T27 frontend
+  (cắt đầu tiên nếu trễ).
+- Người học thêm Central Package Management và pgAdmin.
+
+**Học được:**
+
+- **Integration test bắt được bug thật ngay lần chạy đầu.** `IUnitOfWork` đăng ký bằng factory trỏ tới
+  `NpgsqlUnitOfWork` ⇒ DI theo dõi dispose của **cả hai** đăng ký ⇒ cùng một object bị `DisposeAsync` hai
+  lần ⇒ lần hai rollback transaction đã dispose. `/health` không bao giờ lộ ra lỗi này vì không đi qua
+  nhánh "không commit". Sửa: `DisposeAsync` idempotent. Bài học: **dispose phải chịu được gọi nhiều lần**.
+- **Không đưa `IDisposable` lên interface của thứ mà DI sở hữu** — mời use case tự dispose; và
+  `Dispose()` đồng bộ gọi `DisposeAsync().GetResult()` là sync-over-async.
+- **Architecture test đọc csproj, không đọc assembly**: compiler bỏ reference không dùng khỏi assembly,
+  nên assembly không phản ánh "ý định phụ thuộc".
+- **Phép thử âm tính** cho mỗi test: thêm cạnh `Scheduling → Inventory.Contracts` ⇒ test quy tắc 3 đỏ; cho
+  `DbContext` tự mở connection ⇒ test Unit of Work đỏ. Test chưa từng thấy đỏ thì chưa chứng minh gì.
+- `TreatWarningsAsErrors` biến "build không warning" thành điều compiler kiểm — và bắt luôn API
+  obsolete (constructor không tham số của `PostgreSqlBuilder` ở Testcontainers 4.17).
+
+**Vấp ở đâu**: `dotnet new` theo SDK mới nhất (11) nếu không ghim `global.json`; template test ghi
+`Version=` xung đột với CPM; app đang chạy khoá DLL làm `dotnet build` báo lỗi copy (không phải lỗi code).
+
+**Còn mở**: CI xanh trên GitHub (sau khi push). `btree_gist` hiện bật bằng init script của compose —
+migration đầu tiên ở T17 phải khai báo `HasPostgresExtension("btree_gist")` vì Testcontainers không chạy
+script đó.

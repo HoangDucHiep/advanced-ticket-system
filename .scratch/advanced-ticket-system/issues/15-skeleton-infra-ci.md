@@ -1,6 +1,7 @@
 # 15: Skeleton — solution, Docker Compose, CI
 
 Mode: ai-implements
+Status: ready-for-human
 Gate: D
 Layer: code
 Blocked by: 14
@@ -51,13 +52,29 @@ Postgres, secret Stripe).
 
 ## Tiêu chí hoàn thành
 
-- [ ] `docker compose up -d` dựng Postgres và Redis, cả hai báo healthy
-- [ ] `dotnet build` sạch, không warning
-- [ ] `dotnet test` chạy và qua (unit test có thể chưa có, nhưng lệnh phải thành công)
-- [ ] App chạy được và trả `200` ở endpoint health
+- [x] `docker compose up -d` dựng Postgres và Redis, cả hai báo healthy
+- [x] `dotnet build` sạch, không warning
+- [x] `dotnet test` chạy và qua (unit test có thể chưa có, nhưng lệnh phải thành công)
+- [x] App chạy được và trả `200` ở endpoint health
 - [ ] CI xanh trên GitHub
-- [ ] `.gitignore` loại `.env`, `secrets.json`, `bin/`, `obj/`
-- [ ] **Không có secret nào trong file nào được commit** — kiểm tra bằng cách tìm chuỗi khóa
-- [ ] Cấu trúc thư mục khớp với T10 (`architecture.md` D2)
-- [ ] Architecture test kiểm quy tắc phụ thuộc 1–3 của D9 (các quy tắc còn lại thêm dần theo module)
-- [ ] `IUnitOfWork`: một connection + một transaction mỗi request, mọi `DbContext` gắn vào (ADR-0008)
+- [x] `.gitignore` loại `.env`, `secrets.json`, `bin/`, `obj/`
+- [x] **Không có secret nào trong file nào được commit** — kiểm tra bằng cách tìm chuỗi khóa
+- [x] Cấu trúc thư mục khớp với T10 (`architecture.md` D2)
+- [x] Architecture test kiểm quy tắc phụ thuộc 1–3 của D9 (các quy tắc còn lại thêm dần theo module)
+- [x] `IUnitOfWork`: một connection + một transaction mỗi request, mọi `DbContext` gắn vào (ADR-0008)
+
+## Kết quả (2026-11-26)
+
+Người học tự thực hiện theo hướng dẫn từng bước (thay cho `ai-implements`); AI verify.
+
+- Bố cục `backend/` + gốc repo theo `architecture.md` D2 — "Bố cục repo". Người học thêm Central Package
+  Management (`backend/Directory.Packages.props`) và pgAdmin trong compose.
+- `dotnet build -c Release`: 0 warning (`TreatWarningsAsErrors`). `dotnet test`: 25/25 —
+  21 architecture test (quy tắc D9 1–3 + đủ 12 project module), 4 integration test Unit of Work trên
+  Postgres thật (Testcontainers).
+- Phép thử âm tính: thêm `Scheduling → Inventory.Contracts` ⇒ `Quy_tac_3_chi_co_canh_nam_trong_so_do_D9`
+  đỏ; cho `DbContext` tự mở connection ⇒ cả 4 test Unit of Work đỏ.
+- `/health`: `200` khi Postgres + Redis chạy, `503` khi dừng Redis.
+- Quét toàn bộ lịch sử git: không có mật khẩu / khoá; `.env` chưa từng được track.
+- **Còn lại:** push và xem CI xanh (tiêu chí "CI xanh trên GitHub").
+
