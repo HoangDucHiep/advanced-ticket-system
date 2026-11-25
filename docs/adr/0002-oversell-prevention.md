@@ -1,13 +1,22 @@
 ---
 id: 0002
 title: Chống bán trùng bằng conditional UPDATE trên ghế
-status: provisional
+status: accepted
 date: 2026-11-18
-Updated: 2026-11-19 (sang mô hình seat-based, xem ADR-0003)
-Revalidate at Gate C
+Updated: 2026-11-19 (sang mô hình seat-based, xem ADR-0003); accepted 2026-11-25 (Gate C, T12)
 ---
 
 # Chống bán trùng bằng conditional UPDATE trên ghế
+
+> **Chốt ở Gate C (2026-11-25).** Phiên bản cuối: **khoá tường minh theo thứ tự rồi cập nhật có
+> điều kiện** — `SELECT … WHERE id = ANY(@ids) ORDER BY id FOR UPDATE` (khoá theo thứ tự id, đọc trạng
+> thái để báo ghế nào thất bại), rồi `UPDATE … WHERE … AND (status = 'Available' OR (status = 'Held'
+> AND held_until <= now()))`, trong `READ COMMITTED`. Đây gần với biến thể **C** bên dưới (nhưng ở
+> `READ COMMITTED`) và khác bản `provisional` ở chỗ **không** tin vào thứ tự khoá của một câu `UPDATE …
+> ANY(...)`. Lý do chốt **bằng tính đúng đắn, không bằng tốc độ**: thứ tự khoá của câu `UPDATE` là chi
+> tiết của planner; `FR-15` cần biết **ghế nào** đã có người. Số đo ba biến thể vẫn chạy ở T23 và ghi
+> vào đây — nếu biến thể khác nhanh hơn rõ rệt *và* vẫn đúng, mở ADR mới. Đầy đủ:
+> `docs/design/concurrency.md` #1–#3; ghế `Held` quá hạn: ADR-0015.
 
 ## Context
 

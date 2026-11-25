@@ -85,11 +85,14 @@ Hỗ trợ:
 ### Gate C — Design đủ để viết code
 
 - [x] `docs/design/architecture.md` — cấu trúc module, quy tắc phụ thuộc (T10, 2026-11-25)
-- [ ] `docs/design/data-model.md` — schema, index, constraint
-- [ ] `docs/design/concurrency.md` — mỗi bài toán có cơ chế **và** test chứng minh
-- [ ] `docs/design/api-contract.md` — endpoint, error code, idempotency contract
-- [ ] ADR đủ cho mọi quyết định khó đảo ngược đã gặp
-- [ ] Ma trận truy vết trong `docs/plan/00-roadmap.md` đầy đủ: mỗi `FR-nn` có ít nhất một ticket
+- [x] `docs/design/data-model.md` — schema, index, constraint (T11)
+- [x] `docs/design/concurrency.md` — mỗi bài toán có cơ chế **và** test chứng minh (T12, 14 bài toán)
+- [x] `docs/design/api-contract.md` — endpoint, error code, idempotency contract (T13)
+- [x] ADR đủ cho mọi quyết định khó đảo ngược đã gặp (ADR-0001..0015, T14)
+- [x] Ma trận truy vết trong `docs/plan/00-roadmap.md` đầy đủ: mỗi `FR-nn` có ít nhất một ticket và một quyết định design
+
+> **Gate C đóng ngày 2026-11-25** → Gate D mở. Plan: [`plan/gate-d-implementation.md`](plan/gate-d-implementation.md).
+> Bắt đầu từ T15 (skeleton — `ai-implements`).
 
 ### Gate D — Code đủ để đưa lên CV
 

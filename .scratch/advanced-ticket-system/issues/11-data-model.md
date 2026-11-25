@@ -77,13 +77,30 @@ AI ghi vào `docs/design/data-model.md`. AI không tự thêm bảng nào bạn 
 
 ## Tiêu chí hoàn thành
 
-- [ ] Mọi bảng đều có invariant được nêu
-- [ ] Mọi `CHECK` / `UNIQUE` đều truy ngược được tới một `INV-nn` hoặc `BR-nn`
-- [ ] Mọi index đều có lý do
-- [ ] Có ít nhất 2 câu SQL tay, giải thích vì sao ORM không làm được
-- [ ] Bảng idempotency record có unique constraint và quy tắc hết hạn
-- [ ] Có nêu rõ bảng nào dự kiến lớn và tác động của nó lên index
-- [ ] Không có cột nào thừa mà chưa được dùng ở đâu
-- [ ] Có câu SQL tay cho **giữ n ghế all-or-nothing** (nhiều dòng, có điều kiện, đếm số dòng
+- [x] Mọi bảng đều có invariant được nêu
+- [x] Mọi `CHECK` / `UNIQUE` đều truy ngược được tới một `INV-nn` hoặc `BR-nn`
+- [x] Mọi index đều có lý do
+- [x] Có ít nhất 2 câu SQL tay, giải thích vì sao ORM không làm được
+- [x] Bảng idempotency record có unique constraint và quy tắc hết hạn
+- [x] Có nêu rõ bảng nào dự kiến lớn và tác động của nó lên index
+- [x] Không có cột nào thừa mà chưa được dùng ở đâu
+- [x] Có câu SQL tay cho **giữ n ghế all-or-nothing** (nhiều dòng, có điều kiện, đếm số dòng
       ảnh hưởng), kèm giải thích vì sao ORM không diễn đạt được
-- [ ] Đã chốt được câu hỏi về nơi lưu **giá vé** và về **bảng trạng thái ghế theo suất**
+- [x] Đã chốt được câu hỏi về nơi lưu **giá vé** và về **bảng trạng thái ghế theo suất**
+
+---
+
+## Hoàn thành — 2026-11-25
+
+Artifact: [`docs/design/data-model.md`](../../../docs/design/data-model.md). Quyết định: AI (hợp đồng mới
+— `AGENTS.md`).
+
+- 6 schema, 18 bảng nghiệp vụ + outbox mỗi module; mỗi bảng nêu invariant; bảng đối chiếu
+  `INV-nn` → ràng buộc ở cuối file.
+- Giá lưu theo **(suất, loại ghế)** ở `scheduling.ticket_prices`; trạng thái ghế theo suất là bảng
+  riêng `inventory.showtime_seats` (một dòng một ghế, có `version` cho cache).
+- Idempotency: `booking.idempotency_records` PK `(customer_id, idempotency_key)`, hạn 24h, job dọn mỗi
+  giờ; không lưu trạng thái `InProgress` (ADR-0011).
+- 8 nhóm SQL tay kèm lý do ORM không làm được; giữ n ghế ở `concurrency.md` #2.
+- Bảng lớn: `inventory.showtime_seats` (~3,6 triệu dòng/năm) — số index tối thiểu, không index `status`.
+- Trạng thái dùng `text` + `CHECK`, không `enum` (thêm giá trị = sửa `CHECK`).

@@ -969,3 +969,43 @@ không có `ORDER BY`); "12 bài toán" trong khi bảng đã có 13.
 race giữ ghế ↔ hủy suất (T12), idempotency của lần thất bại (T19/T13).
 
 Xem thêm: [`open-questions.md`](open-questions.md).
+
+---
+
+## 2026-11-25 — T11–T14: hoàn thiện design, đóng Gate C
+
+**Bối cảnh**: theo hợp đồng mới, AI tự quyết toàn bộ T11–T14. Người học đọc `docs/design/` rồi
+implement từ T15.
+
+**Đọc theo thứ tự**: `architecture.md` → `data-model.md` → `concurrency.md` → `api-contract.md` → ADR
+0011–0015.
+
+**Học được (điểm then chốt khi đọc spec):**
+
+- **`UPDATE … WHERE id = ANY(...)` không có `ORDER BY`** — thứ tự khoá của nó là chi tiết của planner.
+  Muốn chống deadlock phải khoá tường minh `SELECT … ORDER BY id FOR UPDATE`. Test deadlock có thể
+  **tình cờ xanh** vì quét index PK đã tăng dần — nên phép thử âm tính dùng biến thể khoá theo thứ tự
+  client.
+- **Một unique index là một hàng đợi.** Request trùng `Idempotency-Key` chèn vào cùng khoá sẽ **chờ**
+  request đầu commit — không cần trạng thái `InProgress`. Savepoint giữ được kết quả từ chối mà vẫn nhả
+  ghế (ADR-0011).
+- **`FOR KEY SHARE` vs `FOR UPDATE`**: hàng trăm lệnh giữ ghế cùng khoá chia sẻ dòng suất mà không chặn
+  nhau, nhưng hủy suất (khoá độc quyền) phải chờ hết — chặn race #14 mà không tuần tự hoá người mua.
+- **Thứ tự khoá toàn cục** (suất → quota → đơn → ghế → intent → vé) là thứ làm các bài toán không sinh
+  deadlock **với nhau**, không chỉ trong từng bài.
+- **Cache theo version**: ghi đè chỉ khi mới hơn ⇒ thứ tự đến của cập nhật không còn quan trọng.
+- **Redis cho tối ưu, DB cho đúng đắn** — và có chỗ Redis còn không đáng để tối ưu (check-in, ADR-0013).
+- **`now()` của Postgres là thời điểm bắt đầu transaction** — mọi so sánh hạn trong một transaction
+  dùng chung một mốc.
+
+**Làm được**: 3 file design mới (`data-model.md`, `concurrency.md` — 14 bài toán, `api-contract.md`); ADR
+0011–0015; ADR-0002 → `accepted`; ADR-0007 chốt advisory lock; ma trận truy vết điền đủ cột design; đồng
+bộ ticket T15–T26 (schema `ordering.*`/`checkin.*`, `Pending`, offline, `410`, Redis `SETNX` đã bỏ); đóng
+Q01, Q02, Q04, Q06, Q08, Q09, Q11, Q25; Gate C đóng, Gate D mở.
+
+**Vấp ở đâu**: ticket Gate D được viết từ trước khi có domain — nhiều tên và cơ chế lệch. Bài học: ticket
+code nên được rà lại ngay khi design chốt, không đợi lúc bắt đầu code.
+
+**Còn mở**: Q07 và các ngưỡng hiệu năng — đo ở T23.
+
+Xem thêm: [`open-questions.md`](open-questions.md).

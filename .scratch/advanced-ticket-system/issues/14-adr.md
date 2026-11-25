@@ -75,13 +75,42 @@ dung hiện tại **mâu thuẫn** với ADR cũ, cần sửa.
 
 ## Tiêu chí hoàn thành
 
-- [ ] Có ít nhất 6 file ADR trong `docs/adr/`
-- [ ] Mỗi ADR có context, quyết định, lý do; ADR nào có lựa chọn bị loại thì có mục
+- [x] Có ít nhất 6 file ADR trong `docs/adr/`
+- [x] Mỗi ADR có context, quyết định, lý do; ADR nào có lựa chọn bị loại thì có mục
       `Considered Options`
-- [ ] ADR nào có hệ quả không mong muốn thì có mục `Consequences`
-- [ ] ADR-0001 và ADR-0002 đã được **xem lại** sau khi có domain và concurrency design, và
+- [x] ADR nào có hệ quả không mong muốn thì có mục `Consequences`
+- [x] ADR-0001 và ADR-0002 đã được **xem lại** sau khi có domain và concurrency design, và
       trạng thái đã cập nhật (`provisional` → `accepted`, hoặc `superseded by ADR-NNNN`)
-- [ ] ADR-0001 giữ nguyên lịch sử với `status: superseded by ADR-0003` (không bị xoá)
-- [ ] Không ADR nào chỉ ghi "chọn X vì X tốt"
-- [ ] Có ít nhất một ADR ghi lại một quyết định **đã đổi ý**
-- [ ] Đánh số liên tục, không trùng, không thiếu
+- [x] ADR-0001 giữ nguyên lịch sử với `status: superseded by ADR-0003` (không bị xoá)
+- [x] Không ADR nào chỉ ghi "chọn X vì X tốt"
+- [x] Có ít nhất một ADR ghi lại một quyết định **đã đổi ý**
+- [x] Đánh số liên tục, không trùng, không thiếu
+
+---
+
+## Hoàn thành — 2026-11-25
+
+Bộ ADR 0001–0015 trong `docs/adr/`. Quyết định: AI.
+
+| ADR | Nội dung | Trạng thái |
+|---|---|---|
+| 0001 | Tier-based | superseded by 0003 |
+| 0002 | Chống bán trùng — khoá theo thứ tự + điều kiện | **accepted** (xem lại sau khi có domain + concurrency) |
+| 0003 | Seat-based | accepted |
+| 0004 | `Seat hold` là aggregate | superseded by 0005 — **quyết định đã đổi ý** |
+| 0005 | `Showtime seat` là aggregate root | accepted |
+| 0006 | Hết hạn theo thời gian, hoàn tiền qua outbox | accepted |
+| 0007 | Quota 10 ghế bằng khoá (người, suất) — advisory lock | accepted — **đổi ý** so với T07 |
+| 0008 | Transaction xuyên module (thay "1 `DbContext`") | accepted |
+| 0009 | Cách gọi giữa module, hướng phụ thuộc | accepted |
+| 0010 | `Payment intent`: `Unpaid` / `Closed` | accepted |
+| 0011 | Idempotency trong transaction nghiệp vụ + savepoint | accepted |
+| 0012 | Cache sơ đồ ghế theo ghế, có version | accepted |
+| 0013 | Check-in chỉ bằng PK ở DB, bỏ Redis | accepted |
+| 0014 | Refresh rotation nghiêm ngặt | accepted |
+| 0015 | Lấy ghế `Held` quá hạn | accepted |
+
+Danh sách dự kiến trong ticket được ánh xạ lại: "idempotency" → 0011, "hold-and-release" → 0006 + 0015,
+"cache" → 0012, "check-in exactly-once" → 0013, "modular monolith" → 0008 + 0009 (lý do monolith ở
+`architecture.md`), "refresh rotation" → 0014. Không ADR nào chỉ ghi "chọn X vì X tốt": mọi ADR có phương
+án bị loại kèm lý do.

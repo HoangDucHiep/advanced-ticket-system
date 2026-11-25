@@ -35,7 +35,12 @@ Repo này **single-context** (một `GLOSSARY.md` + `docs/adr/` ở root):
 │   │   ├── 0007-per-customer-showtime-quota.md
 │   │   ├── 0008-cross-module-transaction.md
 │   │   ├── 0009-module-communication.md
-│   │   └── 0010-payment-intent-states.md
+│   │   ├── 0010-payment-intent-states.md
+│   │   ├── 0011-idempotency-in-business-transaction.md
+│   │   ├── 0012-seat-map-cache-per-seat-versioned.md
+│   │   ├── 0013-check-in-db-unique-only.md
+│   │   ├── 0014-refresh-token-rotation-strict-reuse.md
+│   │   └── 0015-take-over-expired-holds.md
 │   ├── agents/              ← cấu hình cho các skill
 │   ├── design/              ← Lớp 3
 │   ├── domain/              ← Lớp 2

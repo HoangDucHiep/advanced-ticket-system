@@ -72,6 +72,10 @@ Từ `docs/learning/open-questions.md` và roadmap "Câu hỏi còn mở":
 
 Xem `docs/README.md` mục Gate C (nguồn sự thật duy nhất của checklist).
 
+> **Gate C đóng ngày 2026-11-25.** T10–T14 xong; 4 file design; ADR-0001..0015; ma trận truy vết có
+> quyết định design cho mọi `FR`. Mọi câu hỏi trong bảng trên đã đóng trừ Q07 (đo ở T23). Bước tiếp:
+> Gate D — `docs/plan/gate-d-implementation.md`.
+
 ## Điều chưa biết lúc mở Gate C
 
 - Roadmap đã chốt "1 `DbContext` + `HasDefaultSchema`" từ trước khi có domain. Với ranh giới

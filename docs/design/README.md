@@ -26,6 +26,5 @@ mà không có nguồn gốc là bịa đặt.
 
 ## Trạng thái
 
-Gate C **đang mở** (từ 2026-11-25). Plan chi tiết:
-[`../plan/gate-c-design.md`](../plan/gate-c-design.md). Exit checklist tại
-[`../README.md`](../README.md).
+Gate C **đã đóng** 2026-11-25 — bốn file đầy đủ. Đọc theo thứ tự: `architecture.md` → `data-model.md`
+→ `concurrency.md` → `api-contract.md`. Khi ticket Gate D mâu thuẫn với các file này, **design thắng**.

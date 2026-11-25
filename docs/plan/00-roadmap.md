@@ -55,7 +55,7 @@ liệu, không phải một con số đếm số.
 
 Quy tắc dùng nhiều tầng: **một hot path chỉ đi qua một tầng truy cập dữ liệu**.
 
-## 13 bài toán concurrency sẽ giải
+## 14 bài toán concurrency sẽ giải
 
 Đây là bản chất của dự án. Mỗi bài cần một test chứng minh.
 
@@ -73,14 +73,18 @@ Quy tắc dùng nhiều tầng: **một hot path chỉ đi qua một tầng truy
 | 10 | **Invalidate cache theo từng ghế** | ghi đè trạng thái ghế, đọc bằng phiên bản | đặt 4 ghế → instance khác thấy đúng 4 ghế đã bán |
 | 11 | Mở bán phim hot cạn connection pool | admission control + `max_connections` | 500 req/s → không pool timeout |
 | 12 | Rate limit nhiều instance | Redis token bucket phân tán | 3 instance, 1 quota → không vượt quota |
-| 13 | **Vượt 10 ghế/người/suất bằng yêu cầu song song** (thêm 2026-11-25) | khoá theo `(customer, showtime)` trước khi đếm — ADR-0007 | 20 yêu cầu song song của cùng người → tổng ≤ 10; test đỏ khi bỏ khoá |
+| 13 | **Vượt 10 ghế/người/suất bằng yêu cầu song song** (thêm 2026-11-25) | advisory lock `(customer, showtime)` trước khi đếm — ADR-0007 | 20 yêu cầu song song của cùng người → tổng ≤ 10; test đỏ khi bỏ khoá |
+| 14 | **Giữ ghế đua với hủy suất** (thêm 2026-11-25, T10) | giữ ghế `FOR KEY SHARE` dòng suất; hủy suất `FOR UPDATE` | 20 lệnh giữ + 1 lệnh hủy song song → 0 đơn chờ trên suất đã hủy |
 
 > #10 và #12 cần nhiều instance — theo `NR-11` (sửa 2026-11-25), chúng được kiểm chứng với 2–3
 > instance trong môi trường test/k6, không phải cách vận hành.
 
 Bài toán **#2, #3, #10** là phần mới, sinh ra từ việc đổi sang mô hình seat-based — đây là phần
-đáng khoe nhất của repo. Bảng này vẫn là **giả định** cho tới khi Gate C chốt cơ chế và
-Gate D có test chứng minh.
+đáng khoe nhất của repo. **Cơ chế đã chốt ở Gate C** — bản đầy đủ (SQL, phương án bị loại, test, dòng
+"đỏ nếu…") là [`docs/design/concurrency.md`](../design/concurrency.md); cột "Cơ chế dự kiến" ở trên là
+tóm tắt. Một số cơ chế đổi so với dự kiến: #1–#3 khoá `ORDER BY id FOR UPDATE` rồi `UPDATE` có điều
+kiện; #5 không lưu `InProgress` (ADR-0011); #8 không dùng Redis (ADR-0013). Gate D phải có test chứng
+minh.
 
 ## Ma trận truy vết
 
@@ -89,54 +93,54 @@ Requirement nào không map được → hoặc bỏ khỏi requirements, hoặc
 
 | FR | Khái niệm domain | Quyết định design | Ticket | Trạng thái |
 |---|---|---|---|---|
-| FR-01 | `Showtime seat` `INV-01` — `Available → Held` bằng điều kiện lệnh | (chưa xác định) | T18, T22 | đã có domain |
-| FR-02 | `Hold seats` — n `Showtime seat` + `Booking` trong một DB transaction (R3, ADR-0005) | (chưa xác định) | T18, T22 | đã có domain |
-| FR-03 | Thứ tự khoá: quota → ghế tăng dần theo id (`BR-22`) | (chưa xác định) | T18, T22 | đã có domain |
-| FR-04 | `Booking.expires_at`; `Booking → Expired`; trả ghế theo `hold_id` | (chưa xác định) | T18, T21, T22 | đã có domain |
-| FR-05 | `Ticket` chỉ cấp trong transaction `Booking → Paid` (`Ticket` `INV-02`) | (chưa xác định) | T20 | đã có domain |
-| FR-06 | `Booking` `INV-05` — `→ Paid` cần `expires_at > now()` (ADR-0006) | (chưa xác định) | T20, T21 | đã có domain |
-| FR-07 | `Ticket` `Issued → CheckedIn`; unique `ticket_id` ở `Check-in` | (chưa xác định) | T22, T24 | đã có domain |
-| FR-08 | Hệ quả của `Ticket` `INV-02` (không tồn tại vé cho đơn chưa trả) | (chưa xác định) | T22, T24 | đã có domain |
-| FR-09 | `Booking` `INV-03` (≤ 6), `INV-10` (≤ 10, khoá quota — ADR-0007) | (chưa xác định) | T18, T22 | đã có domain |
-| FR-10 | `Booking` `INV-09`, `Ticket` `INV-07` — kiểm tra chủ sở hữu | (chưa xác định) | T16, T18, T24 | đã có domain |
-| FR-11 | `Movie` `INV-11` — suy ra từ `Showtime` `OnSale` | (chưa xác định) | T13, T17, T23 | đã có domain |
-| FR-12 | `Showtime`, `Ticket price` (`Showtime` `INV-01`) | (chưa xác định) | T13, T17, T23 | đã có domain |
-| FR-13 | `Showtime seat` (không gồm `Blocked`), `Available seat count` | (chưa xác định) | T13, T17, T23 | đã có domain |
-| FR-14 | `Hold seats`; `Booking.expires_at` = lúc giữ + 15 phút | (chưa xác định) | T18 | đã có domain |
-| FR-15 | `Showtime seat` `INV-01` — điều kiện lệnh, báo ghế nào | (chưa xác định) | T18 | đã có domain |
-| FR-16 | `Booking → Paid`; `Booking line` giá đã chốt; `Ticket` | (chưa xác định) | T13, T20 | đã có domain |
-| FR-17 | `Ticket` `INV-06` | (chưa xác định) | T13, T24 | đã có domain |
-| FR-18 | `Booking → Cancelled`; trả ghế theo `hold_id` | (chưa xác định) | T13, T18, T21 | đã có domain |
-| FR-19 | `Booking.expires_at` — tác dụng phụ qua outbox | (chưa xác định) | T21 | đã có domain |
-| FR-20 | `Room`, `Room seat`, `Seat type`; `Showtime seat` `Available ↔ Blocked` | (chưa xác định) | T17 | đã có domain |
-| FR-21 | `Showtime`, `Ticket price`; exclusion constraint `BR-20` | (chưa xác định) | T17 | đã có domain |
-| FR-22 | `Showtime` `NotOnSale → OnSale` | (chưa xác định) | T17 | đã có domain |
-| FR-23 | R2 — bốn con số tình trạng bán | (chưa xác định) | T13, T17 | đã có domain |
-| FR-24 | `Showtime` `OnSale → Cancelled` + `Booking → Cancelled` + `Payment intent → RefundPending` (ranh giới bị cắt #4) | (chưa xác định) | T20, T21 | đã có domain |
-| FR-25 | Điều kiện tiên quyết check-in — 5 kết quả xác định | (chưa xác định) | T24 | đã có domain |
+| FR-01 | `Showtime seat` `INV-01` — `Available → Held` bằng điều kiện lệnh | Khoá ghế + `UPDATE` có điều kiện — `concurrency.md` #1, ADR-0002 | T18, T22 | đã có design |
+| FR-02 | `Hold seats` — n `Showtime seat` + `Booking` trong một DB transaction (R3, ADR-0005) | Một transaction, quyết định trước khi ghi — #2 | T18, T22 | đã có design |
+| FR-03 | Thứ tự khoá: quota → ghế tăng dần theo id (`BR-22`) | `SELECT … ORDER BY id FOR UPDATE`, thứ tự khoá toàn cục — #3 | T18, T22 | đã có design |
+| FR-04 | `Booking.expires_at`; `Booking → Expired`; trả ghế theo `hold_id` | Worker `SKIP LOCKED` + trả ghế theo `hold_id`; lấy ghế quá hạn ngay — #4, ADR-0015 | T18, T21, T22 | đã có design |
+| FR-05 | `Ticket` chỉ cấp trong transaction `Booking → Paid` (`Ticket` `INV-02`) | Event `BookingPaid` xử lý trong transaction `→ Paid`; `UNIQUE showtime_seat_id` — #7 | T20 | đã có design |
+| FR-06 | `Booking` `INV-05` — `→ Paid` cần `expires_at > now()` (ADR-0006) | `→ Paid` với `expires_at > now()` — #4, ADR-0006 | T20, T21 | đã có design |
+| FR-07 | `Ticket` `Issued → CheckedIn`; unique `ticket_id` ở `Check-in` | `PRIMARY KEY (ticket_id)` + `ON CONFLICT` — #8, ADR-0013 | T22, T24 | đã có design |
+| FR-08 | Hệ quả của `Ticket` `INV-02` (không tồn tại vé cho đơn chưa trả) | Không có vé ⇒ `422 TICKET_INVALID` — `api-contract.md` Ticketing | T22, T24 | đã có design |
+| FR-09 | `Booking` `INV-03` (≤ 6), `INV-10` (≤ 10, khoá quota — ADR-0007) | `CHECK seat_weight`; advisory lock (người, suất) rồi đếm — #13 | T18, T22 | đã có design |
+| FR-10 | `Booking` `INV-09`, `Ticket` `INV-07` — kiểm tra chủ sở hữu | `404` cho tài nguyên của người khác; `tickets.customer_id` — `api-contract.md` | T16, T18, T24 | đã có design |
+| FR-11 | `Movie` `INV-11` — suy ra từ `Showtime` `OnSale` | `GET /api/movies` — truy vấn suy ra, cache 30s | T13, T17, T23 | đã có design |
+| FR-12 | `Showtime`, `Ticket price` (`Showtime` `INV-01`) | `GET /api/movies/{id}/showtimes`; giá ở `scheduling.ticket_prices` | T13, T17, T23 | đã có design |
+| FR-13 | `Showtime seat` (không gồm `Blocked`), `Available seat count` | `GET /api/showtimes/{id}/seats` (module `Inventory`) — cache #9, #10, ADR-0012 | T13, T17, T23 | đã có design |
+| FR-14 | `Hold seats`; `Booking.expires_at` = lúc giữ + 15 phút | `expires_at` = `now()` + 15 phút, chung cho đơn và ghế — #2 | T18 | đã có design |
+| FR-15 | `Showtime seat` `INV-01` — điều kiện lệnh, báo ghế nào | `SELECT … FOR UPDATE` trả ghế nào thất bại ⇒ `409 unavailableSeatIds` — #2 | T18 | đã có design |
+| FR-16 | `Booking → Paid`; `Booking line` giá đã chốt; `Ticket` | `POST /api/bookings/{id}/payment` + webhook; giá đã chốt ở `booking_lines.price` | T13, T20 | đã có design |
+| FR-17 | `Ticket` `INV-06` | `GET /api/tickets`; mã QR tính lại, không lưu | T13, T24 | đã có design |
+| FR-18 | `Booking → Cancelled`; trả ghế theo `hold_id` | `POST /api/bookings/{id}/cancel` — trả ghế theo `hold_id`, cùng transaction | T13, T18, T21 | đã có design |
+| FR-19 | `Booking.expires_at` — tác dụng phụ qua outbox | Outbox `ExpiryReminderDue` hẹn `expires_at - 5 phút` | T21 | đã có design |
+| FR-20 | `Room`, `Room seat`, `Seat type`; `Showtime seat` `Available ↔ Blocked` | `scheduling.room_seats`; chặn ghế có điều kiện trạng thái nguồn | T17 | đã có design |
+| FR-21 | `Showtime`, `Ticket price`; exclusion constraint `BR-20` | Exclusion constraint + đệm 15 phút; đủ giá mọi loại ghế | T17 | đã có design |
+| FR-22 | `Showtime` `NotOnSale → OnSale` | `UPDATE … WHERE status = 'NotOnSale'` | T17 | đã có design |
+| FR-23 | R2 — bốn con số tình trạng bán | Đếm theo `showtime_id` (ghế `Held` quá hạn tính `available`) — endpoint của `Inventory` | T13, T17 | đã có design |
+| FR-24 | `Showtime` `OnSale → Cancelled` + `Booking → Cancelled` + `Payment intent → RefundPending` (ranh giới bị cắt #4) | Một transaction (showtime `FOR UPDATE`) + outbox hoàn tiền — #14, ADR-0006 | T20, T21 | đã có design |
+| FR-25 | Điều kiện tiên quyết check-in — 5 kết quả xác định | Năm kết quả quét, mã lỗi — `api-contract.md` Ticketing | T24 | đã có design |
 | FR-26 | (đã loại khỏi scope — NR-15) | (không áp dụng) | — | **loại bỏ ở T03** |
-| FR-27 | `Check-in` — đếm (`Ticket` `INV-04`) | (chưa xác định) | T24 | đã có domain |
-| FR-28 | `Administrator`; `Movie` (danh mục chung — `BR-32`); `Showtime` `INV-04` | (chưa xác định) | T17 | đã có domain |
-| FR-29 | `User` `INV-01..03` | (chưa xác định) | T16 | đã có domain |
-| FR-30 | **Không có khái niệm domain** — yêu cầu vận hành, kiểm chứng bằng số đo | (chưa xác định) | T23, T25 | ngoài domain |
-| FR-31 | Lịch sử `Booking` (`INV-07`) + lịch sử `Payment event` | (chưa xác định) | T20 | đã có domain |
-| FR-32 | `Showtime` `INV-04` — chủ sở hữu | (chưa xác định) | T17 | đã có domain |
-| FR-33 | Vai trò `User` (`Identity` `INV-06`) | (chưa xác định) | T16, T24 | đã có domain |
-| FR-34 | `Showtime` `INV-02` | (chưa xác định) | T17 | đã có domain |
-| FR-35 | `Gate assignment` `INV-08` | (chưa xác định) | T24 | đã có domain |
-| FR-36 | Bảng "transitions bị từ chối" của mọi máy trạng thái | (chưa xác định) | T13 | đã có domain |
-| FR-37 | `Booking` `INV-08` — `Idempotency key` | (chưa xác định) | T19, T22 | đã có domain |
-| FR-38 | `Payment intent` `INV-01` — unique `event.id` | (chưa xác định) | T19, T20, T22 | đã có domain |
-| FR-39 | `Payment intent` `→ RefundPending → Refunded`; `Refund` (`INV-02`) | (chưa xác định) | T20, T21, T22 | đã có domain |
-| FR-40 | `Gate assignment` `INV-09` | (chưa xác định) | T24 | đã có domain |
-| FR-41 | `Showtime` `INV-02` — giờ bắt đầu (`BR-31`) | (chưa xác định) | T18 | đã có domain |
+| FR-27 | `Check-in` — đếm (`Ticket` `INV-04`) | `COUNT` trên `check_ins` theo `showtime_id` | T24 | đã có design |
+| FR-28 | `Administrator`; `Movie` (danh mục chung — `BR-32`); `Showtime` `INV-04` | `/api/admin/movies`; vai trò `Administrator` ở `/api/manager/showtimes` | T17 | đã có design |
+| FR-29 | `User` `INV-01..03` | `identity.role_changes` + `role_version` vô hiệu cache — ADR-0014 | T16 | đã có design |
+| FR-30 | **Không có khái niệm domain** — yêu cầu vận hành, kiểm chứng bằng số đo | `/metrics` + Grafana; counters ở #11 | T23, T25 | đã có design |
+| FR-31 | Lịch sử `Booking` (`INV-07`) + lịch sử `Payment event` | `GET /api/admin/bookings/{id}/history` ghép `booking_history` + `payment_events` | T20 | đã có design |
+| FR-32 | `Showtime` `INV-04` — chủ sở hữu | `showtimes.owner_id`; `404` khi không phải chủ | T17 | đã có design |
+| FR-33 | Vai trò `User` (`Identity` `INV-06`) | Chính sách vai trò `GateStaff` / `Administrator` | T16, T24 | đã có design |
+| FR-34 | `Showtime` `INV-02` | `404` cho suất chưa mở bán; giữ ghế đọc suất `FOR KEY SHARE` | T17 | đã có design |
+| FR-35 | `Gate assignment` `INV-08` | `gate_assignments` PK; kiểm trước khi xét vé ⇒ `403` | T24 | đã có design |
+| FR-36 | Bảng "transitions bị từ chối" của mọi máy trạng thái | `application/problem+json` với `code` + `action` | T13 | đã có design |
+| FR-37 | `Booking` `INV-08` — `Idempotency key` | Idempotency trong transaction + savepoint — #5, ADR-0011 | T19, T22 | đã có design |
+| FR-38 | `Payment intent` `INV-01` — unique `event.id` | `UNIQUE (stripe_event_id)` + điều kiện trạng thái — #7 | T19, T20, T22 | đã có design |
+| FR-39 | `Payment intent` `→ RefundPending → Refunded`; `Refund` (`INV-02`) | `RefundPending` + outbox + `Idempotency-Key = refunds.id` — #7 | T20, T21, T22 | đã có design |
+| FR-40 | `Gate assignment` `INV-09` | `gate_assignments`; kiểm chủ suất (R7) + vai trò `GateStaff` | T24 | đã có design |
+| FR-41 | `Showtime` `INV-02` — giờ bắt đầu (`BR-31`) | Kiểm `starts_at` trong transaction giữ ghế ⇒ `409 SHOWTIME_STARTED` | T18 | đã có design |
 
-> **Cột "Ticket" là dự kiến**, dựa trên trường `Traces to:` của từng ticket. Nó sẽ được chốt khi
-> Lớp 3 sinh ra quyết định thiết kế. Cột "Quyết định design" để `(chưa xác định)` vì Lớp 3 chưa được
-> viết.
+> **Cột "Ticket"** lấy từ trường `Traces to:` của từng ticket; mọi `FR` trong scope đều có ít nhất
+> một ticket (Gate C). **Cột "Quyết định design"** điền 2026-11-25 khi đóng Gate C — chi tiết ở
+> `docs/design/`.
 >
 > **Cột "Trạng thái"** nói mức độ hoàn thành của việc **đáp ứng** requirement, không phải việc
-> viết tài liệu. `đã có domain` = đã có khái niệm ở Lớp 2, chưa được Lớp 3/4 xử lý.
+> viết tài liệu. `đã có domain` = đã có khái niệm ở Lớp 2; `đã có design` = có cơ chế ở Lớp 3, chưa có code + test (Lớp 4).
 
 ## Danh sách ticket
 
@@ -166,10 +170,10 @@ Chi tiết từng ticket nằm ở `.scratch/advanced-ticket-system/issues/`.
 | # | Ticket | Mode | Blocked by | Traces to |
 |---|---|---|---|---|
 | T10 | Architecture và module boundary | `co-design` | T06, T07, T08 | — | **xong 2026-11-25** |
-| T11 | Data model (`inventory.showtime_seats`, bảng ghế) | `co-design` | T07 | — |
-| T12 | Concurrency design: 13 bài toán → cơ chế → test | `explain` + `co-design` | T07, T08 | — |
-| T13 | API contract và idempotency contract (endpoint ghế) | `co-design` | T09, T12 | FR-11, FR-12, FR-13, FR-16, FR-17, FR-18, FR-23, FR-36 |
-| T14 | Bộ ADR | `co-design` | T10, T11, T12, T13 | — |
+| T11 | Data model (`inventory.showtime_seats`, bảng ghế) | `co-design` | T07 | — | **xong 2026-11-25** |
+| T12 | Concurrency design: 14 bài toán → cơ chế → test | `explain` + `co-design` | T07, T08 | — | **xong 2026-11-25** |
+| T13 | API contract và idempotency contract (endpoint ghế) | `co-design` | T09, T12 | FR-11, FR-12, FR-13, FR-16, FR-17, FR-18, FR-23, FR-36 | **xong 2026-11-25** |
+| T14 | Bộ ADR | `co-design` | T10, T11, T12, T13 | — | **xong 2026-11-25** |
 
 ### Gate D — Implementation (T15–T26)
 
@@ -264,6 +268,18 @@ Ghi lại ở đây mỗi khi có quyết định nào ảnh hưởng tới toà
 | 2026-11-25 | **Khoảng đệm giữa hai suất = 15 phút** (đóng Q22) | Hằng số toàn hệ thống để exclusion constraint đơn giản | `BR-20` |
 | 2026-11-25 | **Check-in có 5 kết quả: hợp lệ / đã dùng / không hợp lệ / suất khác / suất đã hủy** | "Vé chưa trả tiền" không thể tồn tại (vé chỉ cấp khi `Paid`) — thay bằng "suất đã hủy" | `FR-25`, `docs/domain/state-machines.md` |
 | 2026-11-25 | **ADR-0008, ADR-0009** cho quyết định T10 | Khó đảo ngược, đi ngược quyết định "1 `DbContext`" cũ | ADR-0008, ADR-0009 |
+| 2026-11-25 | **T11 Data model**: `uuid` v7, trạng thái `text` + `CHECK`, tiền `bigint` VND, không FK xuyên schema, bảng lịch sử `REVOKE UPDATE/DELETE` | Ép invariant ở DB; ranh giới module thấy trong SQL | `docs/design/data-model.md` |
+| 2026-11-25 | **Giữ n ghế = `SELECT … ORDER BY id FOR UPDATE` rồi `UPDATE` có điều kiện** (ADR-0002 → accepted) | Thứ tự khoá của `UPDATE … ANY` là chi tiết planner; `FR-15` cần biết ghế nào thất bại | ADR-0002 |
+| 2026-11-25 | **Quota = advisory lock theo transaction** | Không cần bảng quota, tự nhả, trùng băm chỉ chậm hơn | ADR-0007 |
+| 2026-11-25 | **Idempotency: chiếm key trong transaction nghiệp vụ, savepoint giữ kết quả lỗi** | Không kẹt key khi tiến trình chết; trùng đang chạy thì chờ rồi nhận cùng kết quả (`FR-37`) | ADR-0011 |
+| 2026-11-25 | **Cache sơ đồ ghế: ghi đè theo ghế có version, qua outbox; single-flight hai tầng** | Không hot row, không miss mỗi lần giữ ghế, snapshot cũ không đè mới | ADR-0012 |
+| 2026-11-25 | **Check-in chỉ bằng PK ở DB — bỏ Redis `SETNX`** | Redis chỉ thêm chỗ lệch | ADR-0013 |
+| 2026-11-25 | **Refresh rotation nghiêm ngặt, không ân hạn** | Không phân biệt được gửi đúp với kẻ trộm | ADR-0014 |
+| 2026-11-25 | **Lệnh giữ được lấy ghế `Held` quá hạn** (đóng Q25) | `SC-07`: hết hạn là trống ngay, không chờ worker | ADR-0015 |
+| 2026-11-25 | **Bài toán #14 — giữ ghế ↔ hủy suất**: `FOR KEY SHARE` vs `FOR UPDATE` | Phát hiện ở T10 | `docs/design/concurrency.md` |
+| 2026-11-25 | **Không `SERIALIZABLE`, không distributed lock** (đóng Q02, Q06) | Mọi bất biến đã có cơ chế ở DB; Redis chỉ tối ưu | `docs/design/concurrency.md` |
+| 2026-11-25 | **API**: problem+json có `code` + `action`; `404` cho tài nguyên người khác; `409` vs `422`; `Idempotency-Key` bắt buộc chỉ ở giữ ghế | `FR-10`, `FR-36`; endpoint khác tự nhiên idempotent | `docs/design/api-contract.md` |
+| 2026-11-25 | **Đóng Gate C, mở Gate D**; đồng bộ ticket T15–T26 với design | Exit checklist Gate C tick đủ | `docs/plan/gate-d-implementation.md` |
 
 ## Câu hỏi còn mở
 
@@ -276,11 +292,11 @@ Ghi lại ở đây mỗi khi có quyết định nào ảnh hưởng tới toà
 | Đơn `Paid` khi hủy suất chiếu có cần trạng thái `Refunded` riêng không | ~~Gate B (T08, T09)~~ → **đã trả lời 2026-11-24: KHÔNG — `Booking` giữ `Paid`, dấu vết hoàn tiền ở `Payment intent.Refunded`; xem `docs/domain/cross-context-contracts.md`** |
 | ~~Giá vé theo loại ghế có đổi giữa các suất của cùng một phim không?~~ | → **đã trả lời: CÓ — giá thuộc (suất, loại ghế)** |
 | Ghế `Blocked` (vệ sinh, dành riêng) có được bán online không, ai quyết định? | ~~Gate B (T07, T08)~~ → **đã trả lời 2026-11-20: KHÔNG bán lại online; quản lý rạp quyết định; xem `BR-11`** |
-| Có cần `SERIALIZABLE` ở đâu không, hay conditional update đủ? | Gate C (ADR-0002) |
+| ~~Có cần `SERIALIZABLE` ở đâu không?~~ | → **đã trả lời: không** (`concurrency.md`) |
 | Có tách module thành service riêng không, và ranh giới đo được ở đâu? | Sau T23 |
-| Hold TTL cố định hay cấu hình theo suất chiếu? | Gate C (T13) — `BR-03` đã ghi 15 phút cố định; T13 chỉ xác nhận |
+| ~~Hold TTL cố định hay cấu hình theo suất chiếu?~~ | → **đã trả lời: cố định 15 phút** (`api-contract.md`) |
 | ~~Offline check-in sync dùng cơ chế nào?~~ | **Đã đóng — loại khỏi scope (`NR-15`)** |
 | ~~Module tham gia chung DB transaction thế nào khi không đọc bảng của nhau? (Q20)~~ | → **đã trả lời 2026-11-25 (T10): mỗi module một `DbContext`, chung connection + transaction qua UoW; xem `docs/design/architecture.md` D3** |
-| Có cần distributed lock ở đâu không? (khoá quota `BR-08` là khoá **trong DB**, không phân tán — ADR-0007) | Gate C (T12) |
+| ~~Có cần distributed lock ở đâu không?~~ | → **đã trả lời: không** (`concurrency.md`) |
 | Khi nào chuyển tài liệu sang tiếng Anh để đưa lên CV? | T26 |
-| Có dùng `teach` (sinh lesson HTML) cho phần lý thuyết concurrency không? | Gate C |
+| ~~Có dùng `teach` cho lý thuyết concurrency không?~~ | → **không** — phần giảng nằm trong `concurrency.md` |

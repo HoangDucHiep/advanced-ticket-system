@@ -92,12 +92,26 @@ Với idempotency contract, AI giảng phần khó trước:
 
 ## Tiêu chí hoàn thành
 
-- [ ] Mọi endpoint trong user journey đều có trong contract
-- [ ] Mọi `FR-nn` đều truy vết được tới ít nhất một endpoint
-- [ ] Bảng error code toàn cục đầy đủ, mỗi status có "client nên làm gì"
-- [ ] Endpoint nào cần `Idempotency-Key` đã được đánh dấu, kèm lý do
-- [ ] Idempotency contract mô tả đủ: hash, các trạng thái, xử lý race, hạn dùng, dọn dẹp
-- [ ] Đã nói rõ cơ chế idempotency có dùng lại được cho webhook không
-- [ ] Không endpoint nào trả `200` cho một lỗi nghiệp vụ mà không giải thích
-- [ ] Đã nói rõ endpoint nào **không** có partial success, và tại sao (đặt n ghế là
+- [x] Mọi endpoint trong user journey đều có trong contract
+- [x] Mọi `FR-nn` đều truy vết được tới ít nhất một endpoint
+- [x] Bảng error code toàn cục đầy đủ, mỗi status có "client nên làm gì"
+- [x] Endpoint nào cần `Idempotency-Key` đã được đánh dấu, kèm lý do
+- [x] Idempotency contract mô tả đủ: hash, các trạng thái, xử lý race, hạn dùng, dọn dẹp
+- [x] Đã nói rõ cơ chế idempotency có dùng lại được cho webhook không
+- [x] Không endpoint nào trả `200` cho một lỗi nghiệp vụ mà không giải thích
+- [x] Đã nói rõ endpoint nào **không** có partial success, và tại sao (đặt n ghế là
       all-or-nothing → `409` trả về kèm danh sách ghế đã có người, client tự chọn lại)
+
+---
+
+## Hoàn thành — 2026-11-25
+
+Artifact: [`docs/design/api-contract.md`](../../../docs/design/api-contract.md). Quyết định: AI.
+
+- Mọi endpoint theo module; truy vết FR → endpoint và journey → endpoint.
+- Lỗi `application/problem+json` với `code` + `action` (`FR-36`); bảng `400`–`503` kèm "client nên làm
+  gì"; phân biệt `409` (thế giới đổi) và `422` (yêu cầu sai luật).
+- Idempotency bắt buộc ở giữ ghế; hash, chờ khi trùng đang chạy, hạn 24h, dọn dẹp; webhook **không**
+  dùng chung cơ chế (dùng `UNIQUE stripe_event_id`).
+- Không có partial success: giữ ghế all-or-nothing, `409` kèm `unavailableSeatIds`.
+- Sơ đồ ghế phân biệt `Held` / `Sold`; định dạng QR; đóng Q04.

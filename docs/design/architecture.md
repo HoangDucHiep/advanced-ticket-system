@@ -396,12 +396,10 @@ sequenceDiagram
 Đi qua **ba module** (`Booking` điều phối, `Scheduling` đọc, `Inventory` ghi) và **một**
 transaction. Chi tiết chưa chốt, để lại cho ticket sau:
 
-- Bản ghi idempotency của lần **thất bại** được lưu thế nào khi transaction chính rollback (lưu
-  ngoài transaction hay transaction riêng) → **T19**, T13.
-- Thứ tự khoá chính xác (quota → ghế tăng dần, `BR-22`) và câu SQL → **T12**.
-- **Race giữ ghế ↔ hủy suất:** giữ ghế đọc `OnSale` trong transaction, nhưng hủy suất có thể
-  commit ngay sau đó ⇒ đơn mới được tạo cho suất đã hủy. Cần khoá dòng `showtimes` (ví dụ giữ ghế
-  `FOR SHARE`, hủy suất `FOR UPDATE`) → **T12**.
+- Bản ghi idempotency được chèn **đầu** transaction; thất bại nghiệp vụ dùng savepoint để giữ kết quả
+  `409` (ADR-0011) — sơ đồ trên vẽ gọn.
+- SQL đầy đủ và thứ tự khoá: `concurrency.md` #2.
+- Đọc suất ở bước R9 dùng `FOR KEY SHARE` để chặn race với hủy suất (`concurrency.md` #14).
 
 ---
 
@@ -439,10 +437,10 @@ Thứ tự ứng viên nếu điều kiện 2 xảy ra: luồng đọc của `In
 
 | Câu hỏi | Ticket |
 |---|---|
-| Khoá dòng `showtimes` để chặn race giữ ghế ↔ hủy suất | T12 |
-| Khoá quota: advisory lock hay bảng quota | T12 (ADR-0007) |
-| Lưu kết quả idempotency của lần thất bại khi transaction chính rollback | T19, T13 |
-| Cơ chế vô hiệu cache sơ đồ ghế (outbox hay sau commit) | T12 (#10) |
+| ~~Khoá dòng `showtimes` để chặn race giữ ghế ↔ hủy suất~~ — `FOR KEY SHARE` / `FOR UPDATE` (`concurrency.md` #14) | — |
+| ~~Khoá quota~~ — advisory lock (ADR-0007) | — |
+| ~~Lưu kết quả idempotency của lần thất bại~~ — savepoint trong cùng transaction (ADR-0011) | — |
+| ~~Cơ chế cập nhật cache sơ đồ ghế~~ — outbox + version (ADR-0012) | — |
 | ~~Tên `AwaitingPayment` ở `Payment intent` (Q28)~~ — đã chốt `Unpaid` / `Closed` (ADR-0010) | — |
 
 ## Trạng thái

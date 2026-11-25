@@ -4,7 +4,7 @@ title: Giới hạn 10 ghế mỗi người mỗi suất (BR-08) ép bằng kho�
 status: accepted
 date: 2026-11-25
 Related: ADR-0005
-Revalidate at Gate C
+Updated: 2026-11-25 (Gate C, T12) — chốt cách hiện thực khoá
 ---
 
 # Giới hạn 10 ghế mỗi người mỗi suất (`BR-08`) ép bằng khoá theo cặp (người xem, suất chiếu)
@@ -31,8 +31,11 @@ giữ thêm, vượt 10. Review 2026-11-25 thấy lập luận đó có ba lỗi
 - **Cơ chế:** trong transaction giữ ghế, **trước** khi đếm, lấy một khoá theo cặp
   `(customer_id, showtime_id)` giữ tới hết transaction. Mọi yêu cầu giữ ghế của cùng người cho cùng
   suất bị **xếp hàng** qua khoá này ⇒ "đếm rồi giữ" không còn cửa sổ race.
-- Cách hiện thực khoá (advisory lock của Postgres, hay một dòng quota `SELECT … FOR UPDATE`) chốt ở
-  T12.
+- Cách hiện thực khoá — **chốt ở T12: advisory lock theo transaction**
+  `pg_advisory_xact_lock(hashtextextended(customer_id || '/' || showtime_id, 0))`. Không chọn dòng quota
+  `SELECT … FOR UPDATE`: phải chèn dòng trước khi khoá, thêm một bảng tăng theo (người × suất) mà không
+  ai đọc, và phải dọn. Trùng băm chỉ làm hai cặp xếp chung hàng — chậm hơn, không sai. Khoá tự nhả khi
+  transaction kết thúc (không dùng bản mức session).
 - Thứ tự khoá trong transaction giữ ghế: **khoá quota trước, dòng ghế sau** (tăng dần theo id ghế)
   — cố định để không sinh deadlock giữa hai loại khoá.
 

@@ -122,14 +122,26 @@ Với mỗi bài toán AI hỏi: chọn cơ chế nào, và **cách nào sẽ đ
 
 ## Tiêu chí hoàn thành
 
-- [ ] Cả 12 bài toán trong roadmap đều có mục trong file, hoặc ghi rõ là đã bị loại vì lý do
+- [x] Cả 12 bài toán trong roadmap đều có mục trong file, hoặc ghi rõ là đã bị loại vì lý do
       gì (domain không có nó nữa)
-- [ ] Mọi bài toán đều có test chứng minh, và test nằm ở đúng tầng (unit / integration /
+- [x] Mọi bài toán đều có test chứng minh, và test nằm ở đúng tầng (unit / integration /
       load)
-- [ ] Mọi bài toán đều có dòng "cách test này fail nếu cơ chế bị thay bằng cái sai"
-- [ ] Mỗi bài toán liệt kê ít nhất một phương án thay thế đã cân nhắc
-- [ ] **Bài toán #2 và #3 có cơ chế cụ thể tới mức viết được SQL**, kèm phần trình bày thứ
+- [x] Mọi bài toán đều có dòng "cách test này fail nếu cơ chế bị thay bằng cái sai"
+- [x] Mỗi bài toán liệt kê ít nhất một phương án thay thế đã cân nhắc
+- [x] **Bài toán #2 và #3 có cơ chế cụ thể tới mức viết được SQL**, kèm phần trình bày thứ
       tự khoá
-- [ ] Có phân biệt rõ bài toán nào giải được ở tầng DB và bài nào cần Redis
-- [ ] Có ghi rõ bài toán nào được đo bằng `dotnet-counters` thay vì chỉ bằng latency
-- [ ] Bạn trả lời được: "vì sao chọn cơ chế này, cách kia thua ở đâu" cho ít nhất 5 bài toán
+- [x] Có phân biệt rõ bài toán nào giải được ở tầng DB và bài nào cần Redis
+- [x] Có ghi rõ bài toán nào được đo bằng `dotnet-counters` thay vì chỉ bằng latency
+- [x] Bạn trả lời được: "vì sao chọn cơ chế này, cách kia thua ở đâu" cho ít nhất 5 bài toán
+
+---
+
+## Hoàn thành — 2026-11-25
+
+Artifact: [`docs/design/concurrency.md`](../../../docs/design/concurrency.md). Quyết định: AI.
+
+- **14** bài toán (12 gốc + #13 quota từ review + #14 giữ ghế ↔ hủy suất từ T10), mỗi bài có cơ chế,
+  phương án bị loại, test, dòng "đỏ nếu…" chạy được qua cờ `Concurrency:UnsafeVariant`.
+- #2, #3 có SQL đầy đủ và **thứ tự khoá toàn cục**.
+- Tầng giải: DB (#1–#8, #13, #14), Redis (#9, #10, #12), ứng dụng + `dotnet-counters` (#11).
+- Đóng Q01, Q02, Q06, Q08, Q11, Q25; chốt khoá quota = advisory lock. ADR-0002 → `accepted`.
