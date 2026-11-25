@@ -27,6 +27,7 @@ này được phân công trực suất nào".
 | Tham chiếu ghế (`Showtime seat id`) | tham chiếu | Vé gắn với **một** ghế |
 | Tham chiếu suất chiếu | tham chiếu | Vé thuộc **một** suất chiếu |
 | Tham chiếu đơn (`Booking id`) | tham chiếu | Vé đến từ đơn nào |
+| Chủ sở hữu (`Customer id`) | tham chiếu (bản sao lúc cấp) | Chép từ event `BookingPaid` để tự kiểm tra chủ sở hữu (`FR-10`) |
 | Bản ghi check-in | entity | Vé đã quét lúc nào, ở cổng nào |
 
 **Boundary**: nằm **ngoài** aggregate này —
@@ -100,8 +101,8 @@ này được phân công trực suất nào".
 
 - **INV-07** — Mỗi vé thuộc về **một người xem** (chủ sở hữu của đơn), và người xem đó chỉ
   thấy vé của chính mình.
-  - *Cơ chế bảo vệ*: vé tham chiếu `Booking id`, đơn tham chiếu chủ sở hữu; quyền truy cập
-    được kiểm tra ở biên aggregate. Với quyền theo vai trò (quản lý rạp xem vé của rạp mình)
+  - *Cơ chế bảo vệ*: vé mang **bản sao** `Customer id` (chép lúc cấp vé — chủ đơn không đổi), nên
+    `Ticketing` tự kiểm tra chủ sở hữu ở biên aggregate, không phải hỏi `Booking`. Với quyền theo vai trò (quản lý rạp xem vé của rạp mình)
     thì điều kiện là **sở hữu lịch chiếu**.
   - *Ai có thể vi phạm*: endpoint tải vé bằng mã vé mà không kiểm tra chủ sở hữu — mã QR
     chính là thứ mang tính bí mật, nên lộ mã là lộ vé.
@@ -111,7 +112,8 @@ này được phân công trực suất nào".
 
 Một transaction duy nhất cho **mỗi lượt quét vé**:
 
-1. Kiểm tra vé tồn tại, thuộc suất chiếu đang diễn ra, và quyền của người quét hợp lệ;
+1. Kiểm tra quyền người quét (vai trò + `Gate assignment`); vé tồn tại, đúng chữ ký, thuộc đúng
+   suất đang quét, và suất **chưa bị hủy**;
 2. Ghi **một** dòng ghi nhận check-in (chứa thời điểm, cổng, người quét).
 
 Nếu dòng ghi nhận đó đã tồn tại → lượt quét bị **từ chối**, transaction rollback, và hệ thống
@@ -176,8 +178,8 @@ cục bộ nhưng hoá thành toàn cục — vì nó đếm theo **người** q
 
 | Dữ liệu | Nguồn sự thật | Ai được đọc |
 |---|---|---|
-| Vé và trạng thái check-in | `Ticketing` | `Booking` (qua đơn), quản lý rạp (`FR-27`) |
+| Vé và trạng thái check-in | `Ticketing` | người xem (vé của mình), quản lý rạp (`FR-27`) |
 | Phân công nhân viên cổng cho suất chiếu (`Gate assignment`) | `Ticketing` | quản lý rạp |
 | Suất chiếu, giờ chiếu, trạng thái hủy | `Scheduling` | `Ticketing` (R7) |
-| Đơn và chủ sở hữu đơn | `Booking` | `Ticketing` |
+| Đơn và chủ sở hữu đơn | `Booking` | `Ticketing` — chỉ qua event `BookingPaid` (bản sao lên vé) |
 | Quyền của người quét | `Identity & Access` | `Ticketing` |

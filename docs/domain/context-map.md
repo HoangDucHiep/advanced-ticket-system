@@ -87,6 +87,11 @@ graph LR
 
 Cơ chế của từng quan hệ: [`cross-context-contracts.md`](cross-context-contracts.md) (T09).
 
+> **Cách đọc mũi tên:** mũi tên đi theo **hướng dữ liệu chính** (từ bên cung cấp sang bên dùng).
+> R4 (`Booking ↔ Payment`) và R6 (`Booking → Ticketing`) là quan hệ **hai chiều về dữ liệu** — mỗi
+> bên sở hữu một phần bên kia cần. Hướng **phụ thuộc trong code** (ai biết ai) là một quyết định
+> riêng của Lớp 3: [`../design/architecture.md`](../design/architecture.md) D9, ADR-0009.
+
 ## Quan hệ giữa các context
 
 Mỗi quan hệ ghi rõ: dạng quan hệ, ai gọi ai, hướng dữ liệu, và đi qua API hay ghi chung
@@ -111,8 +116,10 @@ R9) và **không** có danh sách ghế bị chặn (`Blocked` chỉ sống ở 
 ### R2 — `Inventory` → `Scheduling` (chiều ngược)
 
 - **Dạng quan hệ:** `Customer/Supplier` — `Inventory` là Supplier.
-- **Ai gọi ai:** `Scheduling` đọc từ `Inventory`.
-- **Dữ liệu đi theo hướng nào:** `Inventory` → `Scheduling`.
+- **Ai gọi ai:** quản lý rạp đọc bốn con số **do `Inventory` phục vụ** (không qua `Scheduling` —
+  tránh vòng phụ thuộc, xem D9).
+- **Dữ liệu đi theo hướng nào:** `Inventory` → quản lý rạp (nhu cầu "tình trạng bán" của
+  `Scheduling`).
 - **Cơ chế:** **đọc**, không ghi.
 
 **Dữ liệu đi qua:** bốn con số tình trạng bán của một suất chiếu (`FR-23`) — còn trống / đang
@@ -148,8 +155,10 @@ giữ / đã bán / bị chặn.
 
 ### R4 — `Booking` → `Payment`
 
-- **Dạng quan hệ:** `Customer/Supplier` — `Payment` là Supplier.
-- **Ai gọi ai:** `Booking` hỏi `Payment` về trạng thái tiền của một đơn.
+- **Dạng quan hệ:** `Customer/Supplier`, **hai chiều về dữ liệu**: `Payment` là Supplier của trạng
+  thái tiền; `Booking` là Supplier của đơn (số tiền, hạn).
+- **Ai gọi ai:** `Booking` gọi `Payment` (tạo intent, `Captured`, `RefundPending`, `Closed`); `Payment`
+  báo kết quả thanh toán bằng event mà `Booking` nghe.
 - **Dữ liệu đi theo hướng nào:** `Booking` → `Payment` (hỏi) và `Payment` → `Booking` (thông báo
   kết quả thanh toán).
 - **Cơ chế:** **ghi chung transaction** khi ghi nhận kết quả thanh toán.
@@ -188,10 +197,11 @@ các sự kiện thanh toán / hoàn tiền.
 
 ### R6 — `Booking` → `Ticketing`
 
-- **Dạng quan hệ:** `Customer/Supplier` — `Ticketing` là Supplier (nguồn chuẩn về vé).
-- **Ai gọi ai:** `Booking` gọi `Ticketing` cấp vé khi đơn đã thanh toán.
-- **Dữ liệu đi theo hướng nào:** `Booking` → `Ticketing` (yêu cầu cấp vé), và
-  `Ticketing` → `Booking` (trạng thái "đơn đã cấp vé").
+- **Dạng quan hệ:** `Customer/Supplier` — `Booking` là Supplier của "đơn đã thanh toán" (đầu vào cấp
+  vé); `Ticketing` là nguồn sự thật về vé.
+- **Ai gọi ai:** `Booking` phát event `BookingPaid`; `Ticketing` nghe và cấp vé, cùng transaction.
+- **Dữ liệu đi theo hướng nào:** `Booking` → `Ticketing`. Không có chiều ngược: "đơn đã cấp vé" suy
+  ra từ `Paid` (Q26), danh sách vé do `Ticketing` phục vụ.
 - **Cơ chế:** **ghi chung transaction** khi cấp vé.
 
 **Dữ liệu đi qua:** danh sách `Showtime seat` cần cấp vé.
@@ -246,15 +256,15 @@ suy ra.
 
 | Dữ liệu | Nguồn sự thật | Ai được đọc |
 |---|---|---|
-| Phim, suất chiếu, phòng, sơ đồ ghế vật lý | `Scheduling` | `Inventory`, `Booking`, `Ticketing` |
+| Phim (danh mục chung — quản trị viên), phòng và chủ sở hữu phòng, suất chiếu, sơ đồ ghế vật lý | `Scheduling` | `Inventory`, `Booking`, `Ticketing` |
 | Loại ghế của một phòng | `Scheduling` | `Inventory` (chép lúc sinh ghế) |
 | Giá vé (theo cặp loại ghế × suất chiếu) | `Scheduling` | `Booking` (R9) |
-| Trạng thái của một ghế suất chiếu (kể cả `Blocked`) | `Inventory` | `Booking`, `Ticketing`, `Scheduling` |
+| Trạng thái của một ghế suất chiếu (kể cả `Blocked`) | `Inventory` | `Booking` (qua interface); quản lý rạp và người xem (endpoint của `Inventory`) |
 | Thông tin giữ trên ghế (`hold_id`, `held_until`) | `Inventory` | `Booking` |
 | Đơn đặt vé, ghế đã chọn, giá đã chốt, `expires_at` | `Booking` | `Payment`, `Ticketing` |
 | Giới hạn số ghế mỗi người mỗi suất | `Booking` | — |
 | Trạng thái tiền, yêu cầu thanh toán, hoàn tiền | `Payment` | `Booking` |
-| Vé và trạng thái check-in | `Ticketing` | `Booking` (qua đơn), quản lý rạp (`FR-27`) |
+| Vé và trạng thái check-in | `Ticketing` | người xem (vé của mình), quản lý rạp (`FR-27`) — endpoint của `Ticketing` |
 | Phân công nhân viên cổng | `Ticketing` | quản lý rạp |
 | Người dùng và quyền | `Identity & Access` | tất cả |
 | Sự thật về tiền ở thế giới thật | **Stripe** | `Payment` |
@@ -278,7 +288,7 @@ không.
 | Hủy đơn | `Booking` + `Inventory` | **có** | Trả ghế về. Đơn chưa trả tiền nên **không** có hoàn tiền |
 | Hủy suất chiếu | `Scheduling` + `Booking` + `Inventory` + `Payment` | **có** | Huỷ đơn chờ, yêu cầu hoàn mọi đơn đã trả — đúng một lần mỗi đơn |
 | Quét lại vé | `Ticketing` | không | Một vé chỉ check-in một lần |
-| Xem sơ đồ ghế | `Scheduling` (đọc) + `Inventory` (trạng thái) | không | Được phục vụ từ bộ đệm ngoài DB — `SC-11` |
+| Xem sơ đồ ghế | `Inventory` (trạng thái) ghép bố cục + giá đọc từ `Scheduling` | không | Được phục vụ từ bộ đệm ngoài DB — `SC-11`; endpoint thuộc `Inventory` (architecture D9) |
 | Giao dịch lặp lại | `Booking` | không | Idempotency key theo yêu cầu |
 
 ## Nhóm "ranh giới bị cắt" — cần lưu ý nhất
@@ -310,7 +320,7 @@ service mà không đi theo.
 | Q16 | ~~Check-in thuộc context nào; `Ticketing` đọc `Scheduling` qua API hay chung database?~~ **Đã đóng**: `Ticketing`; đọc qua interface (T09) | — |
 | Q18 | ~~Đặt `Seat hold` ở đâu?~~ **Đã đóng 2026-11-25**: không còn aggregate `Seat hold`; thông tin giữ nằm trên `Showtime seat` (ADR-0005) | — |
 | Q19 | ~~Ai giữ lịch sử trạng thái cho `FR-31`?~~ **Đã đóng**: mỗi context giữ lịch sử của mình; `FR-31` ghép `Booking` + `Payment event` | — |
-| Q20 | Các "ranh giới bị cắt": module tham gia chung DB transaction thế nào; khi tách service chuyển sang saga/outbox ra sao? | T10 |
+| Q20 | ~~Module tham gia chung DB transaction thế nào?~~ **Đã đóng ở T10**: mỗi module một `DbContext`, chung connection + transaction (ADR-0008) | — |
 
 ## Trạng thái
 

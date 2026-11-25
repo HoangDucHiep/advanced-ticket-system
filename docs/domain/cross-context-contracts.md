@@ -24,7 +24,8 @@ Mỗi hợp đồng ghi rõ:
 
 - **Không context nào đọc hoặc ghi trực tiếp bảng của context khác.** Mọi trao đổi đi qua interface
   của context sở hữu — kể cả khi hai bên ghi chung một DB transaction (khi đó interface tham gia vào
-  transaction đang mở). Cách hiện thực chốt ở T10.
+  transaction đang mở). Cách hiện thực: [`../design/architecture.md`](../design/architecture.md) D3,
+  D4 (ADR-0008, ADR-0009).
 - **Không lời gọi ra ngoài (Stripe, email) nào nằm trong DB transaction.** Ra ngoài đi qua outbox.
 
 ---
@@ -72,10 +73,13 @@ sách (id ghế phòng, loại)". Mọi logic **vị trí trong phòng** nằm �
 
 ## Hợp đồng: `Inventory` → `Scheduling` (R2)
 
-**Hướng**: `Inventory` → `Scheduling`, chỉ đọc.
+**Hướng**: `Inventory` → quản lý rạp, chỉ đọc. (Ở Lớp 2 đây là `Inventory` cung cấp cho nhu cầu
+"tình trạng bán" của `Scheduling`.)
 
-**Hình thức**: gọi trong process qua interface của `Inventory` (ví dụ
-`IInventoryQueries.GetSeatAvailabilitySummary(showtimeId)`).
+**Hình thức**: truy vấn đọc do **chính `Inventory` phục vụ** (một endpoint của module `Inventory`).
+`Scheduling` **không** gọi `Inventory` — nếu gọi thì module `Scheduling` phụ thuộc `Inventory` trong
+khi `Inventory` đã phụ thuộc `Scheduling` (R1, R9) ⇒ vòng. Quyền xem (chủ suất) `Inventory` tự kiểm
+qua R9. Xem `docs/design/architecture.md` D9.
 
 ### Hợp đồng
 
@@ -87,7 +91,7 @@ Hiển thị cho quản lý rạp (`FR-23`).
 
 ### Điều khoản
 
-- **`Scheduling` được giả định**: bốn con số cộng lại bằng **tổng số ghế của phòng** — gồm cả ghế
+- **Người đọc được giả định**: bốn con số cộng lại bằng **tổng số ghế của phòng** — gồm cả ghế
   bị chặn (`FR-23`, `BR-11`).
 - **`Inventory` được đổi**: cách tính (đếm trực tiếp, bảng tổng hợp, cache) miễn công thức vẫn đúng.
 - **Không được**: `Scheduling` đọc bảng `Showtime seat`.
@@ -156,7 +160,9 @@ Trong **một** DB transaction, theo thứ tự:
 
 ## Hợp đồng: `Booking` ↔ `Payment` (R4)
 
-**Hướng**: hai chiều.
+**Hướng**: hai chiều về dữ liệu. **Hướng phụ thuộc** (ai biết ai) chỉ một chiều: `Booking` gọi
+interface của `Payment`; `Payment` **không biết** `Booking` — nó báo kết quả bằng **event** mà
+`Booking` nghe (ADR-0009).
 
 **Hình thức**: ghi chung DB transaction (tạo intent; xử lý thông báo).
 
@@ -165,29 +171,35 @@ Trong **một** DB transaction, theo thứ tự:
 | Thuật ngữ ở Booking | Thuật ngữ ở Payment | Cùng nghĩa? | Ghi chú |
 |---|---|---|---|
 | `Booking` | `Payment intent` | **KHÔNG** | Đơn vs. yêu cầu thanh toán. Khác aggregate, khác vòng đời |
-| `AwaitingPayment` | `AwaitingPayment` | **KHÔNG** | Cùng tên, khác máy trạng thái. Q28 — chốt ở T11 |
+| `AwaitingPayment` | `Unpaid` | **KHÔNG** | Đơn chờ thanh toán vs. intent chưa thu. Trước đây cùng tên — đổi ở ADR-0010 (Q28) |
+| `Expired` / `Cancelled` | `Closed` | Gần | Đơn kết thúc khi chưa thu ⇒ intent `Closed` cùng transaction |
 | `Paid` | `Captured` | Gần — xảy ra **cùng transaction** | `Booking.Paid` ⇔ `Payment intent.Captured` (trừ khi sau đó suất bị hủy: `Captured → RefundPending`) |
 | (không có) | `RefundPending`, `Refunded`, `Refund` | — | `Booking` **không** có trạng thái hoàn tiền (Q27) |
 
 ### Hợp đồng
 
-**Tạo intent** (người xem bấm thanh toán): `Booking` cung cấp `booking_id`, tổng tiền (VND). `Payment`
-tạo intent (`AwaitingPayment`) hoặc trả intent cũ nếu đã có. Gọi Stripe tạo PaymentIntent **ngoài**
-DB transaction.
+**Tạo intent** (người xem bấm thanh toán — endpoint thuộc `Booking`): `Booking` kiểm tra đơn của
+người gọi, `AwaitingPayment`, còn hạn; rồi gọi `Payment` với `booking_id`, tổng tiền (VND). `Payment`
+tạo intent (`Unpaid`) hoặc trả intent cũ nếu đã có. Gọi Stripe tạo PaymentIntent **ngoài** DB
+transaction.
 
 **Xử lý thông báo thành công** — một DB transaction:
 
 1. `Payment` ghi `Payment event` (`event.id` đã có ⇒ dừng).
-2. `Payment` yêu cầu `Booking` chuyển `AwaitingPayment → Paid` với điều kiện `expires_at > now()`.
-3. Thành công ⇒ intent → `Captured`, R6 cấp vé, ghế → `Sold`.
-4. Không thành công (đơn `Expired`/`Cancelled`/quá hạn) ⇒ intent → `RefundPending` + outbox. **Không**
-   cấp vé.
+2. `Payment` phát event `PaymentSucceeded(booking_id, intent_id, số tiền)` (in-process, trong
+   transaction).
+3. `Booking` nghe event, thử `AwaitingPayment → Paid` với điều kiện `expires_at > now()`.
+4. Thành công ⇒ `Booking` gọi `Payment`: intent → `Captured`; gọi `Inventory`: ghế → `Sold`; phát
+   `BookingPaid` ⇒ `Ticketing` cấp vé (R6).
+5. Không thành công (đơn `Expired`/`Cancelled`/quá hạn) ⇒ `Booking` gọi `Payment`: intent →
+   `RefundPending` + outbox. **Không** cấp vé.
 
-**Xử lý thông báo thất bại**: `Payment` chỉ ghi `Payment event`. Intent vẫn `AwaitingPayment`, đơn
-vẫn `AwaitingPayment` — người xem thử lại bằng **cùng** intent trong thời gian còn lại (J-04.4).
+**Xử lý thông báo thất bại**: `Payment` chỉ ghi `Payment event`. Intent vẫn `Unpaid`, đơn vẫn
+`AwaitingPayment` — người xem thử lại bằng **cùng** intent trong thời gian còn lại (J-04.4).
 
-**Đơn kết thúc mà chưa trả** (`Expired` / `Cancelled`): `Booking` báo `Payment` ⇒ `Payment` ghi outbox
-"huỷ PaymentIntent phía Stripe" (best-effort).
+**Đơn kết thúc mà chưa trả** (`Expired` / `Cancelled`): trong cùng transaction, `Booking` gọi `Payment`
+⇒ intent `Unpaid → Closed` + outbox "huỷ PaymentIntent phía Stripe" (best-effort). Nếu tiền vẫn về
+sau đó ⇒ `Closed → RefundPending`.
 
 ### Điều khoản
 
@@ -212,7 +224,8 @@ vẫn `AwaitingPayment` — người xem thử lại bằng **cùng** intent tro
 | Thuật ngữ ở Payment | Thuật ngữ ở Stripe | Ghi chú |
 |---|---|---|
 | `Payment intent` | `payment_intent` | Abstraction của ta vs. API object. Lưu `payment_intent.id` làm `external_id` |
-| `AwaitingPayment` | `requires_payment_method`, `requires_confirmation`, `requires_action`, `processing` | Gộp mọi trạng thái trung gian — kể cả sau thất bại |
+| `Unpaid` | `requires_payment_method`, `requires_confirmation`, `requires_action`, `processing` | Gộp mọi trạng thái trung gian — kể cả sau thất bại |
+| `Closed` | `canceled` (sau lời gọi huỷ) | Huỷ là best-effort; tiền vẫn về được nếu Stripe đã xử lý trước |
 | `Captured` | `payment_intent.succeeded` | |
 | `RefundPending` | (không có) | Ta đã ghi yêu cầu hoàn, chờ Stripe xác nhận |
 | `Refunded` | `charge.refunded` với số tiền hoàn = số đã thu | Ta chỉ hoàn toàn bộ |
@@ -251,9 +264,11 @@ quả hai lần qua hai `event.id` khác nhau:
 
 ## Hợp đồng: `Booking` → `Ticketing` (R6)
 
-**Hướng**: `Booking` → `Ticketing`.
+**Hướng**: `Booking` → `Ticketing` về dữ liệu. **Hướng phụ thuộc**: `Ticketing` nghe event
+`BookingPaid` mà `Booking` phát — `Booking` **không biết** `Ticketing` (ADR-0009).
 
-**Hình thức**: ghi chung DB transaction, trong transaction `Booking → Paid`.
+**Hình thức**: ghi chung DB transaction — event in-process được xử lý **trước commit** của transaction
+`Booking → Paid`.
 
 ### Dữ liệu
 
@@ -265,11 +280,13 @@ quả hai lần qua hai `event.id` khác nhau:
 ### Hợp đồng
 
 ```
-Yêu cầu (từ Booking, trong transaction → Paid):
-  booking_id, showtime_id, showtime_seat_ids: [...]
+Event BookingPaid (Booking phát, trong transaction → Paid):
+  booking_id, customer_id, showtime_id, showtime_seat_ids: [...]
 ```
 
-`Ticketing` tạo một `Ticket` (`Issued`, mã ký HMAC) cho mỗi ghế. Unique `showtime_seat_id`.
+`Ticketing` tạo một `Ticket` (`Issued`, mã ký HMAC) cho mỗi ghế, **chép** `customer_id` lên vé để tự
+kiểm tra chủ sở hữu (`FR-10`) mà không phải hỏi `Booking`. Unique `showtime_seat_id`. Danh sách vé
+của người xem / của một đơn do **`Ticketing`** phục vụ.
 
 ### Điều khoản
 
@@ -386,7 +403,7 @@ không "tối ưu" bằng cách chia transaction mà không đổi logic.
 | 4 | `hold_id` (Inventory) | `Booking id` (Booking) | Không dịch | `Inventory` không diễn giải `hold_id`. R3 |
 | 5 | `Payment intent` (Payment) | `payment_intent` (Stripe) | Phía `Payment` | Stripe nhiều trạng thái hơn, có hoàn một phần. R5 |
 | 6 | `Sold` (Inventory) | `Ticket` (Ticketing) | Không dịch; ghi rõ | Trạng thái ghế vs. sản phẩm cấp ra. Cùng transaction. R6 |
-| 7 | `AwaitingPayment` (Booking) | `AwaitingPayment` (Payment intent) | Không dịch; **Q28** | Cùng tên, khác máy. Chốt ở T11 |
+| 7 | `AwaitingPayment` (Booking) | `Unpaid` (Payment intent) | Không dịch; ghi rõ | Trước đây cùng tên — đổi ở ADR-0010 (đóng Q28) |
 
 > Cặp "`Seat hold` vs `Booking`" và "cờ đã cấp vé vs `Ticket`" của bản T09 đã bị **xoá**: `Seat hold`
 > không còn là aggregate (ADR-0005), cờ "đã cấp vé" không còn tồn tại (Q26).
@@ -413,11 +430,11 @@ không "tối ưu" bằng cách chia transaction mà không đổi logic.
 
 | # | Câu hỏi | Trạng thái |
 |---|---|---|
-| Q20 | Module tham gia chung DB transaction thế nào khi không được đọc bảng của nhau? Khi tách service, chuyển các ranh giới bị cắt sang saga/outbox ra sao? | Chốt ở T10 |
-| Q28 | Đổi tên `AwaitingPayment` ở một trong hai máy? | Chốt ở T11 |
-
-**Đã đóng:** Q26 (không có cờ "đã cấp vé"), Q27 (`Booking` giữ `Paid` khi hủy suất).
+| Q20 | ~~Module tham gia chung DB transaction thế nào khi không được đọc bảng của nhau?~~ | **Đã đóng ở T10** — `docs/design/architecture.md` D3, D10 |
+**Đã đóng:** Q26 (không có cờ "đã cấp vé"), Q27 (`Booking` giữ `Paid` khi hủy suất), Q28 (intent dùng
+`Unpaid` / `Closed` — ADR-0010).
 
 ## Trạng thái
 
-Bản làm việc, sửa lớn sau review 2026-11-25. Tiếp theo: T10 — kiến trúc module.
+Bản làm việc, sửa lớn sau review 2026-11-25; đồng bộ với T10 (hướng phụ thuộc R2, R4, R6) và
+ADR-0010 cùng ngày.

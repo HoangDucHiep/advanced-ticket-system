@@ -100,7 +100,7 @@ chọn cổng thanh toán theo rạp hay theo phương thức.
 
 - Lý do: `thời gian` — mỗi cổng là một bài toán thông báo kết quả riêng (xác thực chữ ký,
   định danh sự kiện lặp, thứ tự đến). Học một cách sâu còn hơn học ba cách nông, và bài toán
-  thông báo đến lặp (mục #7 trong bảng 12 bài toán) là phần đáng khoe nhất của nhánh thanh
+  thông báo đến lặp (mục #7 trong bảng bài toán concurrency) là phần đáng khoe nhất của nhánh thanh
   toán.
 - Nếu sau này cần: một lớp trung gian chung cho cổng thanh toán và một bộ chuyển đổi cho
   mỗi cổng. Ước lượng 2 tuần cho cổng thứ hai.

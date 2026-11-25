@@ -94,6 +94,10 @@ Thuộc về cặp **(loại ghế, suất chiếu)** — không thuộc về gh
 suất của cùng một phim có thể có giá khác nhau.
 _Avoid_: `giá ghế`, `biểu giá`, `tarif`, `SeatPrice` (giá thuộc về cặp, không thuộc về ghế)
 
+**Phòng chiếu / Room**:
+Một phòng chiếu vật lý có sơ đồ ghế cố định, thuộc về quản lý rạp đã tạo nó (`BR-32`).
+_Avoid_: `hall`, `screen`
+
 **Suất chiếu / Showtime**:
 Một phim, một phòng, một khoảng giờ. Mỗi suất chiếu có **sơ đồ ghế riêng** về mặt trạng thái, dù
 dùng chung sơ đồ vật lý của phòng. Trạng thái: `NotOnSale` (chưa mở bán) / `OnSale` (đang bán) /
@@ -101,7 +105,7 @@ dùng chung sơ đồ vật lý của phòng. Trạng thái: `NotOnSale` (chưa 
 _Avoid_: `screening`, `lịch chiếu`, `buổi chiếu`, `Schedule` (lịch chiếu là danh sách suất)
 
 **Phim / Movie**:
-Một tác phẩm. Một phim có nhiều suất chiếu.
+Một tác phẩm trong danh mục chung do quản trị viên quản lý. Một phim có nhiều suất chiếu.
 _Avoid_: `film`, `Title`
 
 ## Nhóm 4 — Vòng đời đơn đặt vé
@@ -155,6 +159,11 @@ _Avoid_: `quản lý`, `owner`, `staff`, `admin`, `Manager` (quá chung)
 Người trực cổng kiểm tra vé khi khách vào rạp. Chỉ ghi nhận check-in được.
 _Avoid_: `employee`, `doorman`, `Staff`
 
+**Người dùng / User**:
+Một tài khoản đăng nhập, mang **đúng một** vai trò (`Customer` / `Theater manager` / `Gate staff` /
+`Administrator`).
+_Avoid_: `account`
+
 **Quản trị viên / Administrator**:
 Người quản lý toàn hệ thống. Không phải quản lý rạp cụ thể nào.
 _Avoid_: `admin`, `superadmin`, `root`
@@ -163,7 +172,7 @@ _Avoid_: `admin`, `superadmin`, `root`
 Ghi nhận một vé đã được quét tại cổng. Một vé chỉ check-in **một lần**.
 _Avoid_: `scan`, `quét vé`, `validate`, `redeem`, `Scan` (là hành động quét, không phải trạng thái)
 
-## Nhóm 6 — Nhóm ba con số và trạng thái liên quan
+## Nhóm 6 — Ghế đôi, tiền của đơn, dòng đơn, định danh yêu cầu
 
 **Ghế đôi / Couple seat type**:
 Loại ghế cho hai người. Khi đếm giới hạn số lượng, tính là **2 ghế**; nhưng sinh ra **1 vé**.
@@ -193,6 +202,14 @@ _Avoid_: `payment`, `charge`, `transaction`
 Một thông báo kết quả từ cổng thanh toán (thành công, thất bại, đã hoàn), có định danh riêng. Mỗi
 thông báo chỉ được xử lý **một lần**.
 _Avoid_: `webhook` (là cách gửi, không phải khái niệm), `callback`
+
+**Chưa thu / Unpaid**:
+Trạng thái của `Payment intent` đã tạo nhưng chưa có kết quả thành công; thất bại thì vẫn ở đây.
+_Avoid_: `AwaitingPayment` (đó là của `Booking` — ADR-0010), `Pending`, `Failed`
+
+**Đã đóng / Closed**:
+Trạng thái của `Payment intent` khi đơn đã kết thúc (`Expired` / `Cancelled`) mà chưa thu tiền.
+_Avoid_: `Cancelled` (đó là của `Booking` và `Showtime`), `Voided`
 
 **Đã thu / Captured**:
 Trạng thái của `Payment intent` khi tiền đã về và đơn đã `Paid`.
@@ -388,7 +405,7 @@ transaction bảo đảm (ADR-0005). Lý do đầy đủ: [`aggregates/README.md
 | Định danh yêu cầu | `Idempotency key` | |
 | Yêu cầu thanh toán | `Payment intent` | |
 | Thông báo thanh toán | `Payment event` | |
-| Đã thu / Chờ hoàn / Đã hoàn | `Captured` / `RefundPending` / `Refunded` | Trạng thái payment intent |
+| Chưa thu / Đã đóng / Đã thu / Chờ hoàn / Đã hoàn | `Unpaid` / `Closed` / `Captured` / `RefundPending` / `Refunded` | Trạng thái payment intent (ADR-0010) |
 | Hoàn tiền | `Refund` | |
 | Chưa mở bán / Đang bán | `NotOnSale` / `OnSale` | Trạng thái showtime |
 | Đã cấp / Đã check-in | `Issued` / `CheckedIn` | Trạng thái ticket |
@@ -428,6 +445,7 @@ mâu thuẫn chỉ lộ ra khi ai đó đọc cả hai.
 
 ## Trạng thái
 
-Bản làm việc. Cập nhật 2026-11-25 sau review: thêm nhóm 7 (tiền), nhóm 8 (vé, cổng), các trạng
+Bản làm việc — **bản chốt là [`GLOSSARY.md`](../../GLOSSARY.md)** (Gate B đóng 2026-11-25). Cập
+nhật 2026-11-25 sau review: thêm nhóm 7 (tiền), nhóm 8 (vé, cổng), các trạng
 thái từ T08; sửa `Seat hold`, `Sellable seat count`, `Cancelled`, `Paid`. Sẽ gom vào `GLOSSARY.md`
 khi đóng Gate B.

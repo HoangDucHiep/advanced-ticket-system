@@ -140,9 +140,9 @@ là **phép đếm** trên dữ liệu đã commit.
 
 | Dữ liệu | Nguồn sự thật | Ai được đọc |
 |---|---|---|
-| Trạng thái của một ghế suất chiếu (kể cả `Blocked`) | `Inventory` | `Booking`, `Ticketing`, `Scheduling` |
+| Trạng thái của một ghế suất chiếu (kể cả `Blocked`) | `Inventory` | `Booking` (interface); người xem (sơ đồ ghế) |
 | Thông tin giữ trên ghế (`hold_id`, `held_until`) | `Inventory` | `Booking` |
-| Bốn con số tình trạng bán của một suất | `Inventory` (đếm trên dữ liệu đã commit) | `Scheduling` |
+| Bốn con số tình trạng bán của một suất | `Inventory` (đếm trên dữ liệu đã commit) | quản lý rạp chủ suất, qua endpoint của `Inventory` (R2) |
 
 Nguồn sự thật gốc (không phải ở đây): sơ đồ ghế của phòng, loại ghế, giá vé, lịch chiếu —
 thuộc `Scheduling`.

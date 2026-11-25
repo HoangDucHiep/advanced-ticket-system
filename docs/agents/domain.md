@@ -32,7 +32,10 @@ Repo này **single-context** (một `GLOSSARY.md` + `docs/adr/` ở root):
 │   │   ├── 0004-seat-hold-aggregate-boundary.md  ← superseded by ADR-0005
 │   │   ├── 0005-showtime-seat-aggregate.md
 │   │   ├── 0006-payment-expiry-refund-flow.md
-│   │   └── 0007-per-customer-showtime-quota.md
+│   │   ├── 0007-per-customer-showtime-quota.md
+│   │   ├── 0008-cross-module-transaction.md
+│   │   ├── 0009-module-communication.md
+│   │   └── 0010-payment-intent-states.md
 │   ├── agents/              ← cấu hình cho các skill
 │   ├── design/              ← Lớp 3
 │   ├── domain/              ← Lớp 2

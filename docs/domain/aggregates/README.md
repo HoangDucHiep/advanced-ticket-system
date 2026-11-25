@@ -92,6 +92,7 @@ Sửa lớn 2026-11-25 sau review: [ADR-0005](../../adr/0005-showtime-seat-aggre
 | `Room` | `Scheduling` | `INV-08` vị trí ghế duy nhất trong phòng | Ràng buộc duy nhất `(room, row, number)` |
 | `Room` | `Scheduling` | `INV-09` không có "sức chứa" cấu hình | **Hình dạng mô hình** — số ghế là phép đếm |
 | `Room` | `Scheduling` | `INV-13` không sửa sơ đồ khi còn suất chưa kết thúc | Kiểm tra ở lệnh sửa sơ đồ |
+| `Room` | `Scheduling` | `INV-14` suất chỉ tạo trên phòng của mình | Kiểm tra chủ phòng ở lệnh tạo suất |
 | `Movie` | `Scheduling` | `INV-11` chỉ hiện phim có suất đang bán | Suy ra từ dữ liệu, không lưu cờ |
 | `User` | `Identity & Access` | `INV-01` chỉ admin cấp/thu quyền | Kiểm tra vai trò ở biên aggregate |
 | `User` | `Identity & Access` | `INV-02` thu quyền có hiệu lực ngay + có dấu vết | Một transaction; vai trò không đọc từ token |
@@ -195,7 +196,7 @@ Tên bảng cụ thể (`showtime_seats`, `bookings`, `booking_lines`, `payment_
 | `Showtime seat` | Không | Tham chiếu `Showtime`, `Room seat`; `hold_id` là tham chiếu không diễn giải |
 | `Booking` | Không | `Ticket price` **đã chốt** là bản sao, không phải tham chiếu sống |
 | `Payment intent` | Không | Chỉ tham chiếu `Booking id` |
-| `Ticket` | Không | Chỉ tham chiếu `Booking id`, `Showtime seat id` |
+| `Ticket` | Không | Tham chiếu `Booking id`, `Showtime seat id`; **bản sao** `Customer id` |
 | `Gate assignment` | Không | Tham chiếu `Showtime id`, `User id` |
 | `Showtime` | Không | Chứa `Ticket price` **của chính nó** |
 | `Room` | Không | Chứa `Room seat` **của chính nó** |
@@ -207,4 +208,4 @@ Tên bảng cụ thể (`showtime_seats`, `bookings`, `booking_lines`, `payment_
 Bản làm việc, sửa lớn sau review 2026-11-25. Câu hỏi còn mở chuyển sang Gate C:
 
 - Ghế `Held` đã quá `held_until` mà worker chưa trả — có cho lệnh giữ mới lấy luôn không? (Q25, T12)
-- Giá trị khoảng đệm giữa hai suất chiếu cùng phòng (Q22, T13).
+- ~~Giá trị khoảng đệm giữa hai suất chiếu cùng phòng (Q22)~~ — **đã chốt: 15 phút** (`BR-20`).

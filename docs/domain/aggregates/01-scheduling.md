@@ -119,6 +119,7 @@ Tạo suất và hủy suất là **ranh giới bị cắt** (chạm `Inventory`
 | Thành phần | Bản chất | Vai trò |
 |---|---|---|
 | `Room seat` | entity | Sơ đồ ghế vật lý: hàng, số, loại ghế. **Tĩnh** — không có trạng thái |
+| Chủ sở hữu | tham chiếu | Quản lý rạp đã tạo phòng (`BR-32`) |
 
 **Boundary**: nằm **ngoài** aggregate này — `Showtime` (lịch chiếu của phòng), và
 `Showtime seat` (thuộc `Inventory`).
@@ -161,13 +162,22 @@ Tạo suất và hủy suất là **ranh giới bị cắt** (chạm `Inventory`
   - *Cơ chế bảo vệ*: lệnh sửa sơ đồ kiểm tra không còn suất chiếu như vậy.
   - *Traces to*: `BR-11`, `FR-20`, ADR-0003.
 
+- **INV-14** — Phòng thuộc **quản lý rạp đã tạo nó**. Suất chiếu chỉ được tạo trên phòng mà người
+  tạo sở hữu (quản trị viên: mọi phòng). Chủ sở hữu suất chiếu = chủ sở hữu phòng của nó.
+  - *Cơ chế bảo vệ*: `Room` mang tham chiếu chủ sở hữu; lệnh tạo suất kiểm tra chủ phòng trong cùng
+    transaction tạo suất.
+  - *Ai có thể vi phạm*: lệnh tạo suất chỉ kiểm vai trò `Theater manager` mà không kiểm chủ phòng.
+  - *Traces to*: `BR-32`, `FR-20`, `FR-21`.
+
 ---
 
 ## Aggregate: `Movie`
 
-**Bản chất**: entity. Một tác phẩm được chiếu.
+**Bản chất**: entity. Một tác phẩm được chiếu, nằm trong **danh mục chung** do quản trị viên quản
+lý (`BR-32`). Quản lý rạp chỉ chọn phim từ danh mục.
 
-**Chứa**: tên, mô tả, thời lượng, đạo diễn, thể loại.
+**Chứa**: tên, mô tả, thời lượng, đạo diễn, thể loại. Thời lượng dùng để tính giờ kết thúc mặc định
+của suất chiếu.
 
 **Boundary**: nằm **ngoài** aggregate này — `Showtime` (các suất chiếu của phim).
 
@@ -216,7 +226,7 @@ nghiệp vụ phức tạp, nên ranh giới aggregate là ranh giới transacti
   - *Điều kiện để chấp nhận được*: phải có **khoảng đệm giữa hai suất** (thời gian dọn dẹp) —
     khoảng thời gian trong ràng buộc là `[giờ bắt đầu, giờ kết thúc + khoảng đệm)`. Suất
     `Cancelled` **không** tính vào ràng buộc (ràng buộc có điều kiện), nếu không thì hủy một suất
-    sẽ chặn vĩnh viễn khung giờ đó. Giá trị khoảng đệm chốt ở T13.
+    sẽ chặn vĩnh viễn khung giờ đó. Khoảng đệm = **15 phút** (`BR-20`, đóng Q22).
   - *Traces to*: `BR-20`, `FR-21`.
 
 > **Bài học của `INV-07`.** Có những invariant mà **aggregate boundary không đủ** — không phải
@@ -233,6 +243,6 @@ nghiệp vụ phức tạp, nên ranh giới aggregate là ranh giới transacti
 |---|---|---|
 | Phim, suất chiếu, phòng, sơ đồ ghế vật lý | `Scheduling` | `Inventory`, `Booking`, `Ticketing` |
 | Loại ghế của một phòng | `Scheduling` | `Inventory` |
-| Giá vé (theo cặp loại ghế × suất chiếu) | `Scheduling` | `Inventory`, `Booking` |
+| Giá vé (theo cặp loại ghế × suất chiếu) | `Scheduling` | `Booking` (R9), người xem (sơ đồ ghế) |
 | Trạng thái, giờ chiếu, chủ sở hữu suất chiếu | `Scheduling` | `Booking` (R9), `Inventory` (R9), `Ticketing` (R7) |
-| Trạng thái thật của một ghế suất chiếu (kể cả `Blocked`) | `Inventory` | `Scheduling` (để báo cáo tình trạng bán) |
+| Trạng thái thật của một ghế suất chiếu (kể cả `Blocked`) | `Inventory` | quản lý rạp — bốn con số do `Inventory` phục vụ (R2) |

@@ -73,14 +73,18 @@ Hỗ trợ:
       không kết thúc intent — ADR-0006; **5** ranh giới bị cắt)
 - [x] `docs/domain/cross-context-contracts.md` — hợp đồng giữa các context (T09; sửa 2026-11-25:
   9 hợp đồng R1–R9, 7 cặp thuật ngữ khác nghĩa, 5 ranh giới bị cắt)
-- [ ] `GLOSSARY.md` ở root (single-context) hoặc `GLOSSARY-MAP.md` + glossary per context
+- [x] `GLOSSARY.md` ở root (single-context) hoặc `GLOSSARY-MAP.md` + glossary per context
+  (2026-11-25: một `GLOSSARY.md` ở root, chia mục theo 6 context)
+
+> **Gate B đóng ngày 2026-11-25** → Gate C mở. Plan chi tiết:
+> [`plan/gate-c-design.md`](plan/gate-c-design.md).
 - [x] Mỗi `FR-nn` của Gate A map được tới ít nhất một khái niệm domain (cột "Khái niệm domain" ở
   ma trận truy vết, 2026-11-25)
 - [x] ADR-0003 đã được xem lại: **accepted** 2026-11-25; ranh giới aggregate chốt ở ADR-0005
 
 ### Gate C — Design đủ để viết code
 
-- [ ] `docs/design/architecture.md` — cấu trúc module, quy tắc phụ thuộc
+- [x] `docs/design/architecture.md` — cấu trúc module, quy tắc phụ thuộc (T10, 2026-11-25)
 - [ ] `docs/design/data-model.md` — schema, index, constraint
 - [ ] `docs/design/concurrency.md` — mỗi bài toán có cơ chế **và** test chứng minh
 - [ ] `docs/design/api-contract.md` — endpoint, error code, idempotency contract

@@ -21,8 +21,8 @@ chứ không sở hữu dữ liệu này. Vì vậy aggregate ở đây là aggr
 
 | Thành phần | Bản chất | Vai trò |
 |---|---|---|
-| Vai trò (`Customer`, `Theater manager`, `Gate staff`, `Administrator`) | value object | Người dùng thuộc vai trò nào |
-| Tập quyền | value object | Các quyền cụ thể được cấp |
+| Vai trò (`Customer`, `Theater manager`, `Gate staff`, `Administrator`) | value object | Người dùng thuộc **đúng một** vai trò; quyền suy ra từ vai trò (không có tập quyền riêng) |
+| Số phiên bản vai trò | thuộc tính | Tăng mỗi lần đổi vai trò — dùng để vô hiệu cache vai trò (INV-02) |
 | Lịch sử thay đổi quyền | append-only | Mọi lần cấp/thu quyền, kèm thời điểm và người thực hiện |
 | Mật khẩu / thông tin đăng nhập | — | Xem T16 (Lớp 4) |
 
@@ -37,7 +37,7 @@ chứ không sở hữu dữ liệu này. Vì vậy aggregate ở đây là aggr
 - **INV-01** — Chỉ **quản trị viên** xem được danh sách người dùng, và cấp hoặc thu quyền của họ.
   Mọi lần thay đổi quyền được **ghi lại**.
   - *Cơ chế bảo vệ*: quyền thuộc `Identity & Access`, và lệnh cấp/thu quyền **kiểm tra vai trò
-    của người gọi** ở biên aggregate. Không có lệnh nào khác ghi vào tập quyền.
+    của người gọi** ở biên aggregate. Không có lệnh nào khác ghi vào vai trò.
   - *Ai có thể vi phạm*: một endpoint cấp quyền không kiểm tra vai trò — bất kỳ ai đăng nhập đều
     có thể tự phong quản trị viên.
   - *Traces to*: `BR-26`, `FR-29`.
@@ -94,7 +94,7 @@ chứ không sở hữu dữ liệu này. Vì vậy aggregate ở đây là aggr
 Một transaction duy nhất cho **mỗi lần thay đổi quyền**:
 
 1. Kiểm tra vai trò người gọi là quản trị viên;
-2. Cập nhật tập quyền;
+2. Cập nhật vai trò;
 3. Ghi một dòng lịch sử thay đổi quyền.
 
 Một transaction duy nhất cho **mỗi lần đăng nhập / làm mới phiên đăng nhập** — chi tiết cơ chế

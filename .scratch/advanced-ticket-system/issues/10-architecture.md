@@ -60,17 +60,45 @@ AI phản biện khi bạn đề xuất cấu trúc có vẻ "đẹp" nhưng kh�
 
 ## Tiêu chí hoàn thành
 
-- [ ] Có sơ đồ module với hướng phụ thuộc
-- [ ] Có ít nhất 5 quy tắc phụ thuộc viết dạng khẳng định, kiểm được
-- [ ] Có lý do chọn modular monolith dựa trên bài toán concurrency cụ thể
-- [ ] Có cấu trúc thư mục cụ thể với tên project
-- [ ] Mỗi bảng được ghi rõ module nào sở hữu
-- [ ] Có mô tả đường đi của một request đi qua các module
-- [ ] Có điều kiện tách service dựa trên số đo
-- [ ] Có nêu rõ bài toán concurrency nào buộc phải giữ transaction xuyên module
+- [x] Có sơ đồ module với hướng phụ thuộc
+- [x] Có ít nhất 5 quy tắc phụ thuộc viết dạng khẳng định, kiểm được
+- [x] Có lý do chọn modular monolith dựa trên bài toán concurrency cụ thể
+- [x] Có cấu trúc thư mục cụ thể với tên project
+- [x] Mỗi bảng được ghi rõ module nào sở hữu
+- [x] Có mô tả đường đi của một request đi qua các module
+- [x] Có điều kiện tách service dựa trên số đo
+- [x] Có nêu rõ bài toán concurrency nào buộc phải giữ transaction xuyên module
 
 > **Ghi chú (2026-11-19):** nghiệp vụ đổi sang đặt vé xem phim. Điểm mới cần phân định rõ:
 > **bảng ghế của phòng** (tĩnh, thuộc nghiệp vụ phòng chiếu) và **bảng trạng thái ghế theo
 > suất chiếu** (thay đổi liên tục, thuộc nghiệp vụ đặt vé) là hai bảng khác nhau về vòng đời
 > lẫn tần suất ghi. Việc chúng nằm cùng hay khác module là một quyết định kiến trúc cần
 > lập luận, không phải mặc định.
+
+---
+
+## Hoàn thành — 2026-11-25
+
+Artifact: [`docs/design/architecture.md`](../../../docs/design/architecture.md).
+
+**Ai chốt gì:** D1–D3 do người học chọn. Từ D4, người học yêu cầu AI quyết định và giải thích
+vì sao (để học) — các mục đó ghi *(AI đề xuất, người học chấp nhận)* trong tài liệu.
+
+| # | Quyết định |
+|---|---|
+| D1 | 6 module, một module một context |
+| D2 | Mỗi module `<Module>` + `<Module>.Contracts`; chỉ được reference `.Contracts` |
+| D3 | Mỗi module một `DbContext` (schema riêng), chung connection + transaction qua UoW (Q20) |
+| D4 | Interface (downstream → upstream, cần kết quả) / event in-process trong tx (upstream → downstream) / outbox (sau commit, hệ thống ngoài) |
+| D5 | Mỗi bảng một module; `room_seats` (Scheduling) ≠ `showtime_seats` (Inventory) |
+| D6 | `Shared.Abstractions` + `Shared.Infrastructure`, không chứa thuật ngữ glossary |
+| D7 | SQL tay cho lệnh tranh chấp, Dapper cho đọc nóng, EF Core cho ghi ít tranh chấp + migrations |
+| D8 | Outbox mỗi module, một dispatcher ở host |
+| D9 | Đồ thị không vòng; `Booking → Payment.Contracts`, `Ticketing → Booking.Contracts`; R2 do `Inventory` phục vụ |
+| D10 | Tách service khi: không cắt tx + số đo T23 + chấp nhận chi phí |
+
+**Phát hiện:** `context-map.md` tự mâu thuẫn ở R4, R6 (mũi tên vs chữ "Supplier") — đề xuất người
+học sửa. Ví dụ "Ordering" trong ticket này là tên cũ.
+
+**Chuyển sang:** race giữ ghế ↔ hủy suất (T12), khoá quota (T12), idempotency của lần thất bại
+(T19/T13), vô hiệu cache (T12), Q28 (T11).

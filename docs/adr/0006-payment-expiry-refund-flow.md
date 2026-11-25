@@ -88,6 +88,8 @@ như mọi đơn `Cancelled`.
 ## Consequences
 
 - `Payment intent` có bốn trạng thái: `AwaitingPayment`, `Captured`, `RefundPending`, `Refunded`.
+  **Sửa bởi ADR-0010 (2026-11-25):** `AwaitingPayment` của intent đổi tên thành `Unpaid`, thêm
+  `Closed` cho intent của đơn kết thúc khi chưa thu tiền.
 - Ranh giới bị cắt #4 (hủy suất chiếu) không còn là "một transaction cho mọi thứ" mà là "một
   transaction + outbox". Chỉ phần ghi **trong database** là atomic; phần gọi Stripe là bất đồng bộ
   và idempotent.

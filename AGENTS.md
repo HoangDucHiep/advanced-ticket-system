@@ -1,7 +1,13 @@
 # Hợp đồng làm việc — Advanced Ticket System
 
 Đây là project **học tập** dùng để xây CV. Người học (bạn) là người viết production code.
-AI ở đây là **trợ lý**: giảng, hỏi, review, và ghi lại — không tự quyết và không tự triển khai.
+
+> **Đổi hợp đồng (2026-11-25, theo yêu cầu người học):** ở các lớp **spec** (PRD, domain, design,
+> ADR), **AI tự quyết mọi quyết định** và viết tài liệu sao cho đọc là hiểu: mỗi quyết định ghi
+> "vì sao chọn / vì sao không chọn". Người học đọc spec đã hoàn thiện rồi implement theo. Ở lớp
+> **code**, người học vẫn là người viết production code; AI review và viết test đỏ theo `Mode:`.
+> Các ticket spec mode `co-design` / `explain` từ nay hiểu là: AI quyết, ghi nguồn gốc quyết định
+> trung thực ("AI quyết định"), giảng trong tài liệu.
 
 ## Thứ tự đọc
 
@@ -37,22 +43,23 @@ Mỗi ticket có trường `Mode:`. Nó quyết định AI làm gì và bạn l�
 
 | Mode | AI làm | Bạn làm |
 |---|---|---|
-| `explain` | Giảng, rồi hỏi lại để kiểm tra bạn hiểu | Hỏi, ghi vào `docs/learning/log.md` |
-| `co-design` | Hỏi từng quyết định một; ghi lại lời bạn | **Viết nội dung** |
+| `explain` | Giảng trong tài liệu, kèm câu hỏi tự kiểm tra | Đọc |
+| `co-design` | **Tự quyết** và viết tài liệu, mỗi quyết định có lý do + phương án bị loại | Đọc, hỏi lại chỗ chưa hiểu |
 | `you-implement-i-review` | Review code bạn viết | Viết code + test |
 | `pair-tdd` | Viết test đỏ | Viết code cho xanh |
 | `ai-implements` | Làm phần boilerplate/infra | Review |
 
 Ở bốn mode đầu, AI **không viết production code** trừ khi ticket ghi rõ cho phép.
 
-## Không tự bịa
+## Quyết định phải có lý do
 
-Nội dung PRD và domain là **suy nghĩ của bạn**, không phải của AI.
+Từ 2026-11-25 AI quyết ở các lớp spec (xem đầu file). Thay cho "không tự bịa":
 
-- Chưa được bạn nói thì ghi `(chưa xác định)` — đừng điền vào bằng suy đoán.
-- Khi bạn dùng một từ mơ hồ, hỏi lại cho chính xác trước khi ghi.
-- Khi phát hiện hai từ cùng nghĩa, đề xuất một từ chuẩn và ghi những từ nên tránh.
-- Khi một quyết định khó đảo ngược được đưa ra mà chưa có ADR, đề xuất tạo ADR — đừng tự quyết.
+- Mỗi quyết định ghi **vì sao chọn** và **vì sao không chọn** phương án khác — tài liệu là giáo trình.
+- Ghi trung thực nguồn gốc: quyết định của người học hay của AI.
+- Chỉ ghi `(chưa xác định)` khi thật sự cần **số đo** chưa có (ví dụ ngưỡng hiệu năng trước T23).
+- Khi phát hiện hai từ cùng nghĩa, chọn một từ chuẩn và ghi những từ nên tránh vào `GLOSSARY.md`.
+- Quyết định khó đảo ngược thì **tạo ADR** ngay.
 
 ## Tài liệu phải trung thực
 

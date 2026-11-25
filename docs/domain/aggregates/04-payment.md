@@ -23,7 +23,7 @@ Quản lý tiền: yêu cầu thanh toán, kết quả thanh toán, hoàn tiền
 
 | Thành phần | Bản chất | Vai trò |
 |---|---|---|
-| Trạng thái | thuộc tính | `AwaitingPayment` / `Captured` / `RefundPending` / `Refunded` |
+| Trạng thái | thuộc tính | `Unpaid` / `Closed` / `Captured` / `RefundPending` / `Refunded` (ADR-0010) |
 | Số tiền, đơn vị tiền tệ | value object | Số tiền cần thu (VND — đơn vị không có phần lẻ) |
 | Tham chiếu đơn (`Booking id`) | tham chiếu | Tiền của đơn nào |
 | Mã định danh phía Stripe (`payment_intent` id) | value object | Khoá sang hệ thống bên ngoài |
@@ -62,8 +62,9 @@ Quản lý tiền: yêu cầu thanh toán, kết quả thanh toán, hoàn tiền
   - *Traces to*: `BR-05`, `FR-39`.
 
 - **INV-04** — Không có trạng thái tương đương các trạng thái trung gian của Stripe. Thanh toán
-  **thất bại** không tạo trạng thái mới và **không** kết thúc intent: intent vẫn `AwaitingPayment`,
-  người xem thử lại bằng **cùng** intent.
+  **thất bại** không tạo trạng thái mới và **không** kết thúc intent: intent vẫn `Unpaid`,
+  người xem thử lại bằng **cùng** intent. Intent chỉ sang `Closed` khi **đơn** kết thúc mà chưa thu
+  tiền (`Expired` / `Cancelled`).
   - *Cơ chế bảo vệ*: hình dạng mô hình; bảng ánh xạ nằm ở lớp dịch R5.
   - *Ai có thể vi phạm*: code nghiệp vụ rẽ nhánh theo trạng thái Stripe
     (`if (intent.Status == "requires_action")`), hoặc "bỏ" intent khi thất bại — khi đó người xem
@@ -90,9 +91,9 @@ Một DB transaction cho **mỗi thông báo kết quả thanh toán**:
 2. Theo loại thông báo:
    - **thành công** + đơn còn `AwaitingPayment` và còn hạn ⇒ intent → `Captured`, đơn → `Paid`, ghế
      → `Sold`, cấp vé (R4 + R6);
-   - **thành công** + đơn không còn nhận thanh toán ⇒ intent → `RefundPending`, tạo `Refund` + dòng
-     outbox;
-   - **thất bại** ⇒ chỉ ghi lịch sử; intent giữ `AwaitingPayment`;
+   - **thành công** + đơn không còn nhận thanh toán (intent `Unpaid` của đơn quá hạn, hoặc intent
+     `Closed`) ⇒ intent → `RefundPending`, tạo `Refund` + dòng outbox;
+   - **thất bại** ⇒ chỉ ghi lịch sử; intent giữ `Unpaid`;
    - **hoàn tiền xong** ⇒ `RefundPending` → `Refunded`.
 
 **Không** có lời gọi Stripe nào trong transaction. Gọi Stripe (hoàn tiền, huỷ intent) đi qua outbox.

@@ -42,7 +42,7 @@ liệu, không phải một con số đếm số.
 | Runtime | .NET 10 (`net10.0`, LTS) |
 | API | ASP.NET Core Controllers + `[ApiController]` |
 | Data | EF Core (write, migrations) + Dapper (read path nóng) + raw SQL (câu tranh chấp) |
-| Database | PostgreSQL, schema riêng theo module, 1 `DbContext` + `HasDefaultSchema` |
+| Database | PostgreSQL, schema riêng theo module, **mỗi module 1 `DbContext`**, chung connection + transaction qua Unit of Work (sửa ở T10 — `docs/design/architecture.md` D3) |
 | Cache | Redis (`StackExchange.Redis`) trực tiếp |
 | Auth | `JwtBearer` tự viết, refresh token rotation + reuse detection |
 | Payments | Stripe PaymentIntent + webhook idempotent theo `event.id` |
@@ -55,7 +55,7 @@ liệu, không phải một con số đếm số.
 
 Quy tắc dùng nhiều tầng: **một hot path chỉ đi qua một tầng truy cập dữ liệu**.
 
-## 12 bài toán concurrency sẽ giải
+## 13 bài toán concurrency sẽ giải
 
 Đây là bản chất của dự án. Mỗi bài cần một test chứng minh.
 
@@ -116,7 +116,7 @@ Requirement nào không map được → hoặc bỏ khỏi requirements, hoặc
 | FR-25 | Điều kiện tiên quyết check-in — 5 kết quả xác định | (chưa xác định) | T24 | đã có domain |
 | FR-26 | (đã loại khỏi scope — NR-15) | (không áp dụng) | — | **loại bỏ ở T03** |
 | FR-27 | `Check-in` — đếm (`Ticket` `INV-04`) | (chưa xác định) | T24 | đã có domain |
-| FR-28 | `Administrator`; `Showtime` `INV-04` | (chưa xác định) | T17 | đã có domain |
+| FR-28 | `Administrator`; `Movie` (danh mục chung — `BR-32`); `Showtime` `INV-04` | (chưa xác định) | T17 | đã có domain |
 | FR-29 | `User` `INV-01..03` | (chưa xác định) | T16 | đã có domain |
 | FR-30 | **Không có khái niệm domain** — yêu cầu vận hành, kiểm chứng bằng số đo | (chưa xác định) | T23, T25 | ngoài domain |
 | FR-31 | Lịch sử `Booking` (`INV-07`) + lịch sử `Payment event` | (chưa xác định) | T20 | đã có domain |
@@ -165,9 +165,9 @@ Chi tiết từng ticket nằm ở `.scratch/advanced-ticket-system/issues/`.
 
 | # | Ticket | Mode | Blocked by | Traces to |
 |---|---|---|---|---|
-| T10 | Architecture và module boundary | `co-design` | T06, T07, T08 | — |
+| T10 | Architecture và module boundary | `co-design` | T06, T07, T08 | — | **xong 2026-11-25** |
 | T11 | Data model (`inventory.showtime_seats`, bảng ghế) | `co-design` | T07 | — |
-| T12 | Concurrency design: 12 bài toán → cơ chế → test | `explain` + `co-design` | T07, T08 | — |
+| T12 | Concurrency design: 13 bài toán → cơ chế → test | `explain` + `co-design` | T07, T08 | — |
 | T13 | API contract và idempotency contract (endpoint ghế) | `co-design` | T09, T12 | FR-11, FR-12, FR-13, FR-16, FR-17, FR-18, FR-23, FR-36 |
 | T14 | Bộ ADR | `co-design` | T10, T11, T12, T13 | — |
 
@@ -250,6 +250,20 @@ Ghi lại ở đây mỗi khi có quyết định nào ảnh hưởng tới toà
 | 2026-11-25 | **Idempotency của giữ ghế: bản ghi riêng `(customer, key)` lưu cả kết quả từ chối** | Unique trên `Booking` chỉ lưu lần thành công ⇒ lần đầu 409, lần sau có thể 201 | `docs/domain/aggregates/03-booking.md` |
 | 2026-11-25 | **`NR-11` sửa: 1 instance khi vận hành, 2–3 instance trong test cho #10, #12** | `NR-11` cũ mâu thuẫn với bài toán #10, #12 | `docs/prd/02-non-requirements.md` |
 | 2026-11-25 | **ADR-0003 → `accepted`** | Ba câu hỏi revalidate đã trả lời; ranh giới aggregate tách sang ADR-0005 | ADR-0003 |
+| 2026-11-25 | **Một `GLOSSARY.md` ở root, chia mục theo context** (không dùng `GLOSSARY-MAP.md`) | Một deployable, chưa có `src/<context>/` để đặt glossary riêng; từ trùng tên ghi kèm context, vd `Cancelled (Booking)` / `Cancelled (Showtime)` | `GLOSSARY.md` |
+| 2026-11-25 | **Đóng Gate B, mở Gate C** | Exit checklist Gate B tick đủ 8/8 | `docs/plan/gate-c-design.md` |
+| 2026-11-25 | **6 module, mỗi module `<Module>` + `<Module>.Contracts`** (T10) | Một module một context; ranh giới project là ranh giới compile-time | `docs/design/architecture.md` D1, D2 |
+| 2026-11-25 | **Mỗi module một `DbContext`, chung connection + transaction qua UoW** — *thay "1 `DbContext`"* (T10, Q20) | Một `DbContext` chung cho mọi module `Set<T>()` bảng của nhau; 5 ranh giới bị cắt vẫn là một transaction Postgres thật | `docs/design/architecture.md` D3 — đề xuất ADR |
+| 2026-11-25 | **Gọi giữa module theo use case: interface / event trong tx / outbox** (T10, AI đề xuất) | Cần kết quả + atomic ⇒ interface (downstream → upstream); không cần kết quả + atomic ⇒ event in-process; ngoài DB ⇒ outbox | `docs/design/architecture.md` D4 |
+| 2026-11-25 | **Hướng compile-time: `Booking → Payment.Contracts`, `Ticketing → Booking.Contracts`; R2 do `Inventory` phục vụ** (T10, AI đề xuất) | R4, R6 hai chiều về dữ liệu; chọn hướng để đồ thị module không vòng | `docs/design/architecture.md` D9 |
+| 2026-11-25 | **Outbox một bảng mỗi module** (T10, AI đề xuất) | Mỗi bảng một chủ; tách service thì outbox đi theo module | `docs/design/architecture.md` D8 |
+| 2026-11-25 | **Đổi hợp đồng làm việc: AI tự quyết mọi quyết định spec**; người học đọc spec rồi implement | Người học chưa đủ nền để đánh giá đánh đổi thiết kế; học bằng đọc spec có lý do rồi viết code | `AGENTS.md` |
+| 2026-11-25 | **Rà toàn bộ docs sau T10** — sửa ~25 mâu thuẫn chéo file | Xem mục log 2026-11-25 "Rà toàn bộ docs" | — |
+| 2026-11-25 | **`Payment intent`: `Unpaid` / `Closed`** (đóng Q28) | Trùng tên `AwaitingPayment` với `Booking`; intent của đơn hết hạn không có trạng thái để đi | ADR-0010 |
+| 2026-11-25 | **Phòng thuộc quản lý rạp tạo nó; phim là danh mục chung của quản trị viên** (`BR-32`) | Trước đó không luật nào nói ai được xếp suất vào phòng nào, ai tạo phim | `docs/prd/04-business-rules.md` |
+| 2026-11-25 | **Khoảng đệm giữa hai suất = 15 phút** (đóng Q22) | Hằng số toàn hệ thống để exclusion constraint đơn giản | `BR-20` |
+| 2026-11-25 | **Check-in có 5 kết quả: hợp lệ / đã dùng / không hợp lệ / suất khác / suất đã hủy** | "Vé chưa trả tiền" không thể tồn tại (vé chỉ cấp khi `Paid`) — thay bằng "suất đã hủy" | `FR-25`, `docs/domain/state-machines.md` |
+| 2026-11-25 | **ADR-0008, ADR-0009** cho quyết định T10 | Khó đảo ngược, đi ngược quyết định "1 `DbContext`" cũ | ADR-0008, ADR-0009 |
 
 ## Câu hỏi còn mở
 
@@ -260,13 +274,13 @@ Ghi lại ở đây mỗi khi có quyết định nào ảnh hưởng tới toà
 | Check-in thuộc bounded context nào — cùng context với vé, hay context riêng? | ~~Gate B (T06)~~ → **đã trả lời 2026-11-20: `Ticketing` giữ cả vé và check-in** |
 | Ranh giới aggregate quanh thanh toán và hoàn tiền (`FR-39`) | ~~Gate B (T07, T08)~~ → **đã trả lời 2026-11-24: `Payment intent` là aggregate root riêng ở `Payment`; hoàn tiền là transition `Captured → Refunded` của nó, còn quyết định "có hoàn không" dựa trên cả tiền đã thu lẫn trạng thái đơn; xem `docs/domain/state-machines.md`** |
 | Đơn `Paid` khi hủy suất chiếu có cần trạng thái `Refunded` riêng không | ~~Gate B (T08, T09)~~ → **đã trả lời 2026-11-24: KHÔNG — `Booking` giữ `Paid`, dấu vết hoàn tiền ở `Payment intent.Refunded`; xem `docs/domain/cross-context-contracts.md`** |
-| Giá vé theo loại ghế có đổi giữa các suất của cùng một phim không? | Gate B (T07, T11) |
+| ~~Giá vé theo loại ghế có đổi giữa các suất của cùng một phim không?~~ | → **đã trả lời: CÓ — giá thuộc (suất, loại ghế)** |
 | Ghế `Blocked` (vệ sinh, dành riêng) có được bán online không, ai quyết định? | ~~Gate B (T07, T08)~~ → **đã trả lời 2026-11-20: KHÔNG bán lại online; quản lý rạp quyết định; xem `BR-11`** |
 | Có cần `SERIALIZABLE` ở đâu không, hay conditional update đủ? | Gate C (ADR-0002) |
 | Có tách module thành service riêng không, và ranh giới đo được ở đâu? | Sau T23 |
-| Hold TTL cố định hay cấu hình theo suất chiếu? | Gate C (T13) |
+| Hold TTL cố định hay cấu hình theo suất chiếu? | Gate C (T13) — `BR-03` đã ghi 15 phút cố định; T13 chỉ xác nhận |
 | ~~Offline check-in sync dùng cơ chế nào?~~ | **Đã đóng — loại khỏi scope (`NR-15`)** |
-| Module tham gia chung DB transaction thế nào khi không đọc bảng của nhau? (Q20) | Gate C (T10) |
+| ~~Module tham gia chung DB transaction thế nào khi không đọc bảng của nhau? (Q20)~~ | → **đã trả lời 2026-11-25 (T10): mỗi module một `DbContext`, chung connection + transaction qua UoW; xem `docs/design/architecture.md` D3** |
 | Có cần distributed lock ở đâu không? (khoá quota `BR-08` là khoá **trong DB**, không phân tán — ADR-0007) | Gate C (T12) |
 | Khi nào chuyển tài liệu sang tiếng Anh để đưa lên CV? | T26 |
 | Có dùng `teach` (sinh lesson HTML) cho phần lý thuyết concurrency không? | Gate C |

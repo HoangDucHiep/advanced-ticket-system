@@ -73,8 +73,8 @@ Bước không có nhãn nào là bước chỉ **đọc**.
    - FR-05, FR-16
    - `[GHẾ]`, `[TIỀN]`
 7. Người xem xem danh sách vé của mình — hệ thống trả về các vé đã mua kèm suất chiếu,
-   ghế, và mã vé.
-   - FR-17
+   ghế, và mã vé; **chỉ** vé của chính người đó.
+   - FR-17, FR-10
 8. Trước khi hết hạn, người xem nhận được thông báo nhắc nhở kèm thời điểm hết hạn. Nếu
    đơn đã thanh toán hoặc đã huỷ, không có thông báo này.
    - FR-19
@@ -104,7 +104,8 @@ Bước không có nhãn nào là bước chỉ **đọc**.
    - FR-01, FR-02
    - `[GHẾ]`
 5. Hai người chọn hai ghế **ngược thứ tự** (A chọn ghế 3 rồi ghế 7; B chọn ghế 7 rồi ghế 3) —
-   hệ thống không để yêu cầu nào bị treo vô hạn; cả hai đều nhận được phản hồi.
+   hệ thống không để yêu cầu nào bị treo hay bị huỷ ngang vì kẹt; mỗi người hoặc thắng, hoặc bị từ
+   chối với lý do "ghế đã có người".
    - FR-03
    - `[GHẾ]`
 6. Người xem đặt được nhiều ghế, trong đó có một ghế vừa bị người khác giữ — hệ thống
@@ -132,9 +133,9 @@ Bước không có nhãn nào là bước chỉ **đọc**.
    - FR-01, FR-02, FR-15
    - `[GHẾ]`
 2. **Hết thời gian giữ ghế.** Hệ thống tự giải phóng những ghế đã giữ và trả chúng về
-   khả dụng cho người khác. Đơn của người xem chuyển sang trạng thái **hết hạn** (coi như
-   đã huỷ), và **không có vé nào được cấp**.
-   - FR-04, FR-18
+   khả dụng cho người khác. Đơn của người xem chuyển sang trạng thái **hết hạn** (khác với
+   **đã huỷ** — xem `GLOSSARY.md`), và **không có vé nào được cấp**.
+   - FR-04
    - `[GHẾ]`
 3. **Vượt giới hạn số ghế.** Một đơn vượt quá **6 ghế**, hoặc tổng số ghế người đó đã mua
    cho suất chiếu này vượt quá **10 ghế** (cộng dồn qua mọi đơn của họ) — hệ thống từ
@@ -156,6 +157,10 @@ Bước không có nhãn nào là bước chỉ **đọc**.
 7. **Suất đã bắt đầu chiếu.** Người xem giữ ghế sau giờ bắt đầu — hệ thống từ chối với lý do
    "suất đã bắt đầu".
    - FR-41, FR-36
+8. **Người xem tự huỷ đơn** đang chờ thanh toán — hệ thống trả ghế về ngay cho người khác đặt;
+   đơn chưa trả tiền nên không có hoàn tiền.
+   - FR-18
+   - `[GHẾ]`
 
 > **Ghi chú:** tình huống 5 là lỗ hổng nghiệp vụ dễ bỏ sót nhất: tiền đã bị lấy nhưng vé
 > không cấp được. Xem luật `BR-05` trong [`04-business-rules.md`](04-business-rules.md).
@@ -170,10 +175,11 @@ Bước không có nhãn nào là bước chỉ **đọc**.
    năm trường hợp:
    - vé hợp lệ và chưa dùng → ghi nhận check-in, mời khách vào;
    - vé **đã dùng** → báo đã check-in, kèm **thời điểm** check-in lần đầu;
-   - vé **chưa được trả tiền** → từ chối vào;
-   - vé **không hợp lệ** → từ chối vào;
-   - vé **thuộc suất chiếu khác** → từ chối vào.
-   - FR-25
+   - vé **không hợp lệ** (sai chữ ký, hoặc không ứng với vé nào đã cấp — kể cả mã dựng cho ghế
+     của một đơn chưa thanh toán) → từ chối vào;
+   - vé **thuộc suất chiếu khác** → từ chối vào;
+   - vé của **suất chiếu đã hủy** → từ chối vào (người xem đã/đang được hoàn tiền).
+   - FR-25, FR-08, FR-24
    - `[GHẾ]`
 2. Nhân viên cổng quét lại **cùng một vé** (quét nhầm, hoặc khách đứng lại) — hệ thống
    báo "đã check-in" kèm thời điểm và cổng đã check-in lần đầu, và **không** ghi nhận thêm
@@ -203,14 +209,15 @@ Bước không có nhãn nào là bước chỉ **đọc**.
 > Quản lý rạp chuẩn bị một suất chiếu để bán.
 
 1. Quản lý rạp tạo phòng chiếu với sơ đồ ghế — khai báo từng ghế: vị trí (hàng, số) và
-   loại ghế (Standard / Couple / VIP).
+   loại ghế (Standard / Couple / VIP). Phòng thuộc về quản lý rạp đó.
    - FR-20
 2. Quản lý rạp đặt giá vé cho từng loại ghế của suất chiếu — giá là thuộc tính của **loại
    ghế trong suất chiếu đó**, nên cùng một loại ghế ở hai suất khác nhau có thể có giá
    khác nhau.
    - FR-21
-3. Quản lý rạp đặt phim vào phòng vào một giờ cụ thể — một phòng không thể có hai suất
-   chiếu chồng nhau.
+3. Quản lý rạp chọn phim từ danh mục (do quản trị viên quản lý) và đặt vào **phòng của mình**
+   vào một giờ cụ thể — một phòng không thể có hai suất chiếu chồng nhau (kể cả khoảng đệm dọn
+   dẹp).
    - FR-21
 4. Quản lý rạp **chặn** những ghế không bán online (vệ sinh, dành riêng) — làm được ngay sau
    khi tạo suất, trước khi mở bán. Ghế bị chặn **không xuất hiện** trên sơ đồ của người xem.
@@ -245,8 +252,8 @@ Bước không có nhãn nào là bước chỉ **đọc**.
 2. Quản trị viên tra lịch sử của một đơn đặt vé: trạng thái hiện tại, các lần thay đổi
    trạng thái theo đúng thứ tự thời gian, ghế nào đã được giữ, và các thông báo đã nhận.
    - FR-31
-3. Quản trị viên xem, sửa, ẩn và hủy phim và lịch chiếu của **bất kỳ rạp nào**; quản lý
-   rạp thì không.
+3. Quản trị viên quản lý danh mục phim, và xem, sửa, hủy lịch chiếu của **bất kỳ rạp nào**;
+   quản lý rạp thì không.
    - FR-28
 4. Quản trị viên xem danh sách người dùng, và cấp hoặc thu quyền của họ.
    - FR-29
@@ -269,7 +276,7 @@ Mỗi `FR-nn` ở [`01-requirements.md`](01-requirements.md) xuất hiện ở �
 | FR-05 | J-02, J-04 | J-02.6, J-04.4 |
 | FR-06 | J-04 | J-04.5 |
 | FR-07 | J-05 | J-05.2, J-05.3 |
-| FR-08 | J-05 | J-05.1 |
+| FR-08 | J-05 | J-05.1 (vé không hợp lệ) |
 | FR-09 | J-04 | J-04.3 |
 | FR-10 | J-02 | J-02.7 |
 | FR-11 | J-01 | J-01.1 |
@@ -279,13 +286,13 @@ Mỗi `FR-nn` ở [`01-requirements.md`](01-requirements.md) xuất hiện ở �
 | FR-15 | J-02, J-04 | J-02.3, J-04.1 |
 | FR-16 | J-02 | J-02.6 |
 | FR-17 | J-02 | J-02.7 |
-| FR-18 | J-04 | J-04.2 |
+| FR-18 | J-04 | J-04.8 |
 | FR-19 | J-02 | J-02.8 |
 | FR-20 | J-02, J-06 | J-02.1, J-06.1, J-06.4 |
 | FR-21 | J-03, J-06 | J-03.1, J-06.2, J-06.3 |
 | FR-22 | J-03, J-06 | J-03.2, J-06.5 |
 | FR-23 | J-06 | J-06.7 |
-| FR-24 | J-04, J-06 | J-04.5, J-06.8 |
+| FR-24 | J-04, J-05, J-06 | J-04.5, J-05.1, J-06.8 |
 | FR-25 | J-05 | J-05.1 |
 | FR-26 | — | **đã loại khỏi scope (NR-15)** |
 | FR-27 | J-05 | J-05.4 |
@@ -315,12 +322,12 @@ Tổng hợp các bước đánh dấu, dùng làm đầu vào cho T12 (thiết 
 | Giữ 1 ghế | J-02.2 | `[GHẾ]` | Ghế đã có người thì không ai giữ được nữa |
 | Giữ n ghế một lúc | J-02.2, J-03.4 | `[GHẾ]` | Giữ đủ n ghế, hoặc không giữ ghế nào |
 | Xác nhận lại lúc giữ | J-02.3 | `[GHẾ]` | Nói rõ ghế nào đã có người |
-| Tranh ngược thứ tự | J-03.5 | `[GHẾ]` | Không kẹt, cả hai đều có phản hồi |
+| Tranh ngược thứ tự | J-03.5 | `[GHẾ]` | Không kẹt: không yêu cầu nào bị huỷ ngang vì kẹt, mỗi bên thắng hoặc thua với lý do nghiệp vụ |
 | Cấp vé | J-02.6 | `[GHẾ]`, `[TIỀN]` | Mỗi ghế một vé, không cấp hai lần |
 | Thanh toán đến lặp | J-02.4, J-02.5 | `[TIỀN]` | Chỉ xử lý một lần |
 | Thanh toán muộn sau hết hạn | J-04.5 | `[GHẾ]`, `[TIỀN]` | Không hồi sinh đơn, phải hoàn tiền |
 | Hết hạn giữ ghế | J-04.2 | `[GHẾ]` | Ghế trả về cho người khác, không mất ghế |
-| Huỷ đơn chờ thanh toán | J-04.2 | `[GHẾ]` | Ghế trả về ngay (đơn chưa trả tiền nên không có hoàn tiền) |
+| Huỷ đơn chờ thanh toán | J-04.8 | `[GHẾ]` | Ghế trả về ngay (đơn chưa trả tiền nên không có hoàn tiền) |
 | Hủy suất chiếu | J-06.8 | `[GHẾ]`, `[TIỀN]` | Đơn chờ bị huỷ, ghế trả về; mỗi đơn đã trả được hoàn đúng một lần |
 | Chặn ghế | J-06.4 | `[GHẾ]` | Không chặn được ghế đang giữ hoặc đã bán |
 | Quét lại vé | J-05.2, J-05.3 | `[GHẾ]` | Mỗi vé chỉ check-in một lần |

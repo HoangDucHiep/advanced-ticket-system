@@ -26,4 +26,6 @@ mà không có nguồn gốc là bịa đặt.
 
 ## Trạng thái
 
-Gate C chưa mở. Xem exit checklist tại [`../README.md`](../README.md).
+Gate C **đang mở** (từ 2026-11-25). Plan chi tiết:
+[`../plan/gate-c-design.md`](../plan/gate-c-design.md). Exit checklist tại
+[`../README.md`](../README.md).

@@ -96,8 +96,13 @@ Không có đường nào đọc trạng thái ghế rồi mới ghi.
   phân biệt được hai trường hợp — có thể cần một câu kiểm tra riêng cho trường hợp thứ hai,
   hoặc chấp nhận cả hai trả `409`.
 - **Không có `CHECK` constraint tương tự như mô hình đếm số cũ.** Trạng thái ghế là một
-  enum, nên "một ghế thuộc đúng một chủ" được bảo vệ bởi việc trạng thái và `booking_id` nằm
-  trên **cùng một dòng** — không thể tách. Đây là một lợi thế của seat-based.
+  enum, nên "một ghế thuộc đúng một chủ" được bảo vệ bởi việc trạng thái và `hold_id` nằm
+  trên **cùng một dòng** — không thể tách. Đây là một lợi thế của seat-based. (Thêm `CHECK`
+  `Held` ⇔ có `hold_id` + `held_until` — `INV-02` của `Inventory`.)
+- **`UPDATE` của Postgres không có `ORDER BY`.** Một câu `UPDATE ... WHERE id = ANY(...)` **không**
+  bảo đảm thứ tự lấy khoá. Thứ tự tăng dần phải được ép bằng một bước khoá riêng
+  (`SELECT ... ORDER BY id FOR UPDATE`) hoặc bằng từng câu `UPDATE` theo thứ tự — chốt ở T12.
+- Tên cột trong SQL mẫu ở trên (`seat_id`) là minh hoạ; tên thật chốt ở T11.
 - **Thứ tự khoá phải được đảm bảo ở tầng code.** Không có cơ chế nào của database tự sắp xếp
   thứ tự `UPDATE` — nếu truy vấn `WHERE seat_id = ANY(...)` không bảo đảm thứ tự, thì phải
   chia thành nhiều câu `UPDATE` từng ghế theo thứ tự tăng dần. Đây là chi tiết phải kiểm chứng

@@ -1,6 +1,6 @@
 # 00 — Overview
 
-Lớp 1 — PRD. File này nói **hệ thống dành cho ai, giải quyết vấn đề gì, và thành côngtrông như thế nào**. Nó không chứa giải pháp kỹ thu.
+Lớp 1 — PRD. File này nói **hệ thống dành cho ai, giải quyết vấn đề gì, và thành công trông như thế nào**. Nó không chứa giải pháp kỹ thu.
 
 Nguồn: ticket `.scratch/advanced-ticket-system/issues/01-overview.md`.
 
@@ -59,8 +59,8 @@ Job là thứ actor **muốn**, không phải thứ hệ thống **làm**. Phầ
 
 | Job                        | Ý nghĩa                                             |
 | -------------------------- | --------------------------------------------------- |
-| Quản lý phòng và sơ đồ ghế | Dựng phòng, khai báo ghế và loại ghế, giá theo loại |
-| Lên lịch chiếu             | Đặt phim vào phòng vào một giờ cụ thể, đặt giá vé   |
+| Quản lý phòng và sơ đồ ghế | Dựng phòng của mình, khai báo ghế và loại ghế        |
+| Lên lịch chiếu             | Đặt phim vào phòng vào một giờ cụ thể, đặt giá vé theo loại ghế cho suất đó |
 | Mở bán vé                  | Đưa suất chiếu vào trạng thái bán                   |
 | Theo dõi tình trạng bán    | Biết còn bao nhiêu ghế trống, đã bán bao nhiêu      |
 
@@ -77,7 +77,7 @@ Job là thứ actor **muốn**, không phải thứ hệ thống **làm**. Phầ
 
 | Job                         | Ý nghĩa                                         |
 | --------------------------- | ----------------------------------------------- |
-| Quản lý toàn bộ rạp         | Duyệt, ẩn, chỉnh phim và lịch chiếu của mọi rạp |
+| Quản lý toàn bộ rạp         | Quản lý danh mục phim; sửa, hủy lịch chiếu của mọi rạp |
 | Quản lý người dùng và quyền | Cấp, thu quyền                                  |
 | Giám sát vận hành           | Theo dõi sức khỏe hệ thống khi mở bán phim hot  |
 | Truy vết giao dịch          | Lần theo lịch sử khi có khiếu nại               |
@@ -138,4 +138,4 @@ sau này: mỗi khi bạn muốn thêm một tính năng, hãy hỏi nó có gi�
 - File này nói về **nghiệp vụ**. Cơ chế, mô hình lưu trữ, giao diện lập trình thuộc về Lớp 2 và
   Lớp 3 — không có ở đây. (Ngoại lệ duy nhất: `p99` trong success criteria là **cách đo**,
   không phải cơ chế.)
-- 12 bài toán concurrency và stack công nghệ đã chốt nằm ở `docs/plan/00-roadmap.md`.
+- 13 bài toán concurrency (bài #13 thêm 2026-11-25) và stack công nghệ đã chốt nằm ở `docs/plan/00-roadmap.md`.

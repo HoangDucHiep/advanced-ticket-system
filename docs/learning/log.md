@@ -825,3 +825,147 @@ Xem thêm: [`open-questions.md`](open-questions.md).
 > code vs. giữ ranh giới module).
 
 Xem thêm: [`open-questions.md`](open-questions.md).
+
+---
+
+## 2026-11-25 — Review T01–T09 và đóng Gate B
+
+**Bối cảnh**: trước khi mở T10, rà lại toàn bộ PRD + domain. Review tìm ra 7 vấn đề nghiêm trọng
+và 17 mâu thuẫn giữa các file; người học chốt và sửa (commit `docs: fix`), sinh ra ADR-0005,
+ADR-0006, ADR-0007. Sau đó gom `GLOSSARY.md` và đóng Gate B.
+
+**Học được** (theo các quyết định đã ghi ở log quyết định roadmap ngày 2026-11-25):
+
+- **Aggregate ≠ DB transaction.** Một DB transaction cập nhật N dòng vẫn atomic, nên all-or-nothing
+  của `BR-02` không cần một aggregate chứa N ghế. `Showtime seat` tồn tại trước và sống qua nhiều
+  lần giữ ⇒ không thể là entity bên trong một lần giữ ⇒ nó là aggregate root (ADR-0005).
+- **Hết hạn phải định nghĩa bằng thời gian, không bằng worker.** "Ai chuyển trạng thái trước thì
+  thắng" vẫn cho webhook đến sau hạn nhưng trước lượt quét được `Paid` — trái `BR-04`. Điều kiện
+  `→ Paid` phải kiểm `expires_at` (ADR-0006).
+- **Gọi ra ngoài không nằm trong DB transaction được.** Hoàn tiền cần trạng thái trung gian
+  `RefundPending` + outbox + idempotency key phía Stripe (ADR-0006).
+- **Lý do chấp nhận race phải đúng.** `BR-08` là luật chống phe vé — người bị hại là người khác;
+  khoá theo (người xem, suất) không phải điểm tranh chấp toàn cục (ADR-0007).
+- **Test deadlock phải đỏ khi bỏ cơ chế.** Postgres tự phát hiện deadlock và huỷ một bên, nên test
+  chỉ kiểm "cả hai đều có phản hồi" vẫn xanh khi không sắp thứ tự khoá.
+- **Glossary một file vẫn chứa được nhiều context** nếu từ trùng tên được ghi kèm context.
+
+**Làm được**:
+
+- Sửa PRD + domain theo review; ADR-0005/0006/0007; ADR-0003 → `accepted`; thêm `FR-40`, `FR-41`,
+  `BR-31`, quan hệ R9.
+- `GLOSSARY.md` ở root — 6 mục theo context; định nghĩa gom từ UL, context map, state machines.
+- Tick đủ exit checklist Gate B; tạo `docs/plan/gate-c-design.md`.
+
+**Vấp ở đâu**:
+
+- Khi gom glossary, AI tự thêm vài từ `_Avoid_` không có trong UL — đã gỡ ra trước khi duyệt.
+  Glossary là bản gom, không phải chỗ đặt từ mới.
+
+**Còn mở**:
+
+- Q20 — module tham gia chung DB transaction thế nào → T10.
+- Q28 — tên `AwaitingPayment` ở hai máy → T11.
+- Q13 — UL đã ghi "hai suất của cùng một phim có thể có giá khác nhau", nhưng Q13 vẫn mở trong
+  `open-questions.md` → người học xác nhận đóng ở T11.
+
+Xem thêm: [`open-questions.md`](open-questions.md).
+
+---
+
+## 2026-11-25 — T10: Architecture và module boundary (Gate C)
+
+**Bối cảnh**: ticket đầu tiên của Gate C, mode `co-design`. Người học chốt D1–D3; từ D4 người học
+nói "đang học, chưa ra quyết định được" và yêu cầu AI quyết định kèm giải thích. Các quyết định đó
+ghi *(AI đề xuất, người học chấp nhận)* trong `docs/design/architecture.md`.
+
+**Học được**:
+
+- **Ba cách gọi giữa module, chọn bằng hai câu hỏi.** (1) Bên gọi có cần kết quả để quyết định
+  tiếp không? Có ⇒ interface. (2) Phần phía sau có phải atomic không? Có ⇒ event in-process trong
+  transaction; không, hoặc chạm hệ thống ngoài ⇒ outbox.
+- **Hướng phụ thuộc là ràng buộc thứ ba, và hay bị quên.** Downstream được reference `.Contracts`
+  của upstream, không bao giờ ngược lại. Upstream muốn kích hoạt downstream thì phát event. Ví dụ:
+  hủy suất (#4) — `Scheduling` phát `ShowtimeCancelled`, không gọi `Booking`.
+- **Đi qua bài kiểm tra #4:** "outbox + outbox" sai vì mất atomic (cửa sổ suất đã hủy mà đơn vẫn
+  chờ ⇒ cấp vé cho suất đã hủy — đúng lỗi A7 của buổi review). "Interface + outbox" đúng về tính
+  đúng đắn nhưng phụ thuộc ngược, và thêm module phản ứng là phải sửa `Scheduling`.
+- **Event in-tx và interface chạy giống nhau lúc runtime** (code đồng bộ, cùng transaction). Khác
+  nhau chỉ ở **ai biết ai** lúc compile.
+- **Quan hệ hai chiều về dữ liệu vẫn phải có một hướng compile-time** (R4, R6), nếu không đồ thị
+  module có vòng.
+- **Một `DbContext` chung làm ranh giới module chỉ còn trên giấy.** Mỗi module một `DbContext`,
+  chung connection + transaction, giữ được cả hai: ranh giới và atomic.
+
+**Làm được**:
+
+- `docs/design/architecture.md` — D1–D10, sơ đồ phụ thuộc, 8 quy tắc phụ thuộc kiểm được, cấu trúc
+  thư mục, bảng sở hữu bảng, sequence diagram giữ ghế, điều kiện tách service.
+- Q20 đóng. Roadmap: sửa dòng Database trong "Stack đã chốt", thêm 5 dòng log quyết định.
+
+**Vấp ở đâu**:
+
+- AI nói "`Booking` là upstream của `Ticketing` (R6)" dựa vào mũi tên context map, rồi khi kiểm
+  kỹ mới thấy phần chữ của R6 ghi `Ticketing` là Supplier (R4 cũng vậy). Context map tự mâu thuẫn ở
+  hai quan hệ hai chiều. Bài học: **đọc phần chữ, không chỉ đọc sơ đồ**, trước khi lập luận theo
+  hướng phụ thuộc.
+- Người học hai lần chưa chọn được. Nguyên nhân thật: câu hỏi đưa lựa chọn **trước khi** có tiêu
+  chí để chọn. Giảng tiêu chí (bảng hai câu hỏi) rồi mới hỏi thì câu hỏi mới có nghĩa.
+
+**Còn mở**:
+
+- Race giữ ghế ↔ hủy suất (đọc `OnSale` trong transaction không đủ) → T12.
+- Khoá quota: advisory lock hay bảng quota → T12.
+- Idempotency của lần thất bại khi transaction chính rollback → T19, T13.
+- Sửa R4, R6 trong `context-map.md` cho khớp D9 → người học quyết.
+- Hai ADR đề xuất (D3; D4 + D9) → chờ người học duyệt.
+
+Xem thêm: [`open-questions.md`](open-questions.md).
+
+---
+
+## 2026-11-25 — Rà toàn bộ docs sau T10; đổi hợp đồng làm việc
+
+**Bối cảnh**: người học đổi hợp đồng — "đang học, chưa ra quyết định được; sẽ đọc spec hoàn chỉnh
+rồi implement theo". Từ nay **AI tự quyết mọi quyết định spec** (PRD, domain, design, ADR), mỗi quyết
+định ghi lý do + phương án bị loại; người học viết code (`AGENTS.md` đã sửa). Sau đó AI rà lại toàn
+bộ `docs/` và sửa.
+
+**Đã sửa — lỗ hổng nghiệp vụ (quyết định mới):**
+
+- **Phòng và phim không có chủ.** Không luật nào nói ai được xếp suất vào phòng nào, ai tạo phim.
+  Thêm `BR-32`: phòng thuộc quản lý rạp tạo ra nó; phim là danh mục chung của quản trị viên.
+  `Room` `INV-14`.
+- **Intent của đơn hết hạn không có trạng thái để đi**, và trùng tên `AwaitingPayment` với `Booking`
+  (Q28). ADR-0010: `Unpaid` / `Closed`.
+- **Check-in "vé chưa trả tiền"** là kết quả không thể xảy ra (vé chỉ cấp khi `Paid`). 5 kết quả nay
+  là: hợp lệ / đã dùng / không hợp lệ / suất khác / suất đã hủy. "Không được phân công" là từ chối
+  về quyền, xét trước vé.
+- **Khoảng đệm giữa hai suất** = 15 phút (Q22). **Giá theo suất** — xác nhận và đóng Q13.
+- **"Ẩn phim"** (FR-28) không có trạng thái nào — bỏ; phim hiện khi có suất đang bán.
+- **Sơ đồ ghế do module nào phục vụ** — `Inventory` (ghép bố cục + giá từ `Scheduling`), vì là bên
+  duy nhất biết cả hai phía mà không tạo vòng.
+
+**Đã sửa — mâu thuẫn chéo file:** FR-20 có "giá" ở phòng (giá thuộc suất); FR-24 trỏ nhầm FR-19/FR-34;
+ghi chú FR-38 chen giữa các dòng; "hết hạn (coi như đã huỷ)" ở J-04.2 và BR-04 (trái glossary);
+J-04.2 gắn FR-18 (huỷ chủ động — nay là J-04.8); BR intro trỏ BR-04 thay vì BR-22; J-03.5 còn kiểm
+chứng deadlock cũ; context map R2/R4/R6 lệch với hướng phụ thuộc T10; nguồn sự thật "`Scheduling`
+đọc `Inventory`", "`Booking` đọc vé" lệch D9; `User` có "tập quyền" trong khi INV-04 nói một vai trò;
+ADR-0002 còn `booking_id` trên dòng ghế và ngầm định `UPDATE` khoá theo thứ tự (Postgres `UPDATE`
+không có `ORDER BY`); "12 bài toán" trong khi bảng đã có 13.
+
+**ADR mới:** 0008 (transaction xuyên module), 0009 (cách gọi giữa module + hướng phụ thuộc), 0010
+(`Unpaid` / `Closed`).
+
+**Học được (cho người đọc spec):**
+
+- Một trạng thái "không thể xảy ra" mà vẫn có trong danh sách kết quả là dấu hiệu tài liệu viết trước
+  khi mô hình chốt — phải rà lại sau mỗi quyết định lớn.
+- Quyền sở hữu là một phần của mô hình: "ai được làm gì trên cái gì" cần luật riêng, không suy được từ
+  vai trò.
+- Một máy trạng thái phải trả lời "khi bên kia kết thúc thì tôi đi đâu" — thiếu là có thực thể treo.
+
+**Còn mở**: Q25 (ghế quá hạn chưa trả — T12), Q01/Q02/Q06 (cơ chế khoá — T12), khoá quota (T12),
+race giữ ghế ↔ hủy suất (T12), idempotency của lần thất bại (T19/T13).
+
+Xem thêm: [`open-questions.md`](open-questions.md).

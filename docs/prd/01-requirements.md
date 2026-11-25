@@ -123,7 +123,13 @@ Hệ thống không được ghi nhận check-in cho một vé thuộc đơn đ�
 - Actor: Nhân viên cổng
 - Job: Chặn vé không hợp lệ
 - Đáp ứng: SC-05
-- Kiểm chứng: quét vé của một đơn chưa thanh toán → bị từ chối, không có bản ghi check-in.
+- Kiểm chứng: một mã vé đúng định dạng và đúng chữ ký nhưng không ứng với vé nào đã cấp (ví dụ mã
+  dựng cho một ghế của đơn chưa thanh toán) → bị từ chối là "vé không hợp lệ", không có bản ghi
+  check-in.
+
+> **Ghi chú (2026-11-25):** vé chỉ tồn tại sau khi đơn đã thanh toán (`FR-05`), nên "vé của đơn chưa
+> thanh toán" không thể được cấp ra. FR-08 được kiểm chứng bằng việc **không** có mã nào ngoài vé đã
+> cấp qua được bước quét.
 
 ### FR-09 — Không vượt giới hạn số ghế
 
@@ -261,22 +267,24 @@ nhở kèm thời điểm hết hạn.
 ### FR-20 — Quản lý phòng và sơ đồ ghế
 
 Quản lý rạp tạo được phòng chiếu với sơ đồ ghế: khai báo từng ghế, vị trí, và loại ghế
-(Standard / Couple / VIP) kèm giá.
+(Standard / Couple / VIP). Phòng thuộc về quản lý rạp đã tạo nó. Giá **không** khai báo ở đây — giá
+thuộc từng suất chiếu (`FR-21`).
 
 - Actor: Quản lý rạp
 - Job: Quản lý phòng và sơ đồ ghế
-- Kiểm chứng: phòng tạo ra có đúng số ghế khai báo, mỗi ghế có vị trí và loại đúng; giá
-  không âm.
+- Kiểm chứng: phòng tạo ra có đúng số ghế khai báo, mỗi ghế có vị trí và loại đúng; hai ghế
+  trùng vị trí bị từ chối.
 
 ### FR-21 — Lên lịch chiếu và đặt giá vé
 
-Quản lý rạp đặt được một phim vào một phòng vào một giờ cụ thể, và đặt giá vé cho suất chiếu
-đó.
+Quản lý rạp đặt được một phim (chọn từ danh mục phim) vào **một phòng của mình** vào một giờ cụ
+thể, và đặt giá vé cho **từng loại ghế có trong phòng** của suất chiếu đó.
 
 - Actor: Quản lý rạp
 - Job: Lên lịch chiếu
 - Kiểm chứng: suất chiếu tạo ra gắn đúng phim, đúng phòng, đúng giờ; một phòng không thể
-  có hai suất chiếu chồng nhau.
+  có hai suất chiếu chồng nhau (kể cả khoảng đệm 15 phút — `BR-20`); thiếu giá cho một loại ghế có
+  trong phòng, hoặc giá âm, thì bị từ chối; xếp suất vào phòng của quản lý rạp khác bị từ chối.
 
 ### FR-22 — Mở bán vé cho một suất chiếu
 
@@ -324,7 +332,7 @@ nếu tiền của những đơn đó vẫn về sau khi huỷ, tiền đó đư
 
 > **Thứ tự thực hiện:** yêu cầu này đầy đủ, nhưng **thực hiện ở Gate D, sau T22**. Việc
 > hoàn tiền phải an toàn khi hệ thống gián đoạn giữa chừng là cùng dạng bài toán lặp lại
-> đã học ở FR-19 và FR-34 — nên làm sau khi nền tảng đã vững.
+> đã học ở FR-38 và FR-39 — nên làm sau khi nền tảng đã vững.
 
 ---
 
@@ -333,8 +341,11 @@ nếu tiền của những đơn đó vẫn về sau khi huỷ, tiền đó đư
 ### FR-25 — Quét mã vé cho kết quả xác định
 
 Khi nhân viên cổng quét một mã vé, hệ thống trả về một kết quả xác định: vé hợp lệ và chưa
-dùng, vé đã dùng, vé chưa được trả tiền, vé không hợp lệ, hoặc vé của suất chiếu khác. Không
-có trường hợp nào mà kết quả là "không rõ".
+dùng, vé đã dùng, vé không hợp lệ (mã sai chữ ký, hoặc không ứng với vé nào đã cấp), vé của suất
+chiếu khác, hoặc vé của suất chiếu đã bị hủy. Không có trường hợp nào mà kết quả là "không rõ".
+
+Người quét không được phân công suất đó bị từ chối **trước khi** xét vé (`FR-35`) — đó là từ chối
+về quyền, không phải một kết quả của vé.
 
 - Actor: Nhân viên cổng
 - Job: Quét và xác minh vé
@@ -376,12 +387,16 @@ check-in của suất chiếu.
 
 ### FR-28 — Quản lý toàn bộ rạp
 
-Quản trị viên xem, sửa, ẩn và hủy được phim và lịch chiếu của bất kỳ rạp nào.
+Quản trị viên quản lý **danh mục phim** (tạo, sửa phim — quản lý rạp chỉ chọn phim từ danh mục), và
+xem, sửa, hủy được lịch chiếu của bất kỳ quản lý rạp nào.
+
+> **Ghi chú (2026-11-25):** bản trước có "ẩn" phim. Không có trạng thái "ẩn": một phim chỉ hiện khi có
+> suất đang bán (`BR-29`), nên muốn phim không hiện thì không mở bán / hủy suất của nó.
 
 - Actor: Quản trị viên
 - Job: Quản lý toàn bộ rạp
-- Kiểm chứng: quản trị viên thực hiện được các thao tác đó trên lịch chiếu của rạp khác; quản
-  lý rạp thì không.
+- Kiểm chứng: quản trị viên thực hiện được các thao tác đó trên lịch chiếu của mọi quản lý rạp;
+  quản lý rạp thì không; quản lý rạp không tạo/sửa được phim trong danh mục.
 
 ### FR-29 — Quản lý người dùng và quyền của họ
 
@@ -517,12 +532,12 @@ xử lý một lần. Vé không bị cấp hai lần, và trạng thái đơn k
 - Actor: Người xem (người được bảo vệ khỏi việc bị cấp vé/trừ tiền sai)
 - Job: Đặt vé
 - Đáp ứng: SC-04
+- Kiểm chứng: gửi cùng một thông báo 3 lần → đúng 1 lần cấp vé, đúng 1 lần thay đổi
+  trạng thái, lịch sử đơn cho thấy 1 lần thay đổi trạng thái.
 
 > **Ghi chú (2026-11-25):** bản trước ghi actor là "Quản trị viên (vai trò duy nhất được phép xử lý
 > thông báo này)". Không ai xử lý thông báo này bằng tay — hệ thống tự xử lý. Quản trị viên chỉ
 > **xem lại** các thông báo đã nhận qua `FR-31`.
-- Kiểm chứng: gửi cùng một thông báo 3 lần → đúng 1 lần cấp vé, đúng 1 lần thay đổi
-  trạng thái, lịch sử đơn cho thấy 1 lần thay đổi trạng thái.
 
 > **Ghi chú:** yêu cầu này nằm ở Lớp 1 vì nó là **hành vi quan sát được** ("vé chỉ được
 > cấp một lần"), kể cả khi cơ chế xử lý thuộc Lớp 3.
@@ -579,7 +594,7 @@ Mỗi requirement → actor → job → success criteria.
 | FR-25 | Quét mã vé cho kết quả xác định | Nhân viên cổng | Quét và xác minh vé | SC-05 |
 | FR-26 | ~~Xác minh vé khi mất mạng~~ | Nhân viên cổng | Làm được khi mất mạng | **đã loại khỏi scope (NR-15)** |
 | FR-27 | Ghi nhận số người đã vào | Nhân viên cổng | Ghi nhận số người đã vào | SC-05 |
-| FR-28 | Quản lý toàn bộ rạp | Quản trị viên | Quản lý toàn bộ rạp | — |
+| FR-28 | Quản lý danh mục phim và lịch chiếu của mọi rạp | Quản trị viên | Quản lý toàn bộ rạp | — |
 | FR-29 | Quản lý người dùng và quyền | Quản trị viên | Quản lý người dùng và quyền | — |
 | FR-30 | Giám sát sức khỏe hệ thống | Quản trị viên | Giám sát vận hành | SC-08..SC-11 |
 | FR-31 | Truy vết lịch sử giao dịch | Quản trị viên | Truy vết giao dịch | — |

@@ -143,8 +143,8 @@ Context: `Booking`. Aggregate: `Booking`.
 |---|---|---|---|
 | — | `Hold seats` | `AwaitingPayment` | Tạo `Booking` với `Booking line`, giá đã chốt, `expires_at`. n ghế → `Held`. **Cùng transaction**. Ghi lịch sử. |
 | `AwaitingPayment` | Thanh toán thành công, `expires_at > now()` | `Paid` | Ghế → `Sold`, intent → `Captured`, **cấp vé** (mỗi ghế một vé). **Cùng transaction**. Ghi lịch sử. |
-| `AwaitingPayment` | `expires_at` đã qua (worker) | `Expired` | Ghế → `Available`. **Cùng transaction**. Ghi lịch sử. Yêu cầu huỷ intent phía Stripe qua outbox (nếu có intent). |
-| `AwaitingPayment` | Người xem huỷ | `Cancelled` | Ghế → `Available`. **Cùng transaction**. Ghi lịch sử (nguyên nhân: người xem). Huỷ intent phía Stripe qua outbox. |
+| `AwaitingPayment` | `expires_at` đã qua (worker) | `Expired` | Ghế → `Available`. **Cùng transaction**. Ghi lịch sử. Nếu có intent `Unpaid` ⇒ intent → `Closed` + outbox huỷ phía Stripe. |
+| `AwaitingPayment` | Người xem huỷ | `Cancelled` | Ghế → `Available`. **Cùng transaction**. Ghi lịch sử (nguyên nhân: người xem). Nếu có intent `Unpaid` ⇒ intent → `Closed` + outbox huỷ phía Stripe. |
 | `AwaitingPayment` | Suất chiếu bị hủy | `Cancelled` | Như trên, nguyên nhân: hủy suất chiếu. **Cùng transaction** với `Showtime → Cancelled`. |
 
 ### Transitions bị từ chối
@@ -185,29 +185,36 @@ Context: `Booking`. Aggregate: `Booking`.
 Context: `Payment`. Aggregate: `Payment intent`.
 
 > **Không có trạng thái "thất bại".** Thất bại (thẻ bị từ chối, xác thực không xong) chỉ được
-> **ghi vào lịch sử**; intent vẫn `AwaitingPayment` và người xem **thử lại bằng cùng intent** —
+> **ghi vào lịch sử**; intent vẫn `Unpaid` và người xem **thử lại bằng cùng intent** —
 > đúng mô hình Stripe, và đúng J-04.4 (ADR-0006).
+>
+> **Đổi tên 2026-11-25 (ADR-0010, đóng Q28):** trạng thái chờ của intent tên là `Unpaid`, không còn
+> trùng tên `AwaitingPayment` của `Booking`. Thêm `Closed` cho intent của đơn đã kết thúc mà chưa
+> thu tiền — trước đó intent này nằm mãi ở trạng thái chờ.
 
 ### States
 
 | Trạng thái | Nghĩa |
 |---|---|
-| `AwaitingPayment` | Đã tạo yêu cầu thanh toán, chờ kết quả. |
+| `Unpaid` | Đã tạo yêu cầu thanh toán, chưa có kết quả thành công. |
+| `Closed` | Đơn đã `Expired` / `Cancelled` khi chưa thu tiền; đã yêu cầu huỷ intent phía Stripe. Chỉ còn đường ra nếu tiền **vẫn** về muộn. |
 | `Captured` | Tiền **đã thu**, đơn đã `Paid`. |
 | `RefundPending` | Tiền đã thu nhưng **phải hoàn**; yêu cầu hoàn đã ghi vào outbox, chưa có xác nhận từ Stripe. |
 | `Refunded` | Đã hoàn **toàn bộ**. **Trạng thái chết.** |
 
-> **Tên `Captured`, không phải `Paid`** — `Paid` là của `Booking`. Q28 (cùng tên
-> `AwaitingPayment` ở hai máy) vẫn mở, chốt ở T11.
+> **Tên `Captured`, không phải `Paid`** — `Paid` là của `Booking`. **`Unpaid`, không phải
+> `AwaitingPayment`** — `AwaitingPayment` là của `Booking` (ADR-0010).
 
 ### Transitions
 
 | Từ | Sự kiện | Đến | Tác dụng phụ |
 |---|---|---|---|
-| — | Người xem bấm thanh toán | `AwaitingPayment` | Tạo intent gắn **đúng một** đơn (unique `booking_id`; bấm lại trả intent cũ). Gọi Stripe tạo PaymentIntent — **ngoài** DB transaction. |
-| `AwaitingPayment` | Thông báo thất bại | `AwaitingPayment` | Chỉ ghi `Payment event`. Người xem thử lại được. |
-| `AwaitingPayment` | Thông báo thành công, đơn còn hạn | `Captured` | Ghi `Payment event`. Đơn → `Paid`, ghế → `Sold`, cấp vé — **cùng transaction**. |
-| `AwaitingPayment` | Thông báo thành công, đơn **không** còn nhận thanh toán (`Expired` / `Cancelled` / quá `expires_at`) | `RefundPending` | Ghi `Payment event`. Tạo `Refund` + dòng outbox. **Không** cấp vé. |
+| — | Người xem bấm thanh toán (đơn `AwaitingPayment`, còn hạn) | `Unpaid` | Tạo intent gắn **đúng một** đơn (unique `booking_id`; bấm lại trả intent cũ). Gọi Stripe tạo PaymentIntent — **ngoài** DB transaction. |
+| `Unpaid` | Thông báo thất bại | `Unpaid` | Chỉ ghi `Payment event`. Người xem thử lại được. |
+| `Unpaid` | Thông báo thành công, đơn còn hạn | `Captured` | Ghi `Payment event`. Đơn → `Paid`, ghế → `Sold`, cấp vé — **cùng transaction**. |
+| `Unpaid` | Thông báo thành công, đơn **không** còn nhận thanh toán (quá `expires_at`, `Expired`, `Cancelled`) | `RefundPending` | Ghi `Payment event`. Tạo `Refund` + dòng outbox. **Không** cấp vé. |
+| `Unpaid` | Đơn → `Expired` / `Cancelled` | `Closed` | Dòng outbox "huỷ PaymentIntent phía Stripe". **Cùng transaction** với chuyển trạng thái đơn. |
+| `Closed` | Thông báo thành công (tiền vẫn về muộn — huỷ phía Stripe chưa kịp) | `RefundPending` | Ghi `Payment event`. Tạo `Refund` + dòng outbox. **Không** cấp vé. |
 | `Captured` | Suất chiếu bị hủy | `RefundPending` | Tạo `Refund` + dòng outbox. **Cùng transaction** với `Showtime → Cancelled`. |
 | `RefundPending` | Stripe xác nhận đã hoàn | `Refunded` | Ghi `Payment event`. |
 
@@ -222,7 +229,9 @@ mà là việc làm **giữa** `RefundPending` và `Refunded`.
 | `Captured`, `RefundPending`, `Refunded` | Thông báo **thất bại** đến sau (sai thứ tự) | **Bỏ qua** — chỉ ghi lịch sử. Tiền đã thu là sự thật cuối cùng. |
 | `Captured`, `RefundPending`, `Refunded` | Thông báo **thành công** khác (`event.id` khác, cùng intent) | **Bỏ qua** — trạng thái đã vượt qua bước đó. |
 | `RefundPending`, `Refunded` | Yêu cầu hoàn lần nữa | **Từ chối** — ràng buộc ≤ 1 `Refund`. |
-| `AwaitingPayment` | Yêu cầu hoàn / xác nhận đã hoàn | **Từ chối** + cảnh báo — chưa thu thì không có gì để hoàn; nếu Stripe báo đã hoàn thì dữ liệu lệch, cần người xem xét. |
+| `Unpaid`, `Closed` | Yêu cầu hoàn / xác nhận đã hoàn | **Từ chối** + cảnh báo — chưa thu thì không có gì để hoàn; nếu Stripe báo đã hoàn thì dữ liệu lệch, cần người xem xét. |
+| `Closed` | Thông báo thất bại | **Bỏ qua** — chỉ ghi lịch sử. |
+| `Closed` | Người xem bấm thanh toán lần nữa | **Từ chối** — đơn đã kết thúc (`FR-36`: "đơn đã hết hạn / đã huỷ — hãy đặt lại"). |
 
 ### Idempotency
 
@@ -271,9 +280,9 @@ Context: `Ticketing`. Aggregate: `Ticket`.
 | `CheckedIn` | Quét lại (kể cả cổng khác) | **Từ chối**, kèm **thời điểm** và **cổng** lần đầu (`FR-07`, `BR-10`). |
 | `CheckedIn` | Hai nhân viên quét **cùng lúc** | Một lượt thắng; lượt còn lại bị từ chối như trên. |
 | — | Mã không hợp lệ / chữ ký sai / vé không tồn tại | **Từ chối** — kết quả xác định (`FR-25`). |
-| — | Vé của đơn **chưa thanh toán** | Không xảy ra được — vé chỉ tồn tại khi đơn `Paid` (`FR-08`). |
+| — | Mã dựng cho ghế của đơn **chưa thanh toán** | Không có vé nào ứng với mã ⇒ kết quả **không hợp lệ** như dòng trên. Vé chỉ tồn tại khi đơn `Paid` (`FR-08`). |
 | — | Vé thuộc **suất chiếu khác** suất đang quét | **Từ chối** (`FR-25`). |
-| — | Người quét **không được phân công** suất đó | **Từ chối** (`FR-35`, `BR-15`). |
+| — | Người quét **không được phân công** suất đó | **Từ chối về quyền**, trước khi xét vé (`FR-35`, `BR-15`). Không phải một trong 5 kết quả của vé. |
 | `Issued` | Suất chiếu **đã bị hủy** | **Từ chối** — vé đã/đang được hoàn tiền (`FR-24`). |
 
 ### Idempotency
@@ -399,7 +408,7 @@ có thể ảnh hưởng 1 dòng. Không có cửa sổ TOCTOU.
 | `FR-20` | `Available ↔ Blocked` | `Showtime seat` | `BR-11` |
 | `FR-22` | `NotOnSale → OnSale` | `Showtime` | `BR-13` |
 | `FR-24` | `OnSale → Cancelled` — huỷ đơn chờ, yêu cầu hoàn đơn đã trả | `Showtime`, `Booking`, `Payment intent` | `BR-05`, `BR-16` |
-| `FR-25` | Check-in — 5 kết quả xác định | `Ticket` | `BR-10`, `BR-15` |
+| `FR-25` | Check-in — 5 kết quả xác định: hợp lệ, đã dùng, không hợp lệ, suất khác, suất đã hủy | `Ticket` | `BR-10`, `BR-15` |
 | `FR-27` | `Issued → CheckedIn` — mỗi lượt thành công được đếm | `Ticket` | `BR-25` |
 | `FR-34` | `Hold seats` bị từ chối khi `NotOnSale` hoặc đã tới giờ chiếu | `Showtime` | `BR-13`, `BR-31` |
 | `FR-37` | Tạo đơn — bản ghi idempotency | `Booking` | `BR-18` |
@@ -436,9 +445,8 @@ transaction, **chỉ gồm ghi database**. Gọi ra ngoài (Stripe, email) luôn
 | # | Câu hỏi | Chốt ở |
 |---|---|---|
 | Q25 | Ghế `Held` đã quá `held_until` mà worker chưa trả — lệnh giữ mới có được lấy luôn không? Nay **an toàn về tính đúng đắn** (đơn cũ không thể `Paid` sau hạn; lệnh trả ghế lọc `hold_id`) — còn lại là câu hỏi cơ chế. | T12 |
-| Q28 | `AwaitingPayment` dùng chung tên ở `Booking` và `Payment intent` — đổi tên một bên? | T11 |
-
-**Đã đóng 2026-11-25:** Q26 (bỏ cờ "đã cấp vé" — `Paid` ⇒ đã có vé), Q27 (`Booking` giữ `Paid` khi
+**Đã đóng 2026-11-25:** Q28 (trạng thái chờ của intent đổi tên thành `Unpaid`, thêm `Closed` —
+ADR-0010), Q26 (bỏ cờ "đã cấp vé" — `Paid` ⇒ đã có vé), Q27 (`Booking` giữ `Paid` khi
 hủy suất), Q29 (hủy suất = một transaction ngắn + N yêu cầu hoàn qua outbox — ADR-0006).
 
 ## Trạng thái

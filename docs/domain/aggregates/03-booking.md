@@ -163,4 +163,4 @@ cầu song song của **cùng** một người ⇒ tổng ≤ 10, và test phả
 | Lịch sử trạng thái đơn | `Booking` | quản trị viên (`FR-31`) |
 | Trạng thái tiền của đơn | `Payment` | `Booking` |
 | Trạng thái thật của ghế | `Inventory` | `Booking` |
-| Vé đã cấp | `Ticketing` | `Booking` (qua đơn) |
+| Vé đã cấp | `Ticketing` | người xem — endpoint của `Ticketing` (`Booking` không đọc vé) |

@@ -16,7 +16,7 @@ Mỗi luật mang một mã `BR-nn`, và có hai dòng bắt buộc:
 - **Vi phạm thì** — điều xảy ra nếu bị vi phạm, và người dùng thấy gì.
 
 Một luật ở đây là **luật của nghiệp vụ**, không phải ràng buộc kỹ thu. "Ghế phải được khoá theo
-thứ tự tăng dần để tránh deadlock" là Lớp 3 — nó là *cách hiện thực* luật `BR-04`, không phải
+thứ tự tăng dần để tránh deadlock" là Lớp 3 — nó là *cách hiện thực* luật `BR-22`, không phải
 một luật riêng.
 
 ---
@@ -54,8 +54,9 @@ Mỗi lần giữ ghế gắn với một thời điểm hết hạn xác địn
 
 ### BR-04 — Hết thời gian giữ thì đơn hết hạn, không hồi sinh
 
-Khi đơn hết thời gian giữ mà chưa thanh toán, đơn chuyển sang trạng thái **hết hạn** (coi
-như đã huỷ), các ghế đã giữ được trả về `Trống`, và **không có vé nào được cấp**.
+Khi đơn hết thời gian giữ mà chưa thanh toán, đơn chuyển sang trạng thái **hết hạn** (khác với
+**đã huỷ**: nguyên nhân là thời gian, không phải một hành động), các ghế đã giữ được trả về
+`Trống`, và **không có vé nào được cấp**.
 
 Nếu kết quả thanh toán đến **sau** thời điểm đó, đơn **không** trở lại trạng thái đang
 chờ, và không có vé nào được cấp.
@@ -244,8 +245,12 @@ gì tiếp**. Không có lỗi chung chung không giải thích được.
 
 Một phòng chiếu không thể có hai suất chiếu chồng nhau về thời gian.
 
-- Ràng buộc: hai suất chiếu của cùng một phòng phải tách nhau bởi khoảng thời gian đủ để
-  dọn dẹp giữa hai suất.
+- Ràng buộc: hai suất chiếu của cùng một phòng phải tách nhau bởi **khoảng đệm 15 phút** để dọn
+  dẹp: suất sau chỉ được bắt đầu từ giờ kết thúc của suất trước + 15 phút. Suất đã hủy không chiếm
+  khung giờ.
+
+> **Ghi chú (2026-11-25):** chốt khoảng đệm 15 phút (đóng Q22). Lý do: đủ cho dọn phòng một rạp nhỏ,
+> và là hằng số toàn hệ thống — không cấu hình theo phòng để giữ ràng buộc đơn giản.
 - Vi phạm thì: khách của suất sau không vào được phòng đang có suất trước (FR-21).
 
 ### BR-21 — Huỷ đơn đang chờ thanh toán thì trả ghế ngay
@@ -334,8 +339,8 @@ thể) phải phản ánh **lưu lượng đang diễn ra**, không phải số 
 
 ### BR-29 — Chỉ hiện phim và suất chiếu đang mở bán
 
-Danh sách phim chỉ chứa phim **đang có suất chiếu mở bán**. Trang chi tiết phim chỉ hiện các
-suất chiếu đang mở bán, kèm giờ chiếu, phòng, và giá vé.
+Danh sách phim chỉ chứa phim **đang có suất chiếu mở bán và chưa bắt đầu**. Trang chi tiết phim chỉ
+hiện các suất chiếu như vậy, kèm giờ chiếu, phòng, và giá vé.
 
 - Ràng buộc: giá hiển thị là **giá theo loại ghế trong suất chiếu đó** — một suất có thể có
   nhiều loại ghế với nhiều mức giá.
@@ -361,6 +366,19 @@ Từ giờ bắt đầu chiếu, không ai giữ ghế được cho suất đó 
 - Ràng buộc: kiểm tra giờ bắt đầu tại lúc giữ ghế, cùng lúc với kiểm tra trạng thái đang bán
   (`BR-13`).
 - Vi phạm thì: người xem trả tiền cho một suất đã chiếu xong (FR-41).
+
+### BR-32 — Phòng thuộc quản lý rạp tạo ra nó; phim thuộc danh mục chung
+
+Mỗi phòng thuộc về **quản lý rạp đã tạo nó**. Quản lý rạp chỉ xếp suất chiếu vào phòng **của
+mình**. Phim nằm trong **danh mục chung** do quản trị viên quản lý; quản lý rạp chỉ chọn phim từ
+danh mục. Quản trị viên được thao tác trên mọi phòng.
+
+- Ràng buộc: kiểm tra chủ sở hữu phòng khi tạo suất chiếu; chỉ quản trị viên tạo/sửa phim.
+- Vi phạm thì: một quản lý rạp xếp suất vào phòng của rạp khác và bán vé cho chỗ ngồi của người
+  khác (FR-20, FR-21, FR-28).
+
+> **Ghi chú (2026-11-25):** thêm khi rà toàn bộ docs — trước đó "rạp" chỉ được hiểu ngầm qua chủ sở
+> hữu suất chiếu (`BR-16`), còn quyền trên phòng và phim thì không luật nào nói.
 
 ---
 
@@ -399,3 +417,4 @@ Từ giờ bắt đầu chiếu, không ai giữ ghế được cho suất đó 
 | BR-29 | Chỉ hiện phim và suất chiếu đang mở bán | FR-11, FR-12 | J-01 |
 | BR-30 | Vé hiển thị kèm suất chiếu và ghế; vé của suất đã hủy ghi rõ | FR-17, FR-24 | J-02, J-06 |
 | BR-31 | Ngừng bán vé từ giờ bắt đầu chiếu | FR-41 | J-04 |
+| BR-32 | Phòng thuộc quản lý rạp tạo nó; phim thuộc danh mục chung | FR-20, FR-21, FR-28 | J-06, J-07 |
