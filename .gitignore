@@ -1,0 +1,9 @@
+# Secrets — không bao giờ commit
+.env
+secrets.json
+
+# OS / IDE
+.vs/
+.idea/
+Thumbs.db
+.DS_Store

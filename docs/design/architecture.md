@@ -94,7 +94,61 @@ Mỗi module có hai project:
 Ranh giới là ranh giới **compile-time**: muốn gọi class nội bộ của module khác thì không có
 `ProjectReference` để gọi. Kiểm tra được bằng compiler, không phụ thuộc kỷ luật.
 
-### Cấu trúc thư mục
+### Bố cục repo: backend và frontend *(AI quyết định, 2026-11-25)*
+
+Repo chứa hai ứng dụng dùng hai toolchain khác nhau (.NET và Node). Mỗi ứng dụng có **thư mục
+riêng, tự chứa toàn bộ cấu hình build của nó**. Gốc repo chỉ giữ những thứ thuộc về **cả hệ
+thống**.
+
+```
+advanced-ticket-system/
+  README.md, AGENTS.md, GLOSSARY.md
+  docs/  .scratch/                tài liệu, ticket
+  .gitignore                      chỉ luật chung: .env, secrets.json, file của OS/IDE
+  .github/workflows/
+    backend.yml                   chạy khi backend/** đổi
+    frontend.yml                  chạy khi frontend/** đổi (ticket T27)
+  docker-compose.yml              môi trường dev của cả hệ thống: Postgres, Redis
+  .env.example                    biến cho compose (.env thật bị gitignore)
+  infra/postgres/init/            script khởi tạo DB (btree_gist)
+  perf/                           k6 (T23) — bắn vào API qua HTTP, không thuộc backend hay frontend
+  backend/                        mọi thứ của .NET
+    TicketSystem.sln
+    global.json                   ghim SDK 10 — chỉ có hiệu lực trong backend/
+    Directory.Build.props         net10.0, nullable, TreatWarningsAsErrors
+    .editorconfig                 luật C#
+    .gitignore                    bin/, obj/, *.user
+    src/   tests/                 (cây ở dưới)
+  frontend/                       SPA cho người xem (T27) — package.json, vite config, .gitignore riêng
+```
+
+**Vì sao chọn:**
+
+- **Mỗi toolchain một thư mục gốc riêng.** Cấu hình của .NET (`global.json`, `Directory.Build.props`)
+  và của Node (`package.json`, `node_modules/`) đều áp dụng **từ thư mục chứa nó trở xuống**. Để
+  chung một gốc thì cấu hình của bên này lan sang bên kia: `global.json` chi phối mọi lệnh
+  `dotnet` chạy bất kỳ đâu trong repo, còn tool quét file của frontend phải tự bỏ qua `bin/`, `obj/`.
+- **Frontend chỉ là một client của `api-contract.md`**, giống k6 hay Stripe.js. Nó không reference
+  code nào của backend, nên không có lý do để nằm trong .NET solution. Biên giới giữa hai bên là HTTP.
+- **CI tách theo đường dẫn:** đổi frontend không phải build lại .NET, và ngược lại.
+- **Compose, `infra/`, `perf/` ở gốc**, vì chúng phục vụ cả hệ thống chứ không riêng ứng dụng nào.
+  Sau này compose có thể chạy thêm `api` và `web`.
+
+**Không chọn:**
+
+- *Solution và cấu hình .NET ở gốc repo, frontend ở `web/`* (bản D2 trước 2026-11-25): gốc repo bị
+  lẫn file của backend, và cấu hình .NET áp lên cả phần frontend.
+- *Monorepo kiểu `apps/` + `packages/` với Nx hoặc Turborepo*: những công cụ này giải quyết việc
+  chia sẻ code giữa nhiều package JS. Ở đây chỉ có một ứng dụng .NET và một SPA, không có code
+  chung, nên tooling là thừa.
+- *Frontend ở repo riêng*: dự án chỉ có một người làm. Một repo giữ CI, README và link CV ở cùng
+  một chỗ, và một PR có thể đổi API và UI cùng lúc.
+- *Backend render UI (Razor / Blazor Server)*: trộn UI vào host. Load test T23 khi đó sẽ đo lẫn cả
+  phần render.
+
+### Cấu trúc thư mục backend
+
+Mọi đường dẫn dưới đây tính từ `backend/`.
 
 ```
 TicketSystem.sln
@@ -123,8 +177,9 @@ tests/
   TicketSystem.ArchitectureTests/           kiểm tra quy tắc phụ thuộc (xem dưới)
   TicketSystem.IntegrationTests/            Testcontainers: Postgres + Redis thật
   Modules/TicketSystem.<Module>.Tests/      unit test domain
-perf/                                       k6 (T23)
 ```
+
+`perf/` (k6, T23) nằm ở **gốc repo**, không nằm trong `backend/` — xem bố cục repo ở trên.
 
 ---
 

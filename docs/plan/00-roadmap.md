@@ -191,10 +191,12 @@ Chi tiết từng ticket nằm ở `.scratch/advanced-ticket-system/issues/`.
 | T24 | Check-in: QR HMAC, phân công cổng, chống quét lại | `pair-tdd` | T20 | #8 |
 | T25 | Observability: log, metric, trace, dashboard | `you-implement-i-review` | T23 | #11 #12 |
 | T26 | README + ADR + báo cáo benchmark + CV | `co-design` | T22, T23, T24, T25 | — |
+| T27 | Frontend người xem tối thiểu (`frontend/`) | `you-implement-i-review` | T22 | — |
 
 **Thứ tự cứng:** T10 chỉ mở sau T06–T08. T11 chỉ mở sau T07. T18 chỉ mở sau T10 + T11 + T12.
 
-**Cắt scope khi trễ tiến độ:** T24 (check-in) trước, rồi T25 (Grafana), rồi T23 (k6 mở rộng).
+**Cắt scope khi trễ tiến độ:** T27 (frontend) đầu tiên — điểm CV nằm ở concurrency chứ không ở UI;
+khi chưa có frontend thì demo bằng OpenAPI. Sau đó T24 (check-in), rồi T25 (Grafana), rồi T23 (k6 mở rộng).
 Lõi là T15–T22 + T26.
 
 ## Log quyết định
@@ -280,6 +282,7 @@ Ghi lại ở đây mỗi khi có quyết định nào ảnh hưởng tới toà
 | 2026-11-25 | **Không `SERIALIZABLE`, không distributed lock** (đóng Q02, Q06) | Mọi bất biến đã có cơ chế ở DB; Redis chỉ tối ưu | `docs/design/concurrency.md` |
 | 2026-11-25 | **API**: problem+json có `code` + `action`; `404` cho tài nguyên người khác; `409` vs `422`; `Idempotency-Key` bắt buộc chỉ ở giữ ghế | `FR-10`, `FR-36`; endpoint khác tự nhiên idempotent | `docs/design/api-contract.md` |
 | 2026-11-25 | **Đóng Gate C, mở Gate D**; đồng bộ ticket T15–T26 với design | Exit checklist Gate C tick đủ | `docs/plan/gate-d-implementation.md` |
+| 2026-11-25 | **Bố cục repo `backend/` + `frontend/`**; thêm T27 frontend người xem (AI quyết định) | PRD có giao diện người xem (`NR-06`, `NR-14`) nhưng design chưa có chỗ cho nó; mỗi toolchain một thư mục gốc | `docs/design/architecture.md` D2 |
 
 ## Câu hỏi còn mở
 

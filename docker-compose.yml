@@ -1,0 +1,62 @@
+name: ticketsystem
+
+services:
+    postgres:
+        image: postgres:17-alpine
+        environment:
+            POSTGRES_DB: ${POSTGRES_DB:-ticketsystem}
+            POSTGRES_USER: ${POSTGRES_USER:-ticket}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+        ports:
+            - "${POSTGRES_PORT:-5432}:5432"
+        volumes:
+            - postgres-data:/var/lib/postgresql/data
+            - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}",
+                ]
+            interval: 5s
+            timeout: 3s
+            retries: 10
+        networks:
+            - default
+
+    redis:
+        image: redis:7.4-alpine
+        command: ["redis-server", "--appendonly", "yes"]
+        ports:
+            - "${REDIS_PORT:-6379}:6379"
+        volumes:
+            - redis-data:/data
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 5s
+            timeout: 3s
+            retries: 10
+        networks:
+            - default
+
+    pgadmin:
+        image: dpage/pgadmin4:9.19
+        environment:
+            PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:?Set PGADMIN_DEFAULT_EMAIL in .env}
+            PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?Set PGADMIN_DEFAULT_PASSWORD in .env}
+        ports:
+            - "${PGADMIN_PORT:-5050}:80"
+        volumes:
+            - pgadmin-data:/var/lib/pgadmin
+        networks:
+            - default
+
+networks:
+    default:
+        name: ticketsystem
+        driver: bridge
+
+volumes:
+    postgres-data:
+    redis-data:
+    pgadmin-data:

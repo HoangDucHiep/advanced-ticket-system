@@ -38,6 +38,7 @@ Gate D biến design thành **code chạy được và test chứng minh đượ
 | 10 | T23 Load test + baseline | `pair-tdd` | #11; số đo cho ADR-0002, ADR-0007 |
 | 11 | T25 Observability | `you-implement-i-review` | |
 | 12 | T26 README + CV | `co-design` | |
+| 13 | T27 Frontend người xem (`frontend/`) | `you-implement-i-review` | cắt **đầu tiên** nếu trễ |
 
 Lõi bắt buộc: T15–T22 + T26. Cắt khi trễ: T24 → T25 → mở rộng T23.
 

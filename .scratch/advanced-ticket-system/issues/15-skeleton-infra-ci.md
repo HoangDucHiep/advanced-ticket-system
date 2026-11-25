@@ -12,6 +12,10 @@ Traces to: —
 > `Shared.Abstractions`, `Shared.Infrastructure`; host `TicketSystem.Api`). Unit of Work theo request
 > (ADR-0008) và khung architecture test (quy tắc 1–8 của D9) thuộc ticket này. Postgres cần extension
 > `btree_gist`.
+>
+> **Bố cục repo (2026-11-25):** mọi thứ của .NET (`TicketSystem.sln`, `global.json`,
+> `Directory.Build.props`, `src/`, `tests/`) nằm trong `backend/`. Gốc repo chỉ giữ compose, `infra/`,
+> `.github/`, `.gitignore` chung (architecture.md D2 — "Bố cục repo").
 
 ## Vì sao có ticket này
 
