@@ -136,18 +136,24 @@ Thông báo cho người xem chỉ đi qua email. Không có push notification, 
 
 ## Nhóm 3 — Lý do kỹ thu / quy mô
 
-### NR-11 — Chạy một instance duy nhất
+### NR-11 — Không vận hành nhiều instance như hệ thống thật
 
-Hệ thống chạy trên **một** instance ứng dụng trong suốt dự án. Không chạy nhiều instance
-cùng lúc, không cần chia tải ngang, không cần rolling deploy không gián đoạn.
+Hệ thống **không** có tự co giãn số instance, không có chia tải ngang khi vận hành, không có
+triển khai cuốn chiếu không gián đoạn. Môi trường chạy mặc định là **một** instance.
 
-- Lý do: `kỹ thu / quy mô` — chạy nhiều instance là điều kiện để một số bài toán tranh chấp
-  thật sự xảy ra, nhưng các bài toán đó đều **tự chọn đúng instance** để chạy khi cần, và
-  phần lớn chỉ khác nhau ở chỗ dữ liệu dùng chung nằm ở đâu. Học cơ chế đúng trên một
-  instance rồi mới rộng ra là đúng thứ tự.
-- Nếu sau này cần: một số bài toán trong bảng 12 sẽ cần kiểm chứng lại ở chế độ nhiều
-  instance (đặc biệt là bài toán #9 — nhiều lượt xem cùng một suất — và bài toán #12 — nhiều
-  instance dùng chung một hạn mức).
+**Ngoại lệ có chủ ý:** các bài toán mà tính đúng đắn **chỉ lộ ra** khi có nhiều instance (bài
+toán #10 — instance khác thấy đúng trạng thái ghế; #12 — nhiều instance dùng chung một hạn mức)
+được kiểm chứng bằng cách chạy **2–3 instance trong kịch bản kiểm thử và đo tải**. Đó là môi
+trường thử, không phải cách vận hành.
+
+- Lý do: `kỹ thu / quy mô` — vận hành nhiều instance kéo theo nhiều việc không phục vụ mục tiêu
+  học (điều phối, triển khai, theo dõi từng instance). Nhưng nếu cấm hẳn nhiều instance thì hai bài
+  toán trong bảng 12 không bao giờ kiểm chứng được.
+- Nếu sau này cần: dựng cơ chế triển khai nhiều instance thật; các bài toán #9, #10, #12 đã có
+  kiểm chứng nhiều instance nên không phải làm lại.
+
+> **Ghi chú (2026-11-25):** bản trước nói "một instance trong suốt dự án" — mâu thuẫn với bài
+> toán #10 và #12 trong roadmap, vốn cần nhiều instance mới có ý nghĩa.
 
 ### NR-12 — Không có realtime bằng websocket
 
@@ -230,8 +236,14 @@ Dự án này **không giả lập** bất kỳ thành phần nào. Cụ thể:
 
 - Thanh toán: dùng cổng thanh toán thật, nhận thông báo kết quả thật, xử lý thông báo đến
   lặp thật (FR-38, bài toán concurrency #7).
-- Vé: mã QR do hệ thống phát ra, ký số, và kiểm tra được tại chổ.
+- Vé: mã QR do hệ thống phát ra, ký số, và chữ ký được kiểm tra **khi quét** (không kiểm tra
+  offline — `NR-15`).
 - Thông báo: gửi email thật (FR-19).
+
+**"Không giả lập" không có nghĩa là không được gửi lại thông báo trong kiểm thử.** Kiểm thử
+"thông báo đến lặp ba lần" dùng **thông báo thật** do môi trường thử của cổng thanh toán phát ra,
+được gửi lại nhiều lần — đường xử lý của hệ thống vẫn là đường thật. Cái bị cấm là thay đường xử lý
+của hệ thống bằng một bản làm giả.
 
 Lý do: một phần giả lập sẽ làm **test concurrency trở nên vô nghĩa** — test chỉ chứng minh
 điều đúng khi đường đi thật đã được đi qua. Một thông báo kết quả giả lập sẽ không bao giờ

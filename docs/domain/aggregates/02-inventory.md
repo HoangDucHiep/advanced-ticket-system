@@ -4,194 +4,135 @@ Bounded context `Inventory` (xem [`../context-map.md`](../context-map.md)).
 
 Thuật ngữ: [`../ubiquitous-language.md`](../ubiquitous-language.md).
 
+Quyết định ranh giới: [ADR-0005](../../adr/0005-showtime-seat-aggregate.md) (thay
+[ADR-0004](../../adr/0004-seat-hold-aggregate-boundary.md)).
+
 ## Trách nhiệm
 
-Quản lý trạng thái của từng ghế của từng suất chiếu, và các chỗ giữ ghế kèm thời điểm hết
-hạn.
+Quản lý trạng thái của từng ghế của từng suất chiếu, kể cả **thông tin giữ** (ai đang giữ, giữ
+tới lúc nào) và trạng thái **bị chặn**.
 
-`Inventory` **không** biết phim là gì, phòng là gì, lịch chiếu là gì. Nó chỉ biết "sinh ghế
-cho suất chiếu này theo cấu hình này" và "ghế này còn trống không".
+`Inventory` **không** biết phim là gì, phòng là gì, đơn đặt vé là gì. Nó chỉ biết "sinh ghế cho
+suất chiếu này theo cấu hình này", "ghế này còn trống không", và "ghế này đang được giữ bởi tham
+chiếu giữ nào, tới lúc nào".
 
 ---
 
-## Aggregate: `Seat hold`
+## Aggregate: `Showtime seat`
 
-**Bản chất**: entity. Một lần giữ ghế — có định danh, có vòng đời, tồn tại từ lúc ghế được giữ
-đến lúc ghế được trả về (`Trống`) hoặc được bán (`Sold`).
+**Bản chất**: entity, **aggregate root**. Một ghế của một suất chiếu — một dòng dữ liệu. Sinh ra
+khi suất chiếu được tạo, sống suốt đời suất chiếu, đi qua nhiều lần giữ.
 
 **Chứa**:
 
 | Thành phần | Bản chất | Vai trò |
 |---|---|---|
-| `Showtime seat` (tối đa 6 theo `BR-06`) | entity | Các ghế đang bị giữ bởi lần giữ này |
-| Thời điểm hết hạn | value object | Mốc quyết định ghế được giải phóng |
-| Chủ sở hữu (`Customer id`) | tham chiếu | Ai đang giữ |
+| Trạng thái | thuộc tính | `Available` / `Held` / `Sold` / `Blocked` |
+| Tham chiếu suất chiếu (`Showtime id`) | tham chiếu | Ghế này của suất nào |
+| Tham chiếu ghế phòng (`Room seat id`) | tham chiếu | Ghế vật lý nào |
+| `Seat type` | value object (bản sao lúc sinh) | Dùng để đếm ghế (ghế đôi tính 2) và tra giá |
+| Thông tin giữ: `hold_id`, `held_until` | value object | Có khi và chỉ khi trạng thái là `Held` |
 
 **Boundary**: nằm **ngoài** aggregate này —
 
-- `Showtime` (thuộc `Scheduling`) — cấu hình ghế, giá, trạng thái mở bán;
-- `Booking` (thuộc `Booking`) — đơn đặt vé, lịch sử, giới hạn theo người;
+- `Showtime` (thuộc `Scheduling`) — giá, trạng thái mở bán, chủ sở hữu;
+- `Booking` (thuộc `Booking`) — đơn đặt vé, `expires_at` gốc, lịch sử, giới hạn theo người;
 - `Ticket` (thuộc `Ticketing`) — vé đã cấp.
+
+> **Vì sao không có aggregate `Seat hold` nữa.** ADR-0004 từng đặt `Showtime seat` làm entity bên
+> trong `Seat hold`. Không được: ghế tồn tại **trước** mọi lần giữ và sống **qua nhiều** lần giữ —
+> entity phải sinh/chết cùng aggregate chứa nó. Và `Seat hold` trùng 1:1 với `Booking` (cùng chủ,
+> cùng ≤ 6 ghế, cùng hạn). "Chỗ giữ ghế" giờ là **thông tin giữ** nằm trên chính dòng ghế.
 
 ### Invariants
 
-- **INV-01** — Mỗi `Showtime seat` thuộc về **đúng một** chủ sở hữu tại một thời điểm; bốn
-  trạng thái `Available` / `Held` / `Sold` / `Blocked` là loại trừ nhau và đầy đủ.
+- **INV-01** — Mỗi `Showtime seat` thuộc về **đúng một** chủ tại một thời điểm; bốn trạng thái
+  `Available` / `Held` / `Sold` / `Blocked` là loại trừ nhau và đầy đủ.
   - *Cơ chế bảo vệ*: **điều kiện lệnh** — lệnh chuyển trạng thái chỉ thành công khi ghế đang ở
-    trạng thái nguồn được kỳ vọng (`Available` → `Held`). Không đọc trạng thái trước rồi quyết
-    định; điều kiện nằm **trong** lệnh. Cộng thêm: constraint `CHECK` trên cột trạng thái để
-    không có giá trị ngoài bốn trạng thái.
-  - *Ai có thể vi phạm*: bất kỳ code nào ghi trạng thái ghế mà không kèm điều kiện. Vì vậy
-    luật này được viết thành **quy tắc bắt buộc cho mọi lệnh ghi trạng thái ghế**, không phải
-    chỉ cho lệnh giữ ghế.
+    trạng thái nguồn được kỳ vọng (`Available` → `Held`). Không đọc trước rồi quyết định; điều kiện
+    nằm **trong** lệnh. Thêm `CHECK` trên cột trạng thái.
+  - *Ai có thể vi phạm*: code ghi trạng thái ghế mà không kèm điều kiện. Luật bắt buộc cho **mọi**
+    lệnh ghi trạng thái ghế, không chỉ lệnh giữ.
   - *Traces to*: `BR-01`, `FR-01`, `FR-15`.
 
-- **INV-02** — Giữ n ghế là **all-or-nothing**: đủ n ghế, hoặc không giữ ghế nào. Không tồn tại
-  trạng thái "giữ được một phần".
-  - *Cơ chế bảo vệ*: **một transaction duy nhất** bao trọn các lệnh chuyển trạng thái của cả n
-    ghế. Vì `Seat hold` là aggregate root và chứa cả n ghế, toàn bộ nằm trong một aggregate ⇒
-    một transaction. Nếu một ghế không đạt điều kiện (`Available`), transaction rollback, các
-    ghế đã đổi trong thao tác đó trở lại `Available`.
-  - *Ai có thể vi phạm*: code ghi trạng thái ghế ngoài thao tác giữ ghế (ví dụ một endpoint
-    debug sửa thẳng trạng thái). Luật: **mọi lệnh chuyển trạng thái ghế đều phải đi qua thao tác
-    giữ/ghi phóng của aggregate**.
-  - *Traces to*: `BR-02`, `FR-02`.
+- **INV-02** — Ghế `Held` **luôn** có `hold_id` và `held_until`; ghế không `Held` **không** có.
+  - *Cơ chế bảo vệ*: cả hai cùng nằm trên **một dòng** và được ghi trong **cùng một lệnh** với
+    trạng thái. Thêm `CHECK ((status = 'Held') = (hold_id IS NOT NULL AND held_until IS NOT NULL))`.
+  - *Ai có thể vi phạm*: lệnh trả ghế quên xoá thông tin giữ. Ràng buộc chặn.
+  - *Traces to*: `BR-01`, `BR-03`, `FR-04`, `FR-14`.
 
-- **INV-03** — Mỗi lần giữ ghế có **một thời điểm hết hạn xác định** (15 phút kể từ lúc giữ).
-  Không có lần giữ nào tồn tại vô thời hạn.
-  - *Cơ chế bảo vệ*: trường `expires_at` **bắt buộc có** (NOT NULL) trên `Seat hold`, và được
-    thiết lập ngay khi aggregate được tạo. Không có đường tạo `Seat hold` mà không có mốc
-    hết hạn.
-  - *Ai có thể vi phạm*: code tạo `Seat hold` với `expires_at` null hoặc bằng 0. Constraint NOT
-    NULL chặn trường hợp đầu; trường hợp thứ hai là lỗi logic, chặn bằng invariant của
-    aggregate (constructor bắt buộc nhận mốc hết hạn hợp lệ).
-  - *Traces to*: `BR-03`, `FR-04`, `FR-14`.
+- **INV-03** — Lệnh trả ghế (hết hạn, huỷ) chỉ trả **ghế của đúng lần giữ đó**.
+  - *Cơ chế bảo vệ*: điều kiện lệnh `WHERE hold_id = @hold_id AND status = 'Held'`. Nếu ghế đã
+    sang tay lần giữ khác thì lệnh ảnh hưởng 0 dòng.
+  - *Ai có thể vi phạm*: lệnh trả ghế chỉ lọc theo `showtime_id` + danh sách ghế mà không lọc
+    `hold_id` — trả nhầm ghế người khác vừa giữ.
+  - *Traces to*: `BR-03`, `BR-21`, `FR-04`, `FR-18`.
 
-- **INV-04** — Ghế ở trạng thái `Held` **luôn** thuộc về một `Seat hold` đang hiệu lực, và
-  `Seat hold` đó **luôn** có thời điểm hết hạn.
-  - *Cơ chế bảo vệ*: `Showtime seat` ở trạng thái `Held` phải trỏ tới một `Seat hold` còn hiệu
-    lực. Đây là quan hệ **bên trong** aggregate nên không cần cơ chế bên ngoài: trạng thái `Held`
-    và bản ghi giữ là hai mặt của cùng một thay đổi.
-  - *Ai có thể vi phạm*: mã nguồn khác context ghi trực tiếp cột trạng thái ghế mà không tạo
-    bản ghi giữ. Vì vậy ranh giới module chặn truy cập trực tiếp bảng này từ ngoài `Inventory`.
-  - *Traces to*: `BR-01`, `BR-03`.
-
-- **INV-05** — Một lần giữ ghế **không vượt quá 6 ghế** tính theo quy tắc đếm ghế (ghế đôi tính
-  2).
-  - *Cơ chế bảo vệ*: kiểm tra trong aggregate trước khi tạo — và `Seat hold` chứa tối đa 6
-    `Showtime seat`, nên đây cũng là **giới hạn kích thước aggregate**.
-  - *Ai có thể vi phạm*: code gọi thao tác giữ ghế với danh sách 7 ghế. Aggregate từ chối ở
-    biên.
-  - *Traces to*: `BR-06`, `BR-07`, `FR-09`.
-
-- **INV-06** — Một `Showtime seat` **không thể** vừa `Held` vừa thuộc hai `Seat hold` khác nhau.
-  - *Cơ chế bảo vệ*: hệ quả trực tiếp của `INV-01` — ghế chỉ chuyển sang `Held` khi đang
-    `Available`, và mỗi lần chuyển sang `Held` gắn với đúng một `Seat hold`. Không cần cơ chế
-    riêng.
-  - *Ai có thể vi phạm*: không ai, nếu `INV-01` được giữ. Ghi lại để thấy rõ đây là invariant
-    **dẫn xuất**, không phải invariant độc lập.
-  - *Traces to*: `BR-01`, `BR-02`.
-
-- **INV-07** — Ghế `Blocked` **không** được bán online, và **vẫn tính** vào tổng số ghế của
-  phòng.
-  - *Cơ chế bảo vệ*: điều kiện lệnh — lệnh giữ ghế chỉ nhận ghế `Available`, nên ghế `Blocked`
-    không bao giờ được giữ. Phần "vẫn tính vào tổng" là **thuộc tính của phép đếm**, không
-    phải trạng thái: bốn con số cộng lại bằng tổng số ghế phòng.
-  - *Ai có thể vi phạm*: code chặn ghế ở `Scheduling` (quyền của quản lý rạp) nhưng lại ghi
-    thẳng trạng thái `Blocked` ở bảng của `Inventory` mà không đi qua lớp dịch.
+- **INV-04** — Ghế `Blocked` **không** được bán online, và **vẫn tính** vào tổng số ghế của phòng.
+  - *Cơ chế bảo vệ*: điều kiện lệnh — lệnh giữ ghế chỉ nhận `Available`. "Vẫn tính vào tổng" là
+    thuộc tính của **phép đếm**: bốn con số cộng lại bằng tổng số ghế phòng.
+  - *Ai có thể vi phạm*: lệnh giữ ghế nới điều kiện thành `status <> 'Sold'`.
   - *Traces to*: `BR-11`, `FR-20`, `FR-23`.
+
+- **INV-05** — Chỉ chuyển `Available ↔ Blocked`. Ghế đang `Held` hoặc `Sold` không bị chặn được.
+  - *Cơ chế bảo vệ*: điều kiện lệnh theo trạng thái nguồn. Quyền chặn (quản lý rạp chủ suất chiếu)
+    được kiểm tra ở lệnh, dựa trên thông tin chủ sở hữu đọc từ `Scheduling` (R9).
+  - *Ai có thể vi phạm*: lệnh chặn ghế không có điều kiện trạng thái nguồn — chặn mất ghế đã bán.
+  - *Traces to*: `BR-11`.
 
 ### Transaction boundary
 
-Một transaction duy nhất bao trọn **một lần giữ ghế**: tạo `Seat hold` với mốc hết hạn, và
-chuyển trạng thái của **tất cả** n ghế từ `Available` sang `Held`.
+Ranh giới aggregate là **một ghế**. Nhưng thao tác **giữ n ghế** là **một DB transaction** chạm
+**n** aggregate `Showtime seat` + **1** aggregate `Booking` — ngoại lệ có chủ ý so với "một
+transaction sửa một aggregate" (ADR-0005, ranh giới bị cắt R3).
 
-Ranh giới transaction = **ranh giới aggregate**. Một thao tác giữ ghế là **một** transaction;
-không thể tách nó thành "giữ từng ghế một".
+Kết quả của transaction giữ ghế:
 
-Kết quả transaction, theo hành vi:
+- **Thành công**: tất cả n ghế `Held` với cùng `hold_id` và `held_until`; `Booking` tương ứng đã
+  được tạo ở `AwaitingPayment` (xem [`03-booking.md`](03-booking.md)).
+- **Thất bại**: **không** ghế nào đổi trạng thái, **không** `Booking` nào được tạo, và hệ thống nói
+  rõ **ghế nào** đã có người.
 
-- **Thành công**: tất cả n ghế ở `Held`, có đúng một `Seat hold` đang hiệu lực, đơn đặt vé tương
-  ứng đã được tạo (xem [`03-booking.md`](03-booking.md)).
-- **Thất bại**: **không** ghế nào thay đổi trạng thái, **không** có `Seat hold` nào được tạo,
-  và hệ thống nói rõ **ghế nào** đã có người.
+> **All-or-nothing (`BR-02`) do DB transaction bảo đảm, không do ranh giới aggregate.** Một
+> transaction cập nhật n dòng là atomic. Nếu số dòng ảnh hưởng < n ⇒ rollback toàn bộ.
 
-> **Bất biến bị cắt ngang ranh giới.** Tạo `Seat hold` (`Inventory`) và tạo `Booking`
-> (`Booking`) phải xảy ra cùng lúc — đó là ranh giới **R3** trong context map. Trong modular
-> monolith hiện tại, hai bên **dùng chung một transaction**. Nếu sau này tách `Inventory` thành
-> service riêng, thao tác giữ ghế **vỡ** và phải được thiết kế lại bằng saga/outbox.
+### Thứ tự khoá để tránh deadlock (`BR-22`)
+
+Hai người chọn ghế chồng nhau theo thứ tự ngược nhau sẽ **kẹt** nếu lấy khoá theo thứ tự ngẫu
+nhiên. Điều kiện lệnh **không** chống được điều này — `UPDATE` có điều kiện vẫn lấy row lock.
+
+> **Trong một transaction giữ ghế, khoá luôn theo thứ tự cố định: khoá quota (người xem, suất)
+> trước — xem [ADR-0007](../../adr/0007-per-customer-showtime-quota.md) — rồi các dòng ghế theo thứ
+> tự tăng dần của định danh ghế.**
+
+Chi tiết kỹ thuật chốt ở T12. Test phải chứng minh **không có deadlock nào xảy ra** — không chỉ
+"cả hai đều có phản hồi", vì cơ sở dữ liệu tự phá deadlock bằng cách huỷ một bên (xem ADR-0002).
 
 ---
 
-## Ranh giới aggregate: vì sao không phải `Showtime`
+## Phương án ranh giới đã cân nhắc
 
-Đây là câu hỏi trọng tâm của Gate B (`ADR-0003` — "Revalidate at Gate B"). Ba phương án đã
-cân nhắc:
-
-| | Ranh giới | All-or-nothing | Kích thước aggregate | Ai ép `INV-01` |
+| | Ranh giới | All-or-nothing do đâu | Kích thước | Kết luận |
 |---|---|---|---|---|
-| (a) | `Showtime` chứa toàn bộ `Showtime seat` | Tự nhiên | 200 dòng | Aggregate |
-| (b) | `Showtime seat` là aggregate root riêng | Phải qua N aggregate | 1 dòng | Constraint + điều kiện lệnh |
-| **(c)** | **`Seat hold` là aggregate root, chứa ≤6 ghế** | **Gói trong 1 aggregate** | **≤6 dòng** | **Constraint + điều kiện lệnh** |
+| (a) | `Showtime` chứa toàn bộ `Showtime seat` | Aggregate | ~200 dòng | Contention dồn một chỗ khi mở bán hot. Không chọn |
+| **(b)** | **`Showtime seat` là aggregate root riêng** | **DB transaction** | **1 dòng** | **Chọn (ADR-0005)** |
+| (c) | `Seat hold` chứa ≤ 6 ghế (ADR-0004) | Aggregate | ≤ 6 dòng | Vòng đời entity không khớp; trùng `Booking`. Bị thay thế |
 
-**Đã chọn (c).** Lý do:
-
-1. **`BR-02` không được bị cắt.** Ở (b), thao tác giữ 4 ghế phải đi qua 4 aggregate — mọi cơ
-   chế đảm bảo "đủ 4 hoặc không ghế nào" đều là *compensating transaction* (lùi 3 ghế đã giữ),
-   tức là có thời điểm hệ thống ở trạng thái trung gian vi phạm `BR-02`. Ở (c), toàn bộ n ghế
-   nằm trong **một** aggregate ⇒ một transaction ⇒ all-or-nothing là điều DB bảo đảm.
-2. **Aggregate vừa đủ lớn để chứa bất biến, vừa đủ nhỏ để không kẹt.** Ở (a), một phòng 200
-   ghế ⇒ mỗi lần giữ ghế là một transaction trên một tập dòng rất lớn, và khi mở bán phim hot,
-   hàng nghìn người tranh cùng một suất ⇒ contention dồn vào một aggregate. Ở (c), aggregate
-   nhỏ (≤6 ghế theo `BR-06`) và các aggregate khác nhau tranh nhau **ở từng dòng ghế**, nên
-   phân tán tự nhiên.
-3. **`INV-01` vẫn được ép — chỉ là bằng cơ chế khác.** Aggregate không phải lúc nào cũng là
-   thứ duy nhất bảo vệ invariant. Với seat-based, `INV-01` là invariant **về một dòng**, và
-   điều kiện lệnh (`UPDATE ... WHERE status = 'Available'`) ép nó **mạnh hơn** khoá đọc-sửa-ghi:
-   không cần đọc trước, không có cửa sổ TOCTOU, và hai lệnh cùng lúc trên cùng một ghế thì
-   **chỉ một** thắng — lệnh còn lại ảnh hưởng 0 dòng và phải được coi là thất bại.
-
-### Hệ quả của lựa chọn này
+### Hệ quả
 
 | Hệ quả | Chi tiết |
 |---|---|
 | `Showtime` **không** phải aggregate của `Inventory` | Nó thuộc `Scheduling` — xem [`01-scheduling.md`](01-scheduling.md) |
-| Số ghế của một suất không phải thứ được aggregate bảo vệ | Đếm bằng `COUNT`; bốn con số tình trạng bán là **số đo đọc**, không phải invariant |
-| `Seat hold` bị giới hạn 6 ghế | Không phải hệ quả kỹ thu mà là hệ quả nghiệp vụ từ `BR-06` — và nó giữ aggregate nhỏ |
-| `Booking` không nằm trong aggregate `Seat hold` | Nó là aggregate riêng ở context `Booking` — xem [`03-booking.md`](03-booking.md) |
-| Vòng đời `Showtime seat` không thuộc aggregate nào | Trạng thái của nó được bảo vệ bằng **điều kiện lệnh**, không bằng ranh giới aggregate |
-
-### Thứ tự khoá để tránh deadlock (`BR-22`)
-
-`BR-02` đòi hỏi một transaction trên nhiều dòng ghế. Hai người chọn ghế chồng nhau theo thứ tự
-ngược nhau sẽ **kẹt** nếu lấy khoá theo thứ tự ngẫu nhiên.
-
-Quy tắc (chi tiết kỹ thu chốt ở T12 — [`12-concurrency-design.md`](../../../.scratch/advanced-ticket-system/issues/12-concurrency-design.md)):
-
-> **Các dòng ghế trong một thao tác giữ ghế luôn được khoá theo thứ tự tăng dần của định danh
-> ghế.**
-
-Đây là thứ tự **toàn cục** và xác định trước, nên không bao giờ có hai transaction cùng giữ hai
-dòng theo hai thứ tự ngược nhau — đó chính là điều kiện gây deadlock.
-
-> **Đây là một ví dụ rất rõ về việc invariant không được bảo vệ bằng aggregate vẫn cần một quy
-> tắc.** `INV-01` được ép bằng điều kiện lệnh, nhưng *tính all-or-nothing* của `INV-02` vẫn
-> cần quy tắc thứ tự khoá để không kẹt. Ranh giới aggregate trả lời "một transaction bao trọn
-> cái gì" — nó không trả lời "transaction đó khoá theo thứ tự nào".
+| Số ghế của một suất không được aggregate nào bảo vệ | Đếm bằng `COUNT`; bốn con số tình trạng bán là **số đo đọc** |
+| `held_until` là bản sao của `Booking.expires_at` | Ghi trong cùng transaction giữ ghế; không lệnh nào khác sửa một bên |
+| Ghế `Held` đã quá `held_until` mà worker chưa trả | Q25 — chốt ở T12. Vì `Booking` không thể sang `Paid` sau `expires_at` (ADR-0006), ghế này **an toàn để lấy lại**; INV-03 bảo đảm lệnh trả muộn không đụng nhầm ghế đã sang tay |
 
 ---
 
 ## Invariant không bảo vệ được bằng một transaction đơn lẻ
 
-Trong context `Inventory` **không có** invariant nào thuộc loại này. Đó là kết quả trực tiếp
-của lựa chọn (c): mọi bất biến về ghế đều nằm trong phạm vi một aggregate, và mọi bất biến về
-tổng số ghế là **phép đếm** trên dữ liệu đã commit, không phải trạng thái cần bảo vệ.
-
-Hai invariant **không** bảo vệ được nằm ở context khác:
-
-- `BR-08` (giới hạn ghế mỗi người mỗi suất) — ở [`03-booking.md`](03-booking.md).
-- `BR-20` (không có hai suất chiếu chồng nhau ở cùng phòng) — ở
-  [`01-scheduling.md`](01-scheduling.md).
+Trong `Inventory` **không có**. Mọi bất biến về ghế là bất biến của **một dòng**; mọi con số tổng
+là **phép đếm** trên dữ liệu đã commit.
 
 ---
 
@@ -199,8 +140,8 @@ Hai invariant **không** bảo vệ được nằm ở context khác:
 
 | Dữ liệu | Nguồn sự thật | Ai được đọc |
 |---|---|---|
-| Trạng thái của một ghế suất chiếu | `Inventory` | `Booking`, `Ticketing`, `Scheduling` |
-| Chỗ giữ ghế và thời điểm hết hạn | `Inventory` | `Booking` |
+| Trạng thái của một ghế suất chiếu (kể cả `Blocked`) | `Inventory` | `Booking`, `Ticketing`, `Scheduling` |
+| Thông tin giữ trên ghế (`hold_id`, `held_until`) | `Inventory` | `Booking` |
 | Bốn con số tình trạng bán của một suất | `Inventory` (đếm trên dữ liệu đã commit) | `Scheduling` |
 
 Nguồn sự thật gốc (không phải ở đây): sơ đồ ghế của phòng, loại ghế, giá vé, lịch chiếu —

@@ -28,7 +28,11 @@ Repo này **single-context** (một `GLOSSARY.md` + `docs/adr/` ở root):
 │   ├── adr/
 │   │   ├── 0001-inventory-model.md          ← superseded by ADR-0003 (giữ lịch sử)
 │   │   ├── 0002-oversell-prevention.md
-│   │   └── 0003-seat-based-inventory.md
+│   │   ├── 0003-seat-based-inventory.md
+│   │   ├── 0004-seat-hold-aggregate-boundary.md  ← superseded by ADR-0005
+│   │   ├── 0005-showtime-seat-aggregate.md
+│   │   ├── 0006-payment-expiry-refund-flow.md
+│   │   └── 0007-per-customer-showtime-quota.md
 │   ├── agents/              ← cấu hình cho các skill
 │   ├── design/              ← Lớp 3
 │   ├── domain/              ← Lớp 2

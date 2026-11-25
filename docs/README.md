@@ -47,10 +47,11 @@ Hỗ trợ:
 ### Gate A — PRD đủ để làm ra domain model
 
 - [x] `docs/prd/00-overview.md` — vấn đề, actors, jobs, success criteria
-- [x] `docs/prd/01-requirements.md` — requirements đánh số `FR-nn` (`FR-01..FR-39`)
+- [x] `docs/prd/01-requirements.md` — requirements đánh số `FR-nn` (`FR-01..FR-41`; `FR-40`,
+  `FR-41` thêm sau review 2026-11-25)
 - [x] `docs/prd/02-non-requirements.md` — những gì cố tình không làm, kèm lý do (`NR-01..NR-15`)
 - [x] `docs/prd/03-user-journeys.md` — đặt vé, mở bán phim hot, check-in từng bước (`J-01..J-07`)
-- [x] `docs/prd/04-business-rules.md` — luật nghiệp vụ (`BR-01..BR-30`)
+- [x] `docs/prd/04-business-rules.md` — luật nghiệp vụ (`BR-01..BR-31`)
 - [x] Mỗi actor trong overview có ít nhất một job trong user journeys
 - [x] Mỗi `FR-nn` có thể truy vết tới một hành vi trong user journeys
 - [x] Không từ khoá kỹ thu nào lọt vào các file ở Lớp 1
@@ -64,16 +65,18 @@ Hỗ trợ:
   ngữ trong 6 nhóm — bản làm việc, sẽ gom vào `GLOSSARY.md` ở cuối Gate B)
 - [x] `docs/domain/context-map.md` — bounded context và quan hệ giữa chúng (T06, 6 context,
   8 quan hệ R1–R8)
-- [x] `docs/domain/aggregates/` — aggregate, boundary, invariant, cơ chế bảo vệ (T07, 8 aggregate
-  / 47 invariant; gồm 3 invariant **không** bảo vệ được bằng một transaction đơn lẻ: `BR-08`,
-  `BR-20`, `BR-17`)
+- [x] `docs/domain/aggregates/` — aggregate, boundary, invariant, cơ chế bảo vệ (T07; sửa lớn
+  2026-11-25: `Showtime seat` là aggregate root — ADR-0005; 3 invariant **không** nằm trong một
+  aggregate: `BR-08`, `BR-20`, `BR-17` — cả ba đều bảo vệ được bằng một DB transaction / ràng buộc)
 - [x] `docs/domain/state-machines.md` — vòng đời booking, payment, ticket, seat, showtime
-      (T08, 5 máy trạng thái; mỗi máy có bảng transitions + **transitions bị từ chối** + cơ
-      chế idempotency; phát hiện **ranh giới bị cắt thứ tư** — hủy suất chiếu)
-- [x] `docs/domain/cross-context-contracts.md` — hợp đồng giữa các context (T09, 8 hợp đồng R1–R8, 8 cặp thuật ngữ khác nghĩa, 4 ranh giới bị cắt)
+      (T08, 5 máy trạng thái; sửa 2026-11-25: hết hạn theo thời gian, `RefundPending`, thất bại
+      không kết thúc intent — ADR-0006; **5** ranh giới bị cắt)
+- [x] `docs/domain/cross-context-contracts.md` — hợp đồng giữa các context (T09; sửa 2026-11-25:
+  9 hợp đồng R1–R9, 7 cặp thuật ngữ khác nghĩa, 5 ranh giới bị cắt)
 - [ ] `GLOSSARY.md` ở root (single-context) hoặc `GLOSSARY-MAP.md` + glossary per context
-- [ ] Mỗi `FR-nn` của Gate A map được tới ít nhất một khái niệm domain
-- [ ] ADR-0003 đã được xem lại: chốt hay đổi? (đặc biệt: một suất chiếu có phải là một aggregate không)
+- [x] Mỗi `FR-nn` của Gate A map được tới ít nhất một khái niệm domain (cột "Khái niệm domain" ở
+  ma trận truy vết, 2026-11-25)
+- [x] ADR-0003 đã được xem lại: **accepted** 2026-11-25; ranh giới aggregate chốt ở ADR-0005
 
 ### Gate C — Design đủ để viết code
 

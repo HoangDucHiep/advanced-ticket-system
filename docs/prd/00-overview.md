@@ -69,7 +69,7 @@ Job là thứ actor **muốn**, không phải thứ hệ thống **làm**. Phầ
 | Job                             | Ý nghĩa                                               |
 | ------------------------------- | ----------------------------------------------------- |
 | Quét và xác minh vé             | Xác định người đó có vé hợp lệ, ghế nào, và chưa dùng |
-| Làm được khi mất mạng (pending) | Cổng không dừng hoạt động vì mất kết nối              |
+| ~~Làm được khi mất mạng~~       | **Đã loại khỏi phạm vi** — xem `NR-15`                |
 | Chặn vé không hợp lệ            | Vé giả, vé đã quét trước, vé của suất chiếu khác      |
 | Ghi nhận số người đã vào        | Đếm số lượt check-in thành công                       |
 
@@ -93,9 +93,9 @@ không sinh ra được phép đo nào thì là văn hoa, và sẽ bị loại k
 | ----- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | SC-01 | Một ghế **không bao giờ** được bán cho hai người                                                               | 2 người cùng đặt 1 ghế → **đúng** 1 thắng, 1 thua                         |
 | SC-02 | Đặt N ghế phải **giữ được đủ N** hoặc **không giữ ghế nào**                                                    | Giữ được 3 trong 4 ghế → cả 4 ghế phải trở về trống                       |
-| SC-03 | Không bao giờ xảy ra **kẹt** khi hai người tranh cùng một lúc ghế                                              | 2 người chọn ghế ngược thứ tự → cả hai đều nhận được phản hồi, không treo |
+| SC-03 | Không bao giờ xảy ra **kẹt** khi hai người tranh cùng một lúc ghế                                              | 2 người chọn ghế ngược thứ tự → cả hai nhận phản hồi trong thời gian giới hạn, **không** yêu cầu nào bị hệ thống huỷ ngang vì kẹt; mỗi người thắng, hoặc thua với lý do "ghế đã có người" |
 | SC-04 | Mỗi lần thanh toán chỉ cấp **đúng một** bộ vé, dù thông báo kết quả thanh toán từ bên thứ ba đến lặp nhiều lần | Gửi cùng một thông báo 3 lần → đúng 1 lần cấp vé                          |
-| SC-05 | Mỗi vé chỉ check-in được **đúng một lần** — kể cả khi quét liên tục, hoặc mất mạng rồi quét lại                | Quét cùng một vé 10 lần → 1 bản ghi check-in                              |
+| SC-05 | Mỗi vé chỉ check-in được **đúng một lần** — kể cả khi quét liên tục, hoặc nhiều cổng quét cùng lúc              | Quét cùng một vé 10 lần → 1 bản ghi check-in                              |
 | SC-06 | Không tạo ra hai đơn đặt vé cho cùng một yêu cầu, kể cả khi người dùng gửi lại yêu cầu cũ                      | 50 request cùng định danh yêu cầu → đúng 1 đơn                            |
 | SC-07 | Không mất ghế nào — chỗ giữ hết hạn phải trả lại ghế cho người khác đặt được                                   | Ghế hết thời gian giữ chỗ → lập tức người khác đặt được                   |
 

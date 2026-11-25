@@ -6,10 +6,11 @@ Thuật ngữ: [`../ubiquitous-language.md`](../ubiquitous-language.md).
 
 ## Trách nhiệm
 
-Quản lý vé (mã QR) và việc check-in tại cổng.
+Quản lý vé (mã QR), việc check-in tại cổng, và **phân công nhân viên cổng** cho suất chiếu.
 
 `Ticketing` **không** biết giá, không biết đơn đặt vé, không biết trạng thái ghế. Nó chỉ biết
-"vé này của ghế này, thuộc suất chiếu này" và "vé này đã được quét hay chưa".
+"vé này của ghế này, thuộc suất chiếu này", "vé này đã được quét hay chưa", và "nhân viên cổng
+này được phân công trực suất nào".
 
 ---
 
@@ -22,7 +23,7 @@ Quản lý vé (mã QR) và việc check-in tại cổng.
 
 | Thành phần | Bản chất | Vai trò |
 |---|---|---|
-| Mã vé (QR) | value object / định danh | Chuỗi ký HMAC, xác minh offline |
+| Mã vé (QR) | value object / định danh | Chuỗi ký HMAC; chữ ký được xác minh **tại server** lúc quét (check-in offline đã bị loại — `NR-15`) |
 | Tham chiếu ghế (`Showtime seat id`) | tham chiếu | Vé gắn với **một** ghế |
 | Tham chiếu suất chiếu | tham chiếu | Vé thuộc **một** suất chiếu |
 | Tham chiếu đơn (`Booking id`) | tham chiếu | Vé đến từ đơn nào |
@@ -31,7 +32,8 @@ Quản lý vé (mã QR) và việc check-in tại cổng.
 **Boundary**: nằm **ngoài** aggregate này —
 
 - `Booking` (thuộc `Booking`) — đơn đặt vé, trạng thái đơn, lịch sử;
-- `Showtime` (thuộc `Scheduling`) — suất chiếu, phân công cổng;
+- `Showtime` (thuộc `Scheduling`) — suất chiếu, giờ chiếu, trạng thái hủy (đọc qua R7);
+- `Gate assignment` — aggregate riêng **trong** `Ticketing` (xem bên dưới);
 - `Payment` (thuộc `Payment`) — trạng thái tiền;
 - `Identity & Access` — người quét (quyền, không phải dữ liệu vé).
 
@@ -48,9 +50,9 @@ Quản lý vé (mã QR) và việc check-in tại cổng.
 
 - **INV-02** — Vé **chỉ tồn tại sau khi** đơn đã thanh toán thành công. Trước đó, đơn không có
   vé nào.
-  - *Cơ chế bảo vệ*: cấp vé là **hành vi của `Booking`** (xem [`03-booking.md`](03-booking.md),
-    `INV-04`), thực hiện trong **cùng transaction** với việc đánh dấu đơn đã thanh toán. Không có
-    đường nào tạo vé cho một đơn chưa thanh toán — vì lệnh cấp vé luôn đi kèm lệnh đánh dấu.
+  - *Cơ chế bảo vệ*: cấp vé nằm trong **cùng DB transaction** với `Booking: AwaitingPayment → Paid`
+    (xem [`03-booking.md`](03-booking.md) `INV-04`). Không có đường nào tạo vé cho một đơn chưa
+    thanh toán — lệnh cấp vé chỉ được gọi từ đúng transaction đó.
   - *Ai có thể vi phạm*: một endpoint cấp vé riêng, không nằm trong luồng thanh toán. Đây là
     lý do quyền tạo vé phải thuộc `Ticketing` **và** chỉ được gọi từ đúng một chỗ.
   - *Traces to*: `BR-09`, `BR-17`, `FR-05`, `FR-38`.
@@ -91,7 +93,10 @@ Quản lý vé (mã QR) và việc check-in tại cổng.
     `INV-02`.
   - *Ai có thể vi phạm*: code tạo vé với tham chiếu null — bị chặn bởi ràng buộc NOT NULL ở
     tầng lưu trữ.
-  - *Traces to*: `BR-30`, `FR-17`.
+  - *Vé của suất đã hủy*: vẫn nằm trong danh sách (người xem đã trả tiền), nhưng hiển thị rõ "suất
+    đã hủy — đã/đang hoàn tiền" và **không** dùng được để check-in. Trạng thái hủy đọc từ
+    `Scheduling` (R7), trạng thái hoàn tiền từ `Payment`.
+  - *Traces to*: `BR-30`, `FR-17`, `FR-24`.
 
 - **INV-07** — Mỗi vé thuộc về **một người xem** (chủ sở hữu của đơn), và người xem đó chỉ
   thấy vé của chính mình.
@@ -121,10 +126,42 @@ Ranh giới transaction = **ranh giới aggregate**. Một lượt quét = một
 
 ---
 
+## Aggregate: `Gate assignment`
+
+**Bản chất**: entity, aggregate root. Một lần phân công: **một nhân viên cổng** trực **một suất
+chiếu**.
+
+**Chứa**: tham chiếu `Showtime id`, tham chiếu người dùng (`Gate staff`), người phân công, thời
+điểm phân công.
+
+> **Vì sao ở `Ticketing`, không ở `Scheduling`.** Phân công cổng chỉ được dùng cho đúng một việc:
+> kiểm tra quyền check-in (`FR-35`). Đặt nó cạnh nơi dùng giúp lệnh check-in không phải gọi sang
+> context khác để kiểm tra quyền. Trước 2026-11-25, tài liệu đặt nó ở hai nơi khác nhau và dùng
+> hai nghĩa khác nhau ("suất ↔ cổng" và "nhân viên ↔ suất") — nay chốt một nghĩa: **nhân viên ↔
+> suất**. "Cổng" trong bản ghi check-in là **nơi quét** (nhãn thiết bị/vị trí), không phải đối
+> tượng được phân công.
+
+### Invariants
+
+- **INV-08** — Nhân viên cổng chỉ ghi nhận check-in được vé thuộc suất chiếu họ được phân công;
+  quản trị viên được check-in mọi suất.
+  - *Cơ chế bảo vệ*: lệnh check-in kiểm tra tồn tại `Gate assignment (showtime, người quét)`. Ràng
+    buộc duy nhất trên `(showtime_id, staff_id)` để không phân công trùng.
+  - *Ai có thể vi phạm*: chỉ kiểm tra vai trò mà bỏ qua phân công.
+  - *Traces to*: `BR-15`, `FR-35`, `FR-40`.
+
+- **INV-09** — Chỉ **quản lý rạp sở hữu suất chiếu** (hoặc quản trị viên) được tạo/gỡ phân công,
+  và chỉ phân công được người dùng có vai trò `Gate staff`.
+  - *Cơ chế bảo vệ*: kiểm tra chủ sở hữu suất qua `Scheduling` (R7) và vai trò qua
+    `Identity & Access` (R8) ở lệnh phân công.
+  - *Traces to*: `BR-16`, `FR-40`.
+
+---
+
 ## Không có invariant nào ở đây không bảo vệ được bằng một transaction đơn lẻ
 
-Cả bốn invariant của `Ticketing` đều thuộc phạm vi một aggregate `Ticket` (một vé) hoặc là
-hệ quả trực tiếp của nó. Điểm đáng chú ý: `BR-10` — "mỗi vé chỉ check-in một lần" — nghe thì
+Mọi invariant của `Ticketing` đều thuộc phạm vi một aggregate (`Ticket` hoặc `Gate assignment`)
+hoặc là hệ quả trực tiếp của nó. Điểm đáng chú ý: `BR-10` — "mỗi vé chỉ check-in một lần" — nghe thì
 cần một transaction **xuyên nhiều** vé, nhưng thực ra **không**: nó là invariant về **một
 vé**, và hai lượt quét đồng thời là hai transaction cùng tranh **một dòng**. Ràng buộc duy nhất
 là đủ.
@@ -140,6 +177,7 @@ cục bộ nhưng hoá thành toàn cục — vì nó đếm theo **người** q
 | Dữ liệu | Nguồn sự thật | Ai được đọc |
 |---|---|---|
 | Vé và trạng thái check-in | `Ticketing` | `Booking` (qua đơn), quản lý rạp (`FR-27`) |
-| Phân công cổng cho suất chiếu | `Scheduling` | `Ticketing` |
+| Phân công nhân viên cổng cho suất chiếu (`Gate assignment`) | `Ticketing` | quản lý rạp |
+| Suất chiếu, giờ chiếu, trạng thái hủy | `Scheduling` | `Ticketing` (R7) |
 | Đơn và chủ sở hữu đơn | `Booking` | `Ticketing` |
 | Quyền của người quét | `Identity & Access` | `Ticketing` |

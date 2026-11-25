@@ -1,13 +1,19 @@
 ---
 id: 0004
 title: Ranh giới aggregate của tồn kho ghế — Seat hold là aggregate root
-status: provisional
+status: superseded by ADR-0005
 date: 2026-11-21
+Superseded at: 2026-11-25
 Related: ADR-0002, ADR-0003
-Revalidate at Gate C
 ---
 
 # Ranh giới aggregate của tồn kho ghế — `Seat hold` là aggregate root
+
+> **ĐÃ BỊ THAY THẾ (2026-11-25) bởi [ADR-0005](0005-showtime-seat-aggregate.md).**
+> `Showtime seat` không thể là entity bên trong `Seat hold` vì vòng đời không khớp (ghế tồn tại
+> trước và sống qua nhiều lần giữ), và lý do bác phương án (b) không đúng trong monolith — một DB
+> transaction cập nhật N dòng vẫn atomic. File này được giữ lại để có lịch sử. **Đừng dùng nó làm
+> căn cứ thiết kế.**
 
 ## Context
 

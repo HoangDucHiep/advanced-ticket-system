@@ -25,7 +25,7 @@ Hệ thống đặt vé xem phim. Sáu bounded context, dựa trên 7 journey �
 | Context | Tên tiếng Anh | Trách nhiệm (một câu) |
 |---|---|---|
 | **Lịch chiếu** | `Scheduling` | Quản lý phim, phòng chiếu, sơ đồ ghế vật lý, lịch chiếu và giá vé. |
-| **Tồn kho** | `Inventory` | Quản lý trạng thái của từng ghế của từng suất chiếu, và các chỗ giữ ghế kèm thời điểm hết hạn. |
+| **Tồn kho** | `Inventory` | Quản lý trạng thái của từng ghế của từng suất chiếu, kể cả thông tin giữ (ai giữ, tới lúc nào) và trạng thái bị chặn. |
 | **Đặt vé** | `Booking` | Quản lý đơn đặt vé của người xem: ghế đã chọn, giới hạn số ghế, vòng đời đơn. |
 | **Thanh toán** | `Payment` | Quản lý tiền: yêu cầu thanh toán, kết quả thanh toán, hoàn tiền — và dịch sang Stripe. |
 | **Vé & check-in** | `Ticketing` | Quản lý vé (mã QR) và việc check-in tại cổng. |
@@ -41,20 +41,20 @@ Từ nào mang **một nghĩa duy nhất** bên trong context đó, và mang ngh
 | `Scheduling` | `Room` | Một phòng chiếu vật lý, có nhiều `Room seat` |
 | `Scheduling` | `Room seat` | Vị trí ngồi vật lý trong phòng — hàng, số, loại. Không có trạng thái |
 | `Scheduling` | `Seat type` | `Standard` / `Couple` / `VIP` — khai báo ở phòng |
-| `Scheduling` | `Showtime` | Một phim, một phòng, một giờ. Có thể ở trạng thái "chưa mở bán" / "đang bán" / "đã hủy" |
+| `Scheduling` | `Showtime` | Một phim, một phòng, một khoảng giờ. Trạng thái `NotOnSale` / `OnSale` / `Cancelled` |
 | `Scheduling` | `Ticket price` | Giá của cặp (`Seat type`, `Showtime`) |
-| `Inventory` | `Showtime seat` | Một ghế của một suất chiếu — **đơn vị bán**. Có trạng thái riêng |
-| `Inventory` | `Seat hold` | Một bản ghi "ghế này đang được giữ tới lúc này". Kèm thời điểm hết hạn |
+| `Inventory` | `Showtime seat` | Một ghế của một suất chiếu — **đơn vị bán**, aggregate root (ADR-0005). Có trạng thái riêng |
+| `Inventory` | Thông tin giữ (`hold_id`, `held_until`) | "Ghế này đang được giữ bởi lần giữ nào, tới lúc nào" — nằm **trên** dòng ghế |
 | `Inventory` | `Available` / `Held` / `Sold` / `Blocked` | Bốn trạng thái của `Showtime seat` |
-| `Booking` | `Booking` | Một lần đặt của một người xem, thuộc đúng một suất chiếu |
+| `Booking` | `Booking` | Một lần đặt của một người xem, thuộc đúng một suất chiếu, mang `expires_at` |
 | `Booking` | `Booking line` | Một ghế trong đơn, cùng giá đã chốt tại lúc giữ |
-| `Booking` | `Paid` / `Expired` / `Cancelled` | Vòng đời của `Booking` (xem T08) |
-| `Payment` | `Payment intent` | Yêu cầu thanh toán cho một đơn, chưa biết kết quả |
-| `Payment` | `Refund` | Hoàn tiền — trong PRD luôn là **hoàn toàn bộ** cho cả đơn (`FR-39`) |
+| `Booking` | `AwaitingPayment` / `Paid` / `Expired` / `Cancelled` | Vòng đời của `Booking` |
+| `Payment` | `Payment intent` | Yêu cầu thanh toán cho một đơn |
+| `Payment` | `Refund` | Hoàn tiền — luôn là **hoàn toàn bộ** cho cả đơn (`FR-39`) |
 | `Payment` | `Payment event` | Thông báo kết quả thanh toán từ Stripe; xử lý đúng một lần (`FR-38`) |
 | `Ticketing` | `Ticket` | Mã QR gắn với **một** `Showtime seat`. Sinh ra khi đơn được thanh toán |
 | `Ticketing` | `Check-in` | Ghi nhận vé đã quét tại cổng. Mỗi vé **một lần** (`FR-07`) |
-| `Ticketing` | `Gate assignment` | Suất chiếu được phân công cho cổng nào (`FR-35`) |
+| `Ticketing` | `Gate assignment` | **Nhân viên cổng** nào được phân công trực **suất chiếu** nào (`FR-35`, `FR-40`) |
 | `Identity & Access` | `Customer` | Người xem đã đăng nhập |
 | `Identity & Access` | `Theater manager` | Quản lý rạp — sở hữu lịch chiếu của mình |
 | `Identity & Access` | `Gate staff` | Nhân viên cổng — chỉ ghi nhận check-in |
@@ -78,7 +78,8 @@ graph LR
     Booking -->|"Customer/Supplier<br/>trạng thái tiền"| Payment
     Payment -->|"Anti-Corruption Layer"| Stripe
     Booking -->|"Customer/Supplier<br/>cấp vé"| Ticketing
-    Scheduling -->|"Customer/Supplier<br/>lịch chiếu, phân công cổng"| Ticketing
+    Scheduling -->|"Customer/Supplier<br/>lịch chiếu, trạng thái hủy"| Ticketing
+    Scheduling -->|"Customer/Supplier (R9)<br/>giá, trạng thái, giờ chiếu"| Booking
     Identity -->|"Customer/Supplier<br/>quyền truy cập"| Scheduling
     Identity -->|"Customer/Supplier<br/>quyền truy cập"| Booking
     Identity -->|"Customer/Supplier<br/>quyền truy cập"| Ticketing
@@ -96,12 +97,12 @@ transaction.
 - **Dạng quan hệ:** `Customer/Supplier` — `Scheduling` là Supplier.
 - **Ai gọi ai:** `Inventory` đọc từ `Scheduling`.
 - **Dữ liệu đi theo hướng nào:** `Scheduling` → `Inventory`.
-- **Cơ chế:** **ghi chung transaction** (cùng database, cùng transaction khi mở bán).
+- **Cơ chế:** **ghi chung transaction** (cùng database, cùng transaction khi **tạo suất chiếu**).
 
-**Dữ liệu đi qua:** sơ đồ ghế của phòng (`Room seat` + `Seat type`), giá vé theo từng
-`Seat type` của suất chiếu, và danh sách ghế bị chặn.
+**Dữ liệu đi qua:** sơ đồ ghế của phòng (`Room seat` + `Seat type`). **Không** có giá (giá đi qua
+R9) và **không** có danh sách ghế bị chặn (`Blocked` chỉ sống ở `Inventory`).
 
-> **Anti-Corruption Layer (phía `Inventory`).** Khi quản lý rạp mở bán một suất chiếu, `Inventory`
+> **Anti-Corruption Layer (phía `Inventory`).** Khi quản lý rạp tạo một suất chiếu, `Inventory`
 > phải **sinh ra** `Showtime seat` từ sơ đồ ghế của phòng. Đây là chỗ mô hình của hai bên gặp
 > nhau: `Scheduling` nói "phòng có 100 ghế", `Inventory` nói "mỗi ghế phải có trạng thái riêng".
 > Lớp dịch giữ cho phía trong của `Inventory` không phải biết "phòng" và "lịch chiếu" nghĩa là
@@ -126,18 +127,18 @@ giữ / đã bán / bị chặn.
 
 **Dữ liệu đi qua:**
 
-- Chiều `Inventory` → `Booking`: trạng thái của từng `Showtime seat` được chọn, và thời điểm
-  hết hạn của `Seat hold`.
-- Chiều `Booking` → `Inventory`: yêu cầu giữ các ghế cụ thể, kèm thời điểm hết hạn.
+- Chiều `Inventory` → `Booking`: kết quả giữ từng ghế (được / ghế nào đã có người), loại ghế.
+- Chiều `Booking` → `Inventory`: yêu cầu giữ các ghế cụ thể với `hold_id` (= id đơn) và
+  `held_until` (= `expires_at` của đơn); yêu cầu trả ghế theo `hold_id`.
 
 > **Anti-Corruption Layer (phía `Booking`).** `Booking` có mô hình riêng: một đơn chứa các
-> `Booking line` với **giá đã chốt tại lúc giữ**. `Inventory` có mô hình riêng: ghế + bản ghi
-> `Seat hold` với thời điểm hết hạn. Lớp dịch giữ `Booking` không phải biết cấu trúc bản ghi
-> hold của `Inventory` — nó chỉ biết "giữ ghế này cho tới lúc này" và "ghế này còn trống không".
+> `Booking line` với **giá đã chốt tại lúc giữ** và `expires_at`. `Inventory` chỉ có ghế + thông tin
+> giữ trên ghế. `Booking` không biết cấu trúc dòng ghế — nó chỉ biết "giữ những ghế này với tham
+> chiếu này tới lúc này" và "trả ghế của tham chiếu này".
 
 > **Quan trọng — bất biến bị cắt ngang ranh giới.** Lệnh "giữ ghế" phải làm **hai** việc cùng
-> lúc: đặt `Showtime seat` sang `Held` và tạo `Booking` ở trạng thái chờ thanh toán. Nếu chỉ
-> một phía ghi được, hệ thống sai. Vì vậy:
+> lúc: đặt `Showtime seat` sang `Held` và tạo `Booking` ở `AwaitingPayment`. Nếu chỉ một phía ghi
+> được, hệ thống sai. Vì vậy:
 >
 > - Ranh giới này **không** phải ranh giới transaction. Hai context ghi chung transaction.
 > - Tác vụ **giải phóng hết hạn** cũng cắt qua ranh giới: giải phóng ghế (`Inventory`) và
@@ -193,12 +194,12 @@ các sự kiện thanh toán / hoàn tiền.
   `Ticketing` → `Booking` (trạng thái "đơn đã cấp vé").
 - **Cơ chế:** **ghi chung transaction** khi cấp vé.
 
-**Dữ liệu đi qua:** danh sách `Showtime seat` cần cấp vé, và trạng thái `TicketsIssued` của đơn.
+**Dữ liệu đi qua:** danh sách `Showtime seat` cần cấp vé.
 
-> **Quan trọng — bất biến bị cắt ngang ranh giới.** Cấp vé phải **atomic** với việc đánh dấu đơn
-> đã cấp vé. Nếu cấp vé xong mà chưa đánh dấu, thì lần thông báo thanh toán đến lại sẽ cấp vé
-> lần hai — vi phạm `FR-38` và `SC-04`. Vì vậy ranh giới này cũng là **ghi chung transaction**,
-> không gọi API.
+> **Quan trọng — bất biến bị cắt ngang ranh giới.** Cấp vé phải **atomic** với `Booking → Paid`.
+> Nếu cấp vé xong mà đơn chưa `Paid`, lần thông báo thanh toán đến lại sẽ cấp vé lần hai — vi phạm
+> `FR-38` và `SC-04`. Vì vậy ranh giới này là **ghi chung transaction**, không gọi API. (Không cần cờ
+> "đã cấp vé" riêng: `Paid` ⇔ đã có vé.)
 
 ### R7 — `Scheduling` → `Ticketing`
 
@@ -207,8 +208,20 @@ các sự kiện thanh toán / hoàn tiền.
 - **Dữ liệu đi theo hướng nào:** `Scheduling` → `Ticketing`.
 - **Cơ chế:** **đọc**.
 
-**Dữ liệu đi qua:** suất chiếu của một vé (`FR-25` — vé thuộc suất chiếu khác thì từ chối), và
-phân công cổng (`FR-35`).
+**Dữ liệu đi qua:** suất chiếu của một vé, trạng thái hủy, giờ chiếu (`FR-25`, `FR-24`), chủ sở hữu
+suất (để kiểm tra quyền phân công). Phân công nhân viên cổng (`FR-35`) **không** đi qua đây — nó là
+aggregate `Gate assignment` của `Ticketing`.
+
+### R9 — `Scheduling` → `Booking`, `Inventory` *(thêm 2026-11-25)*
+
+- **Dạng quan hệ:** `Customer/Supplier` — `Scheduling` là Supplier.
+- **Ai gọi ai:** `Booking` và `Inventory` đọc từ `Scheduling`.
+- **Cơ chế:** **đọc**, có thể bên trong DB transaction của bên gọi.
+
+**Dữ liệu đi qua:** cho `Booking` — trạng thái, giờ bắt đầu, `Ticket price` theo loại ghế (để chốt
+giá lúc giữ). Cho `Inventory` — chủ sở hữu suất (kiểm tra quyền chặn ghế).
+
+> Bản T06 thiếu quan hệ này dù bảng "nguồn sự thật" đã ghi `Booking` đọc giá từ `Scheduling`.
 
 ### R8 — `Identity & Access` → các context khác
 
@@ -234,14 +247,15 @@ suy ra.
 | Dữ liệu | Nguồn sự thật | Ai được đọc |
 |---|---|---|
 | Phim, suất chiếu, phòng, sơ đồ ghế vật lý | `Scheduling` | `Inventory`, `Booking`, `Ticketing` |
-| Loại ghế của một phòng | `Scheduling` | `Inventory` |
-| Giá vé (theo cặp loại ghế × suất chiếu) | `Scheduling` | `Inventory`, `Booking` |
-| Trạng thái của một ghế suất chiếu | `Inventory` | `Booking`, `Ticketing`, `Scheduling` |
-| Chỗ giữ ghế và thời điểm hết hạn | `Inventory` | `Booking` |
-| Đơn đặt vé, ghế đã chọn, giá đã chốt | `Booking` | `Payment`, `Ticketing` |
+| Loại ghế của một phòng | `Scheduling` | `Inventory` (chép lúc sinh ghế) |
+| Giá vé (theo cặp loại ghế × suất chiếu) | `Scheduling` | `Booking` (R9) |
+| Trạng thái của một ghế suất chiếu (kể cả `Blocked`) | `Inventory` | `Booking`, `Ticketing`, `Scheduling` |
+| Thông tin giữ trên ghế (`hold_id`, `held_until`) | `Inventory` | `Booking` |
+| Đơn đặt vé, ghế đã chọn, giá đã chốt, `expires_at` | `Booking` | `Payment`, `Ticketing` |
 | Giới hạn số ghế mỗi người mỗi suất | `Booking` | — |
 | Trạng thái tiền, yêu cầu thanh toán, hoàn tiền | `Payment` | `Booking` |
 | Vé và trạng thái check-in | `Ticketing` | `Booking` (qua đơn), quản lý rạp (`FR-27`) |
+| Phân công nhân viên cổng | `Ticketing` | quản lý rạp |
 | Người dùng và quyền | `Identity & Access` | tất cả |
 | Sự thật về tiền ở thế giới thật | **Stripe** | `Payment` |
 
@@ -253,22 +267,27 @@ không.
 
 | Điểm tranh chấp | Context | Cắt ranh giới? | Ghi chú |
 |---|---|---|---|
-| Giữ 1 ghế | `Inventory` | không | Ghi trong `Inventory` + `Booking` — xem R3 |
+| Giữ 1 ghế | `Inventory` | **có** | Vẫn ghi cả `Inventory` + `Booking` (tạo đơn) — xem R3 |
 | Giữ n ghế một lúc | `Inventory` | **có** | All-or-nothing nhiều dòng, cắt qua `Inventory`/`Booking` |
 | Xác nhận lại lúc giữ | `Inventory` | không | Đọc lại trạng thái thật, không tin số đã hiển thị |
 | Tranh ngược thứ tự | `Inventory` | không | Không deadlock — thứ tự khoá là ở T12 |
-| Cấp vé | `Ticketing` | **có** | Phải atomic với đánh dấu "đơn đã cấp vé" — xem R6 |
+| Cấp vé | `Ticketing` | **có** | Phải atomic với `Booking → Paid` — xem R6 |
 | Thanh toán đến lặp | `Payment` | không | Idempotency theo `event.id` |
 | Thanh toán muộn sau hết hạn | `Booking` + `Payment` | **có** | Không hồi sinh đơn, phải hoàn tiền |
 | Hết hạn giữ ghế | `Inventory` + `Booking` | **có** | Giải phóng ghế + chuyển đơn sang `Expired` cùng lúc |
-| Hủy đơn | `Booking` | **có** | Trả ghế về, hoàn tiền đúng một lần |
+| Hủy đơn | `Booking` + `Inventory` | **có** | Trả ghế về. Đơn chưa trả tiền nên **không** có hoàn tiền |
+| Hủy suất chiếu | `Scheduling` + `Booking` + `Inventory` + `Payment` | **có** | Huỷ đơn chờ, yêu cầu hoàn mọi đơn đã trả — đúng một lần mỗi đơn |
 | Quét lại vé | `Ticketing` | không | Một vé chỉ check-in một lần |
 | Xem sơ đồ ghế | `Scheduling` (đọc) + `Inventory` (trạng thái) | không | Được phục vụ từ bộ đệm ngoài DB — `SC-11` |
 | Giao dịch lặp lại | `Booking` | không | Idempotency key theo yêu cầu |
 
-## Nhóm ba "ranh giới bị cắt" — cần lưu ý nhất
+## Nhóm "ranh giới bị cắt" — cần lưu ý nhất
 
-Ba nơi một ranh giới context **bị cắt** bởi một bất biến. Không nơi nào được "sửa" khi tách
+> **Cập nhật 2026-11-25:** danh sách đầy đủ hiện có **năm** chỗ (T08 thêm hủy suất chiếu; review
+> thêm tạo suất chiếu) — bảng chuẩn ở [`state-machines.md`](state-machines.md#ranh-giới-bị-cắt--năm-chỗ).
+> Bảng dưới đây là ba chỗ gốc của T06, giữ lại để thấy lịch sử.
+
+Ba nơi một ranh giới context **bị cắt** bởi một bất biến (bản T06). Không nơi nào được "sửa" khi tách
 thành service — nó phải được thay bằng cơ chế khác (saga, outbox, compensating transaction).
 
 | # | Bất biến bị cắt | Cắt ở đâu | Hậu quả nếu tách service |
@@ -288,12 +307,11 @@ service mà không đi theo.
 
 | # | Câu hỏi | Chốt ở |
 |---|---|---|
-| Q16 | Check-in thuộc context nào — **đã chốt: `Ticketing`** (quyết định 5). Còn lại: `Ticketing` đọc `Scheduling` qua API hay chung database? | T09 |
-| Q18 | Ranh giới `Booking` vs `Inventory` khi tách service: đặt `Seat hold` ở đâu — ở `Inventory` hay ở `Booking`? | T07 |
-| Q19 | `Booking` có cần giữ bản ghi lịch sử trạng thái (cho `FR-31` truy vết) hay `Ticketing`/`Payment` giữ riêng? | T07, T08 |
-| Q20 | Ba "ranh giới bị cắt" có được giữ nguyên trong một transaction khi tách thành microservice không, hay phải chuyển sang saga? | T10 |
+| Q16 | ~~Check-in thuộc context nào; `Ticketing` đọc `Scheduling` qua API hay chung database?~~ **Đã đóng**: `Ticketing`; đọc qua interface (T09) | — |
+| Q18 | ~~Đặt `Seat hold` ở đâu?~~ **Đã đóng 2026-11-25**: không còn aggregate `Seat hold`; thông tin giữ nằm trên `Showtime seat` (ADR-0005) | — |
+| Q19 | ~~Ai giữ lịch sử trạng thái cho `FR-31`?~~ **Đã đóng**: mỗi context giữ lịch sử của mình; `FR-31` ghép `Booking` + `Payment event` | — |
+| Q20 | Các "ranh giới bị cắt": module tham gia chung DB transaction thế nào; khi tách service chuyển sang saga/outbox ra sao? | T10 |
 
 ## Trạng thái
 
-Bản làm việc. Sau T06, `docs/domain/ubiquitous-language.md` và `docs/domain/context-map.md` đã
-có. Tiếp theo: T07 — aggregates và invariants.
+Bản làm việc, cập nhật sau review 2026-11-25. 6 context, 9 quan hệ R1–R9.

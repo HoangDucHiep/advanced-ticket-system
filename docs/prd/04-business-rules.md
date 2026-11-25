@@ -61,7 +61,8 @@ Nếu kết quả thanh toán đến **sau** thời điểm đó, đơn **không
 chờ, và không có vé nào được cấp.
 
 - Ràng buộc: một đơn đã hết hạn là **hết hạn vĩnh viễn**. Trạng thái đơn chỉ đi theo một
-  chiều.
+  chiều. Đơn được coi là hết hạn **ngay khi** thời điểm hết hạn đi qua — kết quả thanh toán đến
+  sau mốc đó không cấp vé, kể cả khi hệ thống chưa kịp xử lý việc hết hạn.
 - Vi phạm thì: nếu đơn hồi sinh, những ghế đã trả về cho người khác sẽ bị bán cho hai
   người. Hệ thống phải từ chối và giữ đơn ở trạng thái hết hạn (FR-06).
 
@@ -72,7 +73,9 @@ thông báo kết quả thanh toán đến, hoặc vì suất chiếu bị hủy
 toàn bộ** số tiền đã trả.
 
 - Ràng buộc: việc hoàn tiền **tự động**, không cần quản trị viên can thiệp. Mỗi khoản tiền
-  đã trừ được hoàn **đúng một lần**.
+  đã trừ được hoàn **đúng một lần**. Việc hoàn có thể mất một khoảng thời gian, nhưng trạng thái
+  "đang hoàn" phải xem được trong lịch sử đơn (`FR-31`), và hệ thống dừng giữa chừng thì phải làm
+  tiếp được mà không hoàn hai lần.
 - Vi phạm thì: người xem mất tiền mà không có vé — hậu quả nặng nhất với người dùng, và là
   lý do luật này tồn tại. Xem J-04.5 (FR-06, FR-24, FR-39).
 
@@ -104,7 +107,8 @@ Một người xem được mua tối đa **10 ghế** cho **một suất chiế
 đơn** của người đó cho suất chiếu đó.
 
 - Ràng buộc: giới hạn này tính theo **người**, không theo **đơn**. Một người tách thành
-  nhiều đơn vẫn không vượt được 10 ghế. Người xem mua vé cho suất chiếu khác không bị tính
+  nhiều đơn vẫn không vượt được 10 ghế — tính cả ghế **đang giữ** lẫn ghế **đã mua**. Gửi nhiều
+  yêu cầu cùng lúc cũng không vượt được. Người xem mua vé cho suất chiếu khác không bị tính
   vào.
 - Vi phạm thì: yêu cầu bị từ chối, không giữ ghế nào. Lý do của luật này là chống việc một
   người mua số lượng lớn rồi chuyển nhượng ra ngoài, khiến người thật không vào được xem
@@ -139,8 +143,9 @@ Một vé chỉ ghi nhận check-in **một lần duy nhất**, trong suất chi
 Quản lý rạp có thể **chặn** một ghế không bán online (vệ sinh, dành riêng). Ghế bị chặn:
 
 - **không** xuất hiện trên sơ đồ ghế của người xem;
-- **không** bán lại online — gỡ chặn là thao tác trên lịch chiếu, không phải một cơ chế
-  bán lại trên tồn kho;
+- **không** tự quay lại bán — chỉ quản lý rạp **gỡ chặn** được, và chỉ khi đó ghế mới trở lại
+  trống;
+- chỉ chặn được ghế đang **trống** — ghế đang được giữ hoặc đã bán thì không chặn được;
 - **vẫn tính** trong **tổng số ghế** của phòng. Vì vậy tình trạng bán của một suất chiếu có
   **bốn** con số — trống / đang giữ / đã bán / bị chặn — và bốn con số này cộng lại bằng
   tổng số ghế của phòng (`FR-23`).
@@ -191,7 +196,8 @@ Nhân viên cổng chỉ ghi nhận check-in được vé thuộc suất chiếu
 trực**.
 
 - Ràng buộc: quyền được kiểm tra ở **hai** điều kiện: vai trò, và suất chiếu được phân
-  công.
+  công. Việc phân công do **quản lý rạp sở hữu suất chiếu** (hoặc quản trị viên) thực hiện, và
+  chỉ phân công được người có vai trò nhân viên cổng (`FR-40`).
 - Vi phạm thì: yêu cầu bị từ chối. Người xem tự check-in vé của mình là một lỗ hổng trực
   tiếp (FR-33, FR-35).
 
@@ -257,8 +263,10 @@ trở lại trạng thái `Trống` và người khác đặt được.
 Khi hai người đặt vé cùng lúc trên cùng một suất chiếu, **không yêu cầu nào được treo vô
 hạn**. Hai yêu cầu tranh cùng ghế phải có kết quả, dù thứ tự ai thắng là ai.
 
-- Ràng buộc: mọi yêu cầu đặt vé phải có kết quả trong thời gian giới hạn, kể cả khi nó
-  kẹt với một yêu cầu khác. Không có yêu cầu nào được phép chờ một tác vụ nền nào đó xong.
+- Ràng buộc: mọi yêu cầu đặt vé phải có kết quả trong thời gian giới hạn. Hệ thống phải
+  **phòng tránh** kẹt, không chỉ phát hiện rồi huỷ ngang một bên: không yêu cầu nào bị từ chối vì
+  lý do "kẹt" — chỉ được từ chối vì lý do nghiệp vụ. Không có yêu cầu nào được phép chờ một tác vụ
+  nền nào đó xong.
 - Vi phạm thì: một yêu cầu treo giữ lùi toàn bộ kết nối đang phục vụ, và khi mở bán phim
   hot thì hệ thống sập (FR-03, SC-03).
 
@@ -309,7 +317,8 @@ Lịch sử của một đơn đặt vé ghi lại **mọi** lần thay đổi t
 gian, cùng với ghế nào đã được giữ và các thông báo đã nhận. Lịch sử không bị sửa hay xoá.
 
 - Ràng buộc: lịch sử là **append-only** — một lần thay đổi trạng thái đã ghi thì không đổi
-  được, kể cả khi người học đã trả tiền.
+  được, kể cả khi người xem đã trả tiền. Lịch sử đơn gồm cả các thông báo thanh toán và các
+  bước hoàn tiền liên quan tới đơn.
 - Vi phạm thì: lịch sử không khớp với hiện trạng thì không dùng được để giải quyết khiếu
   nại, và mất dấu vết của những lần xử lý sai (FR-31).
 
@@ -339,9 +348,19 @@ Vé mà người xem xem được phải ghi rõ **suất chiếu** và **ghế*
 tại cổng.
 
 - Ràng buộc: danh sách vé chỉ chứa vé **đã thanh toán**. Vé của đơn chưa thanh toán không
-  xuất hiện.
-- Vi phạm thì: người xem thấy một vé không dùng được, hoặc không biết vé đó của suất nào
-  (FR-17).
+  xuất hiện. Vé của **suất đã hủy** vẫn xuất hiện nhưng ghi rõ "suất đã hủy — đang hoàn / đã hoàn
+  tiền" và không dùng được để vào.
+- Vi phạm thì: người xem thấy một vé không dùng được mà không biết vì sao, hoặc không biết vé đó
+  của suất nào (FR-17, FR-24).
+
+### BR-31 — Ngừng bán vé từ giờ bắt đầu chiếu
+
+Từ giờ bắt đầu chiếu, không ai giữ ghế được cho suất đó nữa, kể cả khi suất vẫn ở trạng thái
+**đang bán**.
+
+- Ràng buộc: kiểm tra giờ bắt đầu tại lúc giữ ghế, cùng lúc với kiểm tra trạng thái đang bán
+  (`BR-13`).
+- Vi phạm thì: người xem trả tiền cho một suất đã chiếu xong (FR-41).
 
 ---
 
@@ -363,7 +382,7 @@ tại cổng.
 | BR-12 | Một đơn thuộc đúng một suất chiếu; giá tính theo từng ghế | FR-16, FR-21 | J-02, J-06 |
 | BR-13 | Chỉ đặt vé được suất chiếu đang bán | FR-22, FR-34 | J-03, J-06 |
 | BR-14 | Chỉ thao tác được trên đơn/vé của chính mình | FR-10 | J-02 |
-| BR-15 | Chỉ nhân viên cổng và quản trị viên check-in; theo suất được phân công | FR-33, FR-35 | J-05 |
+| BR-15 | Chỉ nhân viên cổng và quản trị viên check-in; theo suất được phân công | FR-33, FR-35, FR-40 | J-05, J-06 |
 | BR-16 | Quản lý rạp chỉ sửa/hủy lịch chiếu của mình | FR-28, FR-32 | J-06, J-07 |
 | BR-17 | Thanh toán đến lặp chỉ cấp vé một lần | FR-38 | J-02, J-07 |
 | BR-18 | Yêu cầu lặp chỉ tạo một đơn | FR-37 | J-04 |
@@ -378,4 +397,5 @@ tại cổng.
 | BR-27 | Lịch sử đơn đặt vé là bản ghi chỉ-đọc | FR-31 | J-07 |
 | BR-28 | Chỉ số vận hành phản ánh lưu lượng đang diễn ra | FR-30 | J-07 |
 | BR-29 | Chỉ hiện phim và suất chiếu đang mở bán | FR-11, FR-12 | J-01 |
-| BR-30 | Vé hiển thị kèm suất chiếu và ghế | FR-17 | J-02 |
+| BR-30 | Vé hiển thị kèm suất chiếu và ghế; vé của suất đã hủy ghi rõ | FR-17, FR-24 | J-02, J-06 |
+| BR-31 | Ngừng bán vé từ giờ bắt đầu chiếu | FR-41 | J-04 |

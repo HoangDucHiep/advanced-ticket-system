@@ -8,8 +8,14 @@ Thuật ngữ: [`../ubiquitous-language.md`](../ubiquitous-language.md).
 
 Quản lý phim, phòng chiếu, sơ đồ ghế vật lý, lịch chiếu và giá vé.
 
-`Scheduling` là nơi **khởi sinh** dữ liệu mà `Inventory` cần: mở bán một suất chiếu là lúc
-`Scheduling` sinh ra `Showtime seat` cho `Inventory` qua lớp dịch (xem R1).
+`Scheduling` là nơi **khởi sinh** dữ liệu mà `Inventory` cần: **tạo** một suất chiếu là lúc
+`Inventory` sinh ra `Showtime seat` theo sơ đồ phòng, qua lớp dịch (xem R1). Mở bán chỉ đổi trạng
+thái suất chiếu.
+
+> **Đã đổi (2026-11-25):** trước đây ghế được sinh lúc **mở bán**. Nhưng J-06 cho quản lý rạp
+> **chặn ghế trước khi mở bán** — lúc đó chưa có `Showtime seat` nào, nên danh sách ghế bị chặn
+> phải nằm tạm ở `Scheduling` rồi được chép sang, tức là `Blocked` có **hai** nguồn sự thật. Sinh
+> ghế ngay lúc tạo suất thì `Blocked` chỉ còn **một** chủ: `Inventory`.
 
 ---
 
@@ -22,15 +28,17 @@ Quản lý phim, phòng chiếu, sơ đồ ghế vật lý, lịch chiếu và g
 | Thành phần | Bản chất | Vai trò |
 |---|---|---|
 | `Ticket price` theo `Seat type` | value object | Giá của từng loại ghế **trong suất chiếu này** |
-| Trạng thái mở bán | thuộc tính | Chưa mở bán / đang bán / đã hủy |
+| Trạng thái | thuộc tính | `NotOnSale` / `OnSale` / `Cancelled` |
+| Giờ bắt đầu, giờ kết thúc | value object | Khoảng thời gian chiếu (dùng cho `BR-20` và hạn chót bán vé) |
+| Chủ sở hữu | tham chiếu | Quản lý rạp đã tạo suất (`BR-16`) |
 | Tham chiếu phim, phòng | tham chiếu | Phim nào, phòng nào |
 
 **Boundary**: nằm **ngoài** aggregate này —
 
 - `Room` — sơ đồ ghế vật lý;
 - `Movie` — thông tin phim;
-- `Showtime seat` (thuộc `Inventory`) — trạng thái thật của ghế;
-- `Gate assignment` — phân công cổng (xem `INV-06`).
+- `Showtime seat` (thuộc `Inventory`) — trạng thái thật của ghế, kể cả `Blocked`;
+- `Gate assignment` (thuộc `Ticketing`) — phân công nhân viên cổng.
 
 ### Invariants
 
@@ -42,14 +50,14 @@ Quản lý phim, phòng chiếu, sơ đồ ghế vật lý, lịch chiếu và g
     `(showtime_id, seat_type)`.
   - *Traces to*: `BR-12`, `FR-16`, `FR-12`.
 
-- **INV-02** — Người xem chỉ nhìn thấy và chỉ đặt vé được suất chiếu **đang bán**. Suất chưa
-  mở bán không xuất hiện trong danh sách, không có trang chi tiết, và yêu cầu đặt vé bị từ chối.
-  - *Cơ chế bảo vệ*: trạng thái mở bán là **thuộc tính của `Showtime`**, và lệnh đặt vé **kiểm
-    tra** nó trước khi ghi bất cứ thứ gì. Lệnh đặt vé nằm ở `Booking`, nên đây là điều kiện
-    **xuyên ranh giới** — xem phần "Bất biến bị cắt" bên dưới.
-  - *Ai có thể vi phạm*: code đặt vé không kiểm tra trạng thái mở bán — người xem mua vé trước khi
-    rạp sẵn sàng nhận khách. Luật bổ sung: lệnh đặt vé **luôn** phải hỏi trạng thái suất chiếu.
-  - *Traces to*: `BR-13`, `FR-22`, `FR-34`.
+- **INV-02** — Người xem chỉ nhìn thấy và chỉ giữ ghế được suất chiếu **đang bán** và **chưa tới
+  giờ bắt đầu chiếu**. Suất chưa mở bán không xuất hiện trong danh sách, không có trang chi tiết,
+  và yêu cầu đặt vé bị từ chối. Suất đã bắt đầu thì không giữ ghế được nữa.
+  - *Cơ chế bảo vệ*: trạng thái và giờ bắt đầu là **thuộc tính của `Showtime`**; lệnh giữ ghế (ở
+    `Booking`) đọc chúng qua R9 trước khi ghi. Đây là điều kiện **xuyên ranh giới**.
+  - *Ai có thể vi phạm*: code giữ ghế chỉ kiểm `OnSale` mà quên giờ bắt đầu — bán vé cho suất đã
+    chiếu xong.
+  - *Traces to*: `BR-13`, `BR-31`, `FR-22`, `FR-34`.
 
 - **INV-03** — Một suất chiếu thuộc **đúng một** phòng và **đúng một** phim.
   - *Cơ chế bảo vệ*: mô hình — `Showtime` mang **một** tham chiếu phòng và **một** tham chiếu
@@ -67,22 +75,16 @@ Quản lý phim, phòng chiếu, sơ đồ ghế vật lý, lịch chiếu và g
     lịch chiếu của rạp khác là can thiệp vào vận hành của rạp khác.
   - *Traces to*: `BR-16`, `FR-28`, `FR-32`.
 
-- **INV-05** — Chỉ quản lý rạp mới được **chặn ghế**; ghế bị chặn không bán online và vẫn tính
-  vào tổng số ghế phòng.
-  - *Cơ chế bảo vệ*: phần "ai được chặn" là điều kiện quyền ở biên aggregate (`Showtime` /
-    `Room`). Phần "không bán online" thuộc `Inventory` — xem
-    [`02-inventory.md`](02-inventory.md) `INV-07`. Phần "vẫn tính vào tổng" là **thuộc tính của
-    phép đếm**, không phải trạng thái: bốn con số cộng lại bằng tổng số ghế phòng.
-  - *Ai có thể vi phạm*: quản trị viên chặn ghế (vượt quyền), hoặc người xem tự chặn ghế.
-  - *Traces to*: `BR-11`, `FR-20`, `FR-23`.
+- **INV-05** — Chỉ **quản lý rạp sở hữu suất chiếu** mới được **chặn / gỡ chặn ghế** của suất đó.
+  - *Cơ chế bảo vệ*: trạng thái `Blocked` là của `Showtime seat` (`Inventory` — xem
+    [`02-inventory.md`](02-inventory.md) `INV-04`, `INV-05`). `Scheduling` chỉ cung cấp thông tin
+    **chủ sở hữu** suất chiếu để lệnh chặn ghế kiểm tra quyền (R9). `Scheduling` **không** lưu danh
+    sách ghế bị chặn.
+  - *Ai có thể vi phạm*: lệnh chặn ghế không kiểm tra chủ sở hữu suất.
+  - *Traces to*: `BR-11`, `BR-16`, `FR-20`, `FR-23`.
 
-- **INV-06** — Mỗi suất chiếu được phân công cho **một cổng**; nhân viên cổng chỉ ghi nhận
-  check-in được vé thuộc suất chiếu mà họ được phân công trực.
-  - *Cơ chế bảo vệ*: `Gate assignment` là dữ liệu **thuộc `Scheduling`** (nguồn sự thật về phân
-    công cổng) nhưng **không** nằm trong aggregate `Showtime` — nó là thứ được `Ticketing` đọc.
-    Đây là ranh giới R7.
-  - *Ai có thể vi phạm*: nhân viên cổng quét vé của suất chiếu không thuộc cổng mình.
-  - *Traces to*: `BR-15`, `FR-35`.
+- **INV-06** — *(Đã chuyển, 2026-11-25.)* Phân công nhân viên cổng giờ là aggregate
+  `Gate assignment` ở `Ticketing` — xem [`05-ticketing.md`](05-ticketing.md) `INV-08`, `INV-09`.
 
 - **INV-07** — Một phòng chiếu không thể có **hai suất chiếu chồng nhau** về thời gian.
   - *Cơ chế bảo vệ*: **KHÔNG bảo vệ được bằng transaction của aggregate `Showtime`** — xem mục
@@ -91,17 +93,20 @@ Quản lý phim, phòng chiếu, sơ đồ ghế vật lý, lịch chiếu và g
 
 ### Transaction boundary
 
-Một transaction duy nhất cho **mỗi lần tạo hoặc sửa một suất chiếu**:
+Một transaction cho **mỗi lần tạo suất chiếu**:
 
-1. Tạo/sửa `Showtime` cùng tập `Ticket price` theo `Seat type`;
-2. Kiểm tra quyền của người gọi (chủ sở hữu hoặc quản trị viên).
+1. Kiểm tra quyền người gọi; tạo `Showtime` (`NotOnSale`) cùng tập `Ticket price`;
+2. Sinh toàn bộ `Showtime seat` (`Available`) cho `Inventory` qua lớp dịch (R1) — all-or-nothing.
 
-Và một transaction duy nhất cho **mỗi lần mở bán**:
+Một transaction cho **mỗi lần sửa** (chỉ khi `NotOnSale`) và **mỗi lần mở bán**
+(`NotOnSale → OnSale`, chỉ đổi trạng thái).
 
-1. Chuyển trạng thái `Showtime` → đang bán;
-2. Sinh ra toàn bộ `Showtime seat` cho `Inventory` qua lớp dịch (R1).
+Một transaction cho **mỗi lần hủy suất** (ADR-0006): `OnSale → Cancelled`, huỷ mọi đơn
+`AwaitingPayment` của suất, ghi yêu cầu hoàn tiền (outbox) cho mọi đơn `Paid`. Việc gọi Stripe
+hoàn tiền chạy **sau**, bất đồng bộ.
 
-Ranh giới transaction = **ranh giới aggregate**.
+Tạo suất và hủy suất là **ranh giới bị cắt** (chạm `Inventory`, `Booking`, `Payment`) — xem
+[`../state-machines.md`](../state-machines.md).
 
 ---
 
@@ -114,7 +119,6 @@ Ranh giới transaction = **ranh giới aggregate**.
 | Thành phần | Bản chất | Vai trò |
 |---|---|---|
 | `Room seat` | entity | Sơ đồ ghế vật lý: hàng, số, loại ghế. **Tĩnh** — không có trạng thái |
-| Danh sách ghế bị chặn (theo lịch chiếu) | tham chiếu | Xem `INV-05` ở `Showtime` |
 
 **Boundary**: nằm **ngoài** aggregate này — `Showtime` (lịch chiếu của phòng), và
 `Showtime seat` (thuộc `Inventory`).
@@ -149,6 +153,13 @@ Ranh giới transaction = **ranh giới aggregate**.
     điều này hợp lệ và là chủ ý.
   - *Ai có thể vi phạm*: lưu giá trên `Room seat` — sai, vì giá thuộc suất chiếu.
   - *Traces to*: `BR-12`, `FR-16`.
+
+- **INV-13** — Sơ đồ ghế của phòng **không sửa được** khi phòng còn suất chiếu chưa kết thúc và
+  chưa bị hủy.
+  - *Vì sao*: `Showtime seat` được sinh từ sơ đồ phòng lúc tạo suất. Sửa sơ đồ sau đó làm ghế của
+    suất lệch với phòng — có thể bán một ghế không còn tồn tại.
+  - *Cơ chế bảo vệ*: lệnh sửa sơ đồ kiểm tra không còn suất chiếu như vậy.
+  - *Traces to*: `BR-11`, `FR-20`, ADR-0003.
 
 ---
 
@@ -202,9 +213,10 @@ nghiệp vụ phức tạp, nên ranh giới aggregate là ranh giới transacti
     đồng thời** — mà kiểm tra "có suất nào chồng không" trong ứng dụng thì không.
   - *Hệ quả được chấp nhận*: việc bảo vệ invariant nằm **ngoài** ranh giới aggregate. Đây là
     hệ quả không tránh được của việc invariant mang tính chất **quan hệ giữa hai aggregate**.
-  - *Điều kiện để chấp nhận được*: phải có **khoảng đệm giữa hai suất** (thời gian dọn dẹp),
-    nếu không thì "chồng nhau" phải định nghĩa rất chặt và dễ báo lỗi sai cho người xem. Giá
-    trị khoảng đệm chốt ở T13.
+  - *Điều kiện để chấp nhận được*: phải có **khoảng đệm giữa hai suất** (thời gian dọn dẹp) —
+    khoảng thời gian trong ràng buộc là `[giờ bắt đầu, giờ kết thúc + khoảng đệm)`. Suất
+    `Cancelled` **không** tính vào ràng buộc (ràng buộc có điều kiện), nếu không thì hủy một suất
+    sẽ chặn vĩnh viễn khung giờ đó. Giá trị khoảng đệm chốt ở T13.
   - *Traces to*: `BR-20`, `FR-21`.
 
 > **Bài học của `INV-07`.** Có những invariant mà **aggregate boundary không đủ** — không phải
@@ -222,5 +234,5 @@ nghiệp vụ phức tạp, nên ranh giới aggregate là ranh giới transacti
 | Phim, suất chiếu, phòng, sơ đồ ghế vật lý | `Scheduling` | `Inventory`, `Booking`, `Ticketing` |
 | Loại ghế của một phòng | `Scheduling` | `Inventory` |
 | Giá vé (theo cặp loại ghế × suất chiếu) | `Scheduling` | `Inventory`, `Booking` |
-| Phân công cổng | `Scheduling` | `Ticketing` |
-| Trạng thái thật của một ghế suất chiếu | `Inventory` | `Scheduling` (để báo cáo tình trạng bán) |
+| Trạng thái, giờ chiếu, chủ sở hữu suất chiếu | `Scheduling` | `Booking` (R9), `Inventory` (R9), `Ticketing` (R7) |
+| Trạng thái thật của một ghế suất chiếu (kể cả `Blocked`) | `Inventory` | `Scheduling` (để báo cáo tình trạng bán) |

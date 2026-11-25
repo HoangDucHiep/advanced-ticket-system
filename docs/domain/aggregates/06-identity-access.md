@@ -47,7 +47,13 @@ chứ không sở hữu dữ liệu này. Vì vậy aggregate ở đây là aggr
   - *Cơ chế bảo vệ*: lệnh thu quyền là **một transaction duy nhất** gồm: gỡ quyền khỏi tập
     quyền **và** ghi một dòng lịch sử. Nếu chỉ một phía được ghi, thì hoặc quyền vẫn còn (lỗ hổng)
     hoặc mất quyền mà không có dấu vết.
-  - *Ai có thể vi phạm*: code thu quyền ở một nơi và ghi log ở nơi khác, không cùng transaction.
+  - *Ai có thể vi phạm*: (1) code thu quyền ở một nơi và ghi log ở nơi khác, không cùng
+    transaction; (2) **các context khác tin vai trò ghi trong token đăng nhập**. Token (JWT) là
+    ảnh chụp lúc đăng nhập — thu quyền xong, token cũ vẫn mang vai trò cũ tới khi hết hạn ⇒ "hiệu
+    lực ngay" bị vi phạm.
+  - *Quy tắc kèm theo*: token chỉ dùng để xác định **ai** đang gọi. **Vai trò hiện hành** luôn
+    được hỏi từ `Identity & Access` (R8). Được phép cache, nhưng cache phải bị **vô hiệu ngay** khi
+    vai trò đổi (ví dụ theo số phiên bản quyền của người dùng). Chi tiết cơ chế ở T16.
   - *Traces to*: `BR-26`, `FR-29`.
 
 - **INV-03** — Lịch sử thay đổi quyền là **append-only** — không sửa, không xoá.
@@ -77,8 +83,8 @@ chứ không sở hữu dữ liệu này. Vì vậy aggregate ở đây là aggr
 - **INV-06** — Chỉ **nhân viên cổng** và **quản trị viên** ghi nhận check-in; nhân viên cổng chỉ
   ghi nhận được vé thuộc suất chiếu mà họ được phân công trực.
   - *Cơ chế bảo vệ*: **hai điều kiện** được kiểm tra cùng lúc — vai trò (thuộc `User`) **và**
-    phân công suất chiếu (thuộc `Scheduling`). Điều kiện thứ hai **không** thuộc aggregate
-    `User` — nó là quan hệ giữa `Identity & Access` và `Scheduling`.
+    phân công suất chiếu (`Gate assignment`, thuộc `Ticketing`). Điều kiện thứ hai **không** thuộc
+    aggregate `User` — xem [`05-ticketing.md`](05-ticketing.md) `INV-08`.
   - *Ai có thể vi phạm*: chỉ kiểm tra vai trò mà bỏ qua phân công — nhân viên cổng A quét vé của
     suất chiếu thuộc cổng B.
   - *Traces to*: `BR-15`, `FR-33`, `FR-35`.
@@ -116,4 +122,4 @@ và ranh giới sẽ nở ra — và mọi thay đổi ở một bên sẽ phả
 |---|---|---|
 | Người dùng và quyền | `Identity & Access` | tất cả |
 | Đơn và vé (để kiểm tra chủ sở hữu) | `Booking` / `Ticketing` | `Identity & Access` (hỏi khi cần) |
-| Phân công cổng (để kiểm tra quyền quét vé) | `Scheduling` | `Identity & Access` (hỏi khi cần) |
+| Phân công nhân viên cổng (để kiểm tra quyền quét vé) | `Ticketing` | — (`Ticketing` tự kiểm tra) |

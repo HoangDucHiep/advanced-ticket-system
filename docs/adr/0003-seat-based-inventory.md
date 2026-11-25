@@ -1,11 +1,10 @@
 ---
 id: 0003
 title: Mô hình tồn kho theo ghế của suất chiếu
-status: provisional
+status: accepted
 date: 2026-11-19
 Supersedes: ADR-0001
-Revalidate at Gate B
-Revalidated at: 2026-11-21 (T07) — đề xuất chuyển `accepted`, chờ người học duyệt
+Revalidated at: 2026-11-21 (T07); accepted 2026-11-25. Ranh giới aggregate: ADR-0005 (thay ADR-0004)
 ---
 
 # Mô hình tồn kho theo ghế của suất chiếu
@@ -110,7 +109,7 @@ Cả ba câu hỏi đã được trả lời. Xem [`../domain/aggregates/`](../d
 
 | Câu hỏi | Trả lời |
 |---|---|
-| Một suất chiếu có phải là một aggregate không? | **KHÔNG.** `Seat hold` là aggregate root, chứa ≤ 6 `Showtime seat` |
+| Một suất chiếu có phải là một aggregate không? | **KHÔNG.** ~~`Seat hold` là aggregate root, chứa ≤ 6 `Showtime seat`~~ → **từ 2026-11-25: mỗi `Showtime seat` là một aggregate root (ADR-0005)** |
 | Trạng thái ghế và trạng thái đơn có cùng aggregate không? | **KHÔNG.** Chúng ở hai context khác nhau (`Inventory` / `Booking`), và việc giữ ghế ghi cả hai trong **cùng một transaction** (ranh giới bị cắt R3) |
 | "Một ghế = đúng một chủ" bảo vệ thế nào khi chia nhỏ? | Bằng **điều kiện lệnh** (`UPDATE ... WHERE status = 'Available'`), không phải bằng ranh giới aggregate |
 
@@ -118,9 +117,9 @@ Cả ba câu hỏi đã được trả lời. Xem [`../domain/aggregates/`](../d
 không có `capacity`. Điều được bổ sung là **ranh giới aggregate** — và đó là một quyết định
 riêng, đáng ghi riêng.
 
-### Trạng thái đề xuất
+### Trạng thái
 
-**Đề xuất (chờ người học duyệt): `status: accepted`.**
+**`status: accepted` (2026-11-25).**
 
 Lý do: cả ba câu hỏi "Revalidate at Gate B" đều đã có câu trả lời rõ ràng và ghi vào
 `docs/domain/aggregates/`. Quyết định "seat-based" không còn lý do để nghi ngờ.

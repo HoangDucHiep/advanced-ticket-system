@@ -31,7 +31,7 @@ hưởng**.
 
 ```sql
 UPDATE inventory.showtime_seats
-SET status = 'Held', held_until = @until, booking_id = @booking_id
+SET status = 'Held', held_until = @until, hold_id = @hold_id
 WHERE showtime_id = @showtime_id
   AND seat_id = @seat_id
   AND status = 'Available'
@@ -49,7 +49,7 @@ Các ghế được giữ trong **một transaction**, và ghế được khoá 
 ```sql
 -- Trong một transaction. Thứ tự seat_id tăng dần là bắt buộc.
 UPDATE inventory.showtime_seats
-SET status = 'Held', held_until = @until, booking_id = @booking_id
+SET status = 'Held', held_until = @until, hold_id = @hold_id
 WHERE showtime_id = @showtime_id
   AND seat_id = ANY(@seat_ids)
   AND status = 'Available'
@@ -103,7 +103,14 @@ Không có đường nào đọc trạng thái ghế rồi mới ghi.
   chia thành nhiều câu `UPDATE` từng ghế theo thứ tự tăng dần. Đây là chi tiết phải kiểm chứng
   bằng test ở T22, không được coi là hiển nhiên.
 - Kiểm tra giới hạn mua vé của một người (`UNIQUE` hoặc đếm) **không** nằm trong cùng câu
-  lệnh này và phải là một ràng buộc riêng.
+  lệnh này và phải là một ràng buộc riêng — xem [ADR-0007](0007-per-customer-showtime-quota.md).
+- `hold_id` là tham chiếu giữ do bên gọi cung cấp (hiện là định danh `Booking`); `Inventory` không
+  diễn giải nó — xem [ADR-0005](0005-showtime-seat-aggregate.md).
+- **Điều kiện lệnh không chống được deadlock.** `UPDATE` có điều kiện vẫn lấy row lock; thứ có
+  tác dụng chống deadlock là **thứ tự khoá**. Postgres tự phát hiện deadlock (sau
+  `deadlock_timeout`, mặc định 1s) và huỷ một bên với `40P01` — nên một test chỉ kiểm "cả hai đều
+  có phản hồi" sẽ **vẫn xanh khi bỏ thứ tự khoá**. Test ở T22 phải khẳng định **không có lỗi
+  `40P01`** và mỗi yêu cầu thắng hoặc thua với lý do nghiệp vụ.
 
 ## Revalidate at Gate C
 
