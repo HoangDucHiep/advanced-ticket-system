@@ -6,6 +6,13 @@ Layer: code
 Blocked by: 14
 Traces to: —
 
+> **Đồng bộ với design (2026-11-25, Gate C đóng).** Khi ticket này mâu thuẫn với `docs/design/`,
+> **design thắng**. Cấu trúc solution theo `docs/design/architecture.md` D2 (6 module `Scheduling`, `Inventory`,
+> `Booking`, `Payment`, `Ticketing`, `IdentityAccess`, mỗi module `<Module>` + `<Module>.Contracts`;
+> `Shared.Abstractions`, `Shared.Infrastructure`; host `TicketSystem.Api`). Unit of Work theo request
+> (ADR-0008) và khung architecture test (quy tắc 1–8 của D9) thuộc ticket này. Postgres cần extension
+> `btree_gist`.
+
 ## Vì sao có ticket này
 
 Mọi ticket sau đều cần một nơi để chạy code. Ticket này dựng nền: solution, hạ tầng, CI.
@@ -17,18 +24,7 @@ Sau ticket này, mỗi ticket tiếp theo chỉ viết code nghiệp vụ mà kh
 ## Bạn tạo ra
 
 - **Solution** đúng cấu trúc đã chốt ở T10:
-  ```
-  src/
-    Api/
-    Modules/{Identity,Catalog,Showtimes,Booking,Payment,CheckIn}/
-    Shared/
-  tests/
-    Unit/
-    Integration/
-    Load/
-  docs/adr/
-  perf/
-  ```
+  xem cây thư mục ở `docs/design/architecture.md` D2 (thay cho bản phác thảo cũ ở đây).
 - **`docker-compose.yml`**: Postgres + Redis, có healthcheck, có named volume, có port
   được cấu hình (không hardcode).
 - **CI** (GitHub Actions): restore → build → test. Từ ticket sau, thêm integration test với
@@ -58,4 +54,6 @@ Postgres, secret Stripe).
 - [ ] CI xanh trên GitHub
 - [ ] `.gitignore` loại `.env`, `secrets.json`, `bin/`, `obj/`
 - [ ] **Không có secret nào trong file nào được commit** — kiểm tra bằng cách tìm chuỗi khóa
-- [ ] Cấu trúc thư mục khớp với T10
+- [ ] Cấu trúc thư mục khớp với T10 (`architecture.md` D2)
+- [ ] Architecture test kiểm quy tắc phụ thuộc 1–3 của D9 (các quy tắc còn lại thêm dần theo module)
+- [ ] `IUnitOfWork`: một connection + một transaction mỗi request, mọi `DbContext` gắn vào (ADR-0008)

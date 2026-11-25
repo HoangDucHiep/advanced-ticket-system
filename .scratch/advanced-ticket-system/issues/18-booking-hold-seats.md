@@ -7,6 +7,14 @@ Blocked by: 15, 17
 Traces to: FR-01, FR-02, FR-03, FR-04, FR-09, FR-10, FR-14, FR-15, FR-18
 Concurrency problem: #1 #2 #3
 
+> **Đồng bộ với design (2026-11-25, Gate C đóng).** Khi ticket này mâu thuẫn với `docs/design/`,
+> **design thắng**. Luồng SQL đầy đủ: `concurrency.md` #2 (khoá suất `FOR KEY SHARE` → khoá quota advisory →
+> `SELECT … ORDER BY id FOR UPDATE` → `UPDATE` có điều kiện). Bảng: `booking.bookings`,
+> `booking.booking_lines`, `booking.booking_history`. Trạng thái đơn mới là `AwaitingPayment` (không phải
+> `Pending`); giữ **15 phút**. Endpoint: `POST /api/showtimes/{id}/bookings` (Idempotency-Key bắt buộc),
+> `GET /api/bookings`, `GET /api/bookings/{id}`, `POST /api/bookings/{id}/cancel`. Ghế `Held` quá hạn
+> được lấy lại ngay (ADR-0015). Bài toán thêm: #13 (quota), #14 (đua với hủy suất).
+
 ## Vì sao có ticket này
 
 Đây là **bài toán trung tâm** của cả dự án. Nếu dự án chỉ có một ticket đáng để khoe, đây là
@@ -30,7 +38,7 @@ Học nó ở đây, trên bài toán nhỏ nhất.
 
 ## Bạn tạo ra
 
-- Schema `ordering.bookings`, `ordering.booking_seats`.
+- Schema `booking.bookings`, `booking.booking_lines`, `booking.booking_history` (`data-model.md`).
 - `POST /api/bookings`:
   1. Xác thực người gọi và dữ liệu đầu vào (suất chiếu, danh sách ghế).
   2. Kiểm tra idempotency (T19 sẽ bổ sung cơ chế đầy đủ; ở ticket này cơ chế có thể tối
@@ -38,14 +46,14 @@ Học nó ở đây, trên bài toán nhỏ nhất.
   3. Trong **một** transaction: giữ n ghế, tạo đơn đặt vé.
   4. Trả `201` kèm thời điểm hết hạn của chỗ giữ ghế.
 - **Cơ chế giữ ghế (bài toán #2)**:
-  - Một câu `UPDATE` nhiều dòng có điều kiện, đếm số dòng bị ảnh hưởng.
-  - Số dòng khớp số ghế yêu cầu → thành công.
-  - Ít hơn → **rollback toàn bộ**, trả `409` kèm danh sách ghế đã có người.
-  - **Thứ tự khoá cố định** theo `seat_id` tăng dần, để tránh deadlock (#3).
+  - Khoá các ghế tường minh `SELECT … ORDER BY id FOR UPDATE`, rồi một câu `UPDATE` có điều kiện
+    trên các dòng đã khoá (`concurrency.md` #2, ADR-0002).
+  - Có ghế không giữ được → **không ghi gì**, trả `409` kèm danh sách ghế đã có người.
+  - **Thứ tự khoá cố định** theo `showtime_seats.id` tăng dần, để tránh deadlock (#3).
 - Kiểm tra giới hạn mua vé mỗi người trên 1 suất chiếu (FR-09) — tách khỏi cơ chế trên.
-- Chỗ giữ ghế có thời hạn (10 phút), hiển thị để client đếm ngược.
-- `GET /api/bookings/{id}` (chủ sở hữu), `GET /api/bookings/me`.
-- `DELETE /api/bookings/{id}` — hủy đơn đang chờ và trả lại ghế.
+- Chỗ giữ ghế có thời hạn (**15 phút** — `BR-03`), hiển thị để client đếm ngược.
+- `GET /api/bookings/{id}` (chủ sở hữu), `GET /api/bookings`.
+- `POST /api/bookings/{id}/cancel` — hủy đơn đang chờ và trả lại ghế.
 - Test.
 
 ## AI làm ghi
@@ -72,15 +80,15 @@ fail với cách làm sai nào**.
 
 ## Tiêu chí hoàn thành
 
-- [ ] Đặt 1 ghế khi còn trống → `201`, đơn `Pending`, chỗ giữ có thời hạn ~10 phút
+- [ ] Đặt 1 ghế khi còn trống → `201`, đơn `AwaitingPayment`, `expiresAt` = lúc giữ + 15 phút
 - [ ] Đặt ghế đã có người → `409`
 - [ ] **N request đồng thời tranh 1 ghế → đúng 1 thành công, còn lại `409`**
 - [ ] **Đặt 4 ghế mà 1 ghế đã có người → `409` và cả 4 ghế còn trống** (all-or-nothing)
-- [ ] **2 người chọn ghế ngược thứ tự → cả hai đều có phản hồi, không treo** (không deadlock)
-- [ ] Không có đường nào đọc trạng thái ghế rồi mới ghi (đọc code kiểm tra: cây code ghi
-      trạng thái ghế phải là **một** câu `UPDATE` có điều kiện)
+- [ ] **2 người chọn ghế ngược thứ tự, 200 vòng → 0 lỗi `40P01`**, mỗi bên `201` hoặc `409` (không deadlock)
+- [ ] Không có đường nào đọc trạng thái ghế rồi mới ghi **mà không khoá**: đọc trạng thái chỉ qua
+      `SELECT … FOR UPDATE`, và `UPDATE` vẫn mang điều kiện trạng thái
 - [ ] Ghế được khoá theo thứ tự cố định — và có test chứng minh (không chỉ chú thích code)
-- [ ] Giới hạn mua vé mỗi người được kiểm tra, và tách khỏi cơ chế giữ ghế
+- [ ] Giới hạn 10 ghế/người/suất: 20 yêu cầu song song của cùng người → tổng ≤ 10 (#13, đỏ khi bỏ khoá)
 - [ ] Chỗ giữ ghế hết hạn → đơn không còn chiếm ghế
 - [ ] `GET /api/bookings/{id}` chỉ trả về đơn của chính người gọi
 - [ ] Test concurrency **thật sự** chồng lấn, và **fail** nếu thay bằng cách đọc-rồi-ghi

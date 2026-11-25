@@ -7,6 +7,12 @@ Blocked by: 15
 Traces to: FR-10, FR-29, FR-33
 Concurrency problem: #6
 
+> **Đồng bộ với design (2026-11-25, Gate C đóng).** Khi ticket này mâu thuẫn với `docs/design/`,
+> **design thắng**. Bảng: `identity.users`, `identity.role_changes`, `identity.refresh_tokens` (`data-model.md`).
+> Endpoint: `api-contract.md` mục Identity. Rotation: `concurrency.md` #6, ADR-0014 (không ân hạn). Vai
+> trò hiện hành đọc từ DB/cache theo `role_version`, **không** từ claim `role` của JWT (`BR-26`). Rate
+> limit Redis token bucket dùng chung nhiều instance (`concurrency.md` #12).
+
 ## Vì sao có ticket này
 
 Bạn cần có **user thật** thì các bài toán sau mới diễn ra được: giới hạn mỗi người mua bao

@@ -7,6 +7,12 @@ Blocked by: 18, 19, 20, 21
 Traces to: FR-01, FR-02, FR-03, FR-04, FR-07, FR-08, FR-37, FR-38
 Concurrency problem: #1 #2 #3 #4 #5 #7 #8
 
+> **Đồng bộ với design (2026-11-25, Gate C đóng).** Khi ticket này mâu thuẫn với `docs/design/`,
+> **design thắng**. Danh sách test chuẩn, tên test và dòng "đỏ nếu…" của từng bài toán nằm ở `concurrency.md`
+> (14 bài toán). Bổ sung so với bảng dưới: #6 refresh đồng thời, #12 rate limit 3 instance, #13 quota, #14
+> giữ ghế ↔ hủy suất. Test deadlock khẳng định **0 lỗi `40P01`**, không chỉ "có phản hồi". Phép thử âm
+> tính chạy được qua cờ `Concurrency:UnsafeVariant` (chỉ trong build test).
+
 ## Vì sao có ticket này
 
 Đây là ticket **có giá trị CV cao nhất** của cả dự án. Vì sao:
@@ -32,12 +38,12 @@ Bộ integration test chạy trên **Postgres và Redis thật** qua Testcontain
 | `DoubleBooking_100Buyers_1Seat` | 1 ghế, 100 request song song | đúng 1 thành công, 99 `409` |
 | `MultiSeat_AllOrNothing` | đặt 4 ghế, 1 ghế đã có người | `409`, và **cả 4 ghế** còn trống |
 | `MultiSeat_PartialHeld_RolledBack` | đặt 4 ghế, 1 ghế thất bại giữa chừng | **không** ghế nào bị giữ lại |
-| `Deadlock_OverlappingSeats` | 2 người chọn ghế chồng nhau **ngược thứ tự** | cả hai đều có phản hồi trong thời gian giới hạn; không treo |
+| `Deadlock_OverlappingSeats` | 2 người chọn ghế chồng nhau **ngược thứ tự**, 200 vòng | **0 lỗi `40P01`**; mỗi bên `201` hoặc `409`; mỗi response < 2s |
 | `HoldExpiry_RacesNewPurchase` | worker expire và người mua chạy cùng lúc trên ghế cuối | đúng một bên thắng; không mất ghế, không giữ trùng |
 | `Idempotency_50ConcurrentSameKey` | 50 request cùng key | 1 đơn, 49 response giống hệt |
 | `Idempotency_SameKeyDifferentBody` | cùng key, body khác | `422` |
 | `Webhook_DeliveredThreeTimes` | cùng event 3 lần | đúng 1 transition, **1 bộ vé** đúng số ghế |
-| `Webhook_AfterBookingExpired` | webhook sau khi đơn hết hạn | đơn vẫn `Expired`, không cấp vé |
+| `Webhook_AfterBookingExpired` | webhook sau `expires_at` (worker chưa chạy) | không `Paid`, không cấp vé, intent `RefundPending` |
 | `CheckIn_SameQrScannedTenTimes` | 1 vé, 10 lần quét | đúng 1 bản ghi check-in; lần sau trả thời điểm gốc |
 | `RefreshToken_Reuse` | dùng lại token đã xoay vòng | `401`, family bị revoke |
 | `Cache_Stampede` | 100 request đọc 1 suất nóng | đúng 1 lần đọc DB |
@@ -71,7 +77,7 @@ AI **không viết code**. AI:
 
 ## Tiêu chí hoàn thành
 
-- [ ] Tất cả 13 test trong bảng tồn tại và pass
+- [ ] Tất cả 13 test trong bảng + các test bổ sung của `concurrency.md` (#6, #12, #13, #14) tồn tại và pass
 - [ ] Test chạy trên Postgres và Redis **thật** qua Testcontainers
 - [ ] **Bằng chứng phủ định**: test bán trùng **fail** khi thay cơ chế bằng đọc-rồi-ghi; test
       idempotency **fail** khi bỏ unique constraint; test all-or-nothing **fail** khi giữ ghế

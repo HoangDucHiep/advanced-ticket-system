@@ -6,6 +6,9 @@ Layer: code
 Blocked by: 22, 23, 24, 25
 Traces to: —
 
+> **Đồng bộ với design (2026-11-25, Gate C đóng).** Khi ticket này mâu thuẫn với `docs/design/`,
+> **design thắng**. Bảng bài toán concurrency có **14** dòng (`concurrency.md`); bộ ADR là 0001–0015.
+
 ## Vì sao có ticket này
 
 Repo của bạn sẽ được đọc bởi người không biết bạn. 30 giây đầu tiên quyết định họ có đọc
@@ -25,7 +28,7 @@ Cấu trúc:
 
 1. **Dòng đầu** — tên dự án + một câu: hệ thống bán vé xử lý concurrency thế nào.
 2. **Vấn đề** — 2–3 đoạn, dẫn tới `docs/prd/00-overview.md`.
-3. **Bảng "12 bài toán concurrency"** — cột: bài toán | cơ chế | test chứng minh | link.
+3. **Bảng "14 bài toán concurrency"** — cột: bài toán | cơ chế | test chứng minh | link.
    Đây là **bảng quan trọng nhất của README**. Người đọc scan bảng này để quyết định có đọc
    tiếp không.
 4. **Kiến trúc** — sơ đồ, và giải thích bằng 3–4 câu (module nào giữ transaction nào).
@@ -74,7 +77,7 @@ AI **không tự viết README**. AI:
 ## Tiêu chí hoàn thành
 
 - [ ] README có đủ 10 phần nêu trên
-- [ ] Bảng "12 bài toán concurrency" đầy đủ, mỗi dòng có link tới test
+- [ ] Bảng "14 bài toán concurrency" đầy đủ, mỗi dòng có link tới test
 - [ ] Bảng số đo có **điều kiện đo** ghi rõ
 - [ ] Mọi claim trong README có test hoặc số đo đi kèm — không có claim nào trần
 - [ ] Không còn ADR nào ở trạng thái `provisional`

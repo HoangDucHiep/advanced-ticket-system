@@ -7,6 +7,14 @@ Blocked by: 18, 19
 Traces to: FR-05, FR-06, FR-16, FR-24, FR-31, FR-38
 Concurrency problem: #7
 
+> **Đồng bộ với design (2026-11-25, Gate C đóng).** Khi ticket này mâu thuẫn với `docs/design/`,
+> **design thắng**. Bảng: `payment.payment_intents`, `payment.payment_events` (`UNIQUE stripe_event_id`),
+> `payment.refunds`, `payment.webhook_failures`, `payment.outbox_messages`. Trạng thái intent: `Unpaid`
+> / `Closed` / `Captured` / `RefundPending` / `Refunded` (ADR-0010). Luồng: `Payment` phát
+> `PaymentSucceeded` → `Booking` thử `→ Paid` (`expires_at > now()`) → `Inventory` `Held → Sold` →
+> `BookingPaid` → `Ticketing` cấp vé, một transaction (`concurrency.md` #7, ADR-0009). Endpoint:
+> `POST /api/bookings/{id}/payment`, `POST /api/webhooks/stripe`. Test dùng sự kiện Stripe test mode thật.
+
 ## Vì sao có ticket này
 
 Webhook Stripe là ví dụ kinh điển của "sự kiện đến lặp, đến trễ, đến sai thứ tự". Stripe**không** đảm bảo webhook đến đúng thứ tự, và có thể gửi lại cùng một event. Nếu bạn xử
@@ -22,16 +30,16 @@ thông báo gửi cho đơn chưa thanh toán, hoặc là đơn thanh toán rồ
 
 ## Bạn tạo ra
 
-- Schema `payment.payments`, `payment.outbox_messages`.
-- `POST /api/bookings/{id}/payment-intent` (chủ sở hữu):
+- Schema `payment.payment_intents`, `payment.payment_events`, `payment.refunds`, `payment.webhook_failures`, `payment.outbox_messages`.
+- `POST /api/bookings/{id}/payment` (chủ sở hữu):
   - Tạo Stripe PaymentIntent cho đúng tổng tiền của đơn (tổng giá của từng ghế).
   - **Nếu đã có PaymentIntent thì dùng lại** — gọi lại không được tạo charge thứ hai.
   - Trả client secret.
 - `POST /api/webhooks/stripe`:
   - Xác thực chữ ký Stripe. Sai → `400`.
   - **Idempotent theo `event.id`**.
-  - Khi `payment_intent.succeeded`: chuyển đơn `Pending` → `Paid`, có bảo vệ theo trạng
-    thái hiện tại.
+  - Khi `payment_intent.succeeded`: chuyển đơn `AwaitingPayment` → `Paid` với điều kiện trạng
+    thái **và** `expires_at > now()`; không thắng ⇒ intent `RefundPending` + outbox hoàn tiền.
   - Chuyển trạng thái ghế từ `Held` sang `Sold` (có điều kiện).
   - Cấp vé: **một vé cho mỗi ghế** trong đơn, mỗi vé có mã QR riêng ghi rõ ghế.
   - Ghi outbox message cho thông báo xác nhận.
@@ -68,9 +76,9 @@ Khi review code của bạn, AI hỏi:
 - [ ] Thanh toán thành công → đơn `Paid`, ghế `Sold`, cấp **đúng số vé bằng số ghế**
 - [ ] Mỗi vé ghi rõ **ghế nào**, và dùng check-in được
 - [ ] Cùng event gửi 3 lần → **đúng 1** transition, **1** bộ vé
-- [ ] Webhook đến sau khi chỗ giữ ghế hết hạn → đơn **vẫn** `Expired`, không cấp vé
+- [ ] Webhook đến sau `expires_at` (kể cả khi worker chưa chạy) → không `Paid`, không cấp vé, intent `RefundPending`
 - [ ] Chữ ký sai → `400`
-- [ ] Gọi `payment-intent` hai lần → chỉ một PaymentIntent
+- [ ] Gọi `POST …/payment` hai lần → chỉ một PaymentIntent
 - [ ] Outbox message ghi trong cùng transaction với transition
 - [ ] Chuyển `Held → Sold` có điều kiện, và có test chứng minh
 - [ ] Test trùng event dùng cùng một `event.id`

@@ -1,24 +1,28 @@
-# 24: Check-in — QR ký HMAC, offline, chống replay
+# 24: Check-in — QR ký HMAC, phân công cổng, chống quét lại
 
 Mode: pair-tdd
 Gate: D
 Layer: code
 Blocked by: 20
-Traces to: FR-07, FR-08, FR-10, FR-17, FR-25, FR-26, FR-27, FR-33, FR-35
+Traces to: FR-07, FR-08, FR-10, FR-17, FR-25, FR-27, FR-33, FR-35, FR-40
 Concurrency problem: #8
+
+> **Đồng bộ với design (2026-11-25, Gate C đóng).** Khi ticket này mâu thuẫn với `docs/design/`,
+> **design thắng**. **Check-in offline đã bị loại** (`NR-15`, `FR-26`) — bỏ mọi phần offline bên dưới. **Không dùng
+> Redis `SETNX`** (ADR-0013): bảo đảm duy nhất là `PRIMARY KEY (ticket_id)` ở `ticketing.check_ins` +
+> `ON CONFLICT`. Bảng: `ticketing.tickets` (không lưu mã QR, không cột trạng thái), `ticketing.check_ins`,
+> `ticketing.gate_assignments`. Định dạng QR `v1.<kid>.<payload>.<signature>`, **không có hạn dùng**
+> (không `410`): `api-contract.md` mục Ticketing. Năm kết quả quét (`FR-25`): hợp lệ `201`, đã dùng `409`,
+> không hợp lệ `422`, suất khác `422`, suất đã hủy `409`; không được phân công `403`. Vai trò:
+> `GateStaff`, `Administrator`. Thêm: phân công cổng (`FR-40`), đếm lượt vào (`FR-27`).
 
 ## Vì sao có ticket này
 
-Ở cổng rạp, máy quét có thể **mất mạng**. Nếu mỗi lần quét phải gọi API, cổng sập
-mạng là cổng sập. Vậy nên vé phải **tự xác thực được** — chứa trong nó đủ thông tin để
-kiểm tra chữ ký mà không cần hỏi ai.
+Ở cổng rạp, hai nhân viên có thể quét **cùng một vé cùng lúc**, hoặc khách đưa lại vé đã dùng.
+Vé phải được **ký** để không ai tự tạo được, và mỗi vé chỉ được ghi nhận check-in **một lần**.
 
-Nhưng "tự xác thực" mở ra câu hỏi hay: **nếu không gọi DB thì làm sao biết vé đã quét
-chưa?** Đó là bài toán exactly-once với một nguồn sự thật ở DB và một lớp fast-reject ở
-Redis.
-
-Câu trả lời đúng, và câu bạn nên nói được trong phỏng vấn: *"Redis là tối ưu, unique
-constraint là bảo đảm."*
+Câu bạn nên nói được trong phỏng vấn: *"Ràng buộc ở DB là bảo đảm. Tôi đã cân nhắc thêm Redis để
+chặn sớm và bỏ, vì nó chỉ thêm một chỗ có thể lệch mà không thêm bảo đảm nào"* (ADR-0013).
 
 Với mô hình seat-based, vé là **một mã QR cho một ghế cụ thể**. Nên payload phải mang đủ
 thông tin để nhân viên cổng biết người đó ngồi ở **hàng nào, số ghế nào**, thuộc **suất
@@ -27,27 +31,23 @@ mã chung cho cả đơn.
 
 ## Bạn tạo ra
 
-- Schema `checkin.ticket_tokens`, `checkin.check_ins`.
-- **Định dạng payload QR** — chuỗi ngắn, không phải JSON:
+- Schema `ticketing.tickets`, `ticketing.check_ins`, `ticketing.gate_assignments` (`data-model.md`).
+- **Định dạng mã QR** (`api-contract.md` mục Ticketing):
   ```
-  v1|ticketId|showtimeId|seatLabel|issuedAtUnix|nonce
+  v1.<kid>.<base64url(ticketId|showtimeId|seatLabel|issuedAtUnix)>.<base64url(HMAC-SHA256)>
   ```
-  kèm chữ ký `HMAC-SHA256` trên payload, mã hoá base64url. Toàn bộ là nội dung render thành
-  QR. `seatLabel` là nhãn ghế hiển thị (ví dụ `D7`) để nhân viên cổng đọc được ngay.
-- **Ký** khi cấp vé (sau khi thanh toán).
-- **Quét trực tuyến** `POST /api/check-in/scan`:
-  1. Tính lại chữ ký, so sánh **constant time**. Sai → `400`.
-  2. Kiểm tra hạn dùng → `410`.
-  3. Redis `SETNX checkin:{ticketId}` — chặn nhanh vé đã quét.
-  4. Insert vào `checkin.check_ins`; `UNIQUE(ticket_token_id)` là bảo đảm.
-  5. Khi insert đụng unique → đọc bản ghi cũ và **trả lại**, kèm `checked_in_at` gốc.
-- **Xác thực offline** `POST /api/check-in/offline/verify`: chỉ kiểm chữ ký và hạn dùng,
-  **không ghi DB**. Tài liệu nói rõ offline **không** phát hiện được replay nếu không có
-    trạng thái cục bộ, và mô tả cách thiết bị đồng bộ xử lý sau đó.
-- `GET /api/bookings/{id}/tickets` trả payload QR của các vé trong đơn đã thanh toán — **mỗi
-  vé một payload riêng**, kèm ghế của nó.
-- Phân quyền: chỉ `CheckInStaff` và `Admin` được quét; và chỉ quét được vé thuộc suất chiếu
-  được phân công trực (FR-35).
+  `kid` cho phép xoay khoá ký. `seatLabel` (ví dụ `D7`) để nhân viên cổng đọc được ngay. Mã **không**
+  lưu trong DB — tính lại từ `ticketing.tickets`.
+- **Cấp vé**: handler của event `BookingPaid`, trong transaction thanh toán (T20).
+- **Quét** `POST /api/check-in/scan` `{ showtimeId, qr, gate }`:
+  1. Quyền: vai trò `GateStaff` có `Gate assignment` cho suất, hoặc `Administrator` — sai ⇒ `403`.
+  2. Tính lại chữ ký, so sánh **constant time**; sai, hoặc không có vé ⇒ `422 TICKET_INVALID`.
+  3. Vé khác suất đang quét ⇒ `422 TICKET_WRONG_SHOWTIME`; suất đã hủy ⇒ `409 SHOWTIME_CANCELLED`.
+  4. `INSERT INTO ticketing.check_ins … ON CONFLICT (ticket_id) DO NOTHING RETURNING` — PK là bảo đảm.
+  5. Không chèn được ⇒ đọc dòng có sẵn, trả `409 TICKET_ALREADY_CHECKED_IN` kèm thời điểm + cổng gốc.
+- `GET /api/tickets`, `GET /api/bookings/{id}/tickets` — **mỗi vé một mã riêng**, kèm ghế.
+- Phân công cổng `POST/DELETE /api/manager/showtimes/{id}/gate-assignments` (`FR-40`) và đếm lượt vào
+  `GET …/check-ins/count` (`FR-27`).
 - Rate limit endpoint quét theo staff (cổng là điểm nóng thật).
 - Test.
 
@@ -57,12 +57,12 @@ AI viết **test đỏ** theo thứ tự:
 
 1. QR hợp lệ → xác thực được, tạo đúng 1 check-in.
 2. Payload bị sửa bất kỳ field nào → bị từ chối.
-3. QR hết hạn → `410`.
+3. Vé của suất **đã hủy** → `409 SHOWTIME_CANCELLED`, không ghi check-in.
 4. Quét cùng vé 10 lần → 1 bản ghi; các lần sau trả thời điểm gốc.
-5. Offline verify: QR hợp lệ → hợp lệ, **không** ghi DB; QR bị sửa → bị từ chối.
+5. Vé của suất khác suất đang quét → `422 TICKET_WRONG_SHOWTIME`.
 6. QR ký bằng secret khác → bị từ chối.
 7. Vé của suất chiếu **không được phân công** trực → bị từ chối.
-8. Vé **chưa thanh toán** → bị từ chối, không ghi check-in.
+8. Mã ký đúng cho một ghế **chưa có vé** (đơn chưa thanh toán) → `422 TICKET_INVALID`, không ghi check-in.
 
 AI dừng lại sau mỗi test đỏ.
 
@@ -71,22 +71,21 @@ Khi review code của bạn, AI hỏi:
 - "So sánh chữ ký có constant-time không, hay dùng `==` trên chuỗi thô?"
 - "Secret ký lấy từ đâu — có nằm trong DB không? Có được rotate không?"
 - "Payload có chứa dữ liệu cá nhân không? Tại sao?"
-- "Nếu Redis không có sẵn (chưa đồng bộ, bị flush), hệ thống còn check-in được không?" — đây
-  là câu hỏi về **degradation**, và câu trả lời phải là "Redis chỉ là fast-reject, DB vẫn
-  đúng".
-- "Endpoint offline ghi gì vào log, và log đó có đủ để đồng bộ sau không?"
+- "Hai lượt quét đồng thời: điều gì bảo đảm chỉ một dòng `check_ins`? Lượt thua lấy thời điểm gốc ở
+  đâu?"
 
 ## Tiêu chí hoàn thành
 
 - [ ] QR hợp lệ xác thực và tạo đúng 1 check-in
 - [ ] Payload bị sửa bị từ chối
-- [ ] QR hết hạn bị từ chối với `410`
+- [ ] Vé của suất đã hủy bị từ chối với `409`
 - [ ] Quét 10 lần → **1** bản ghi; lần sau trả `checked_in_at` gốc
-- [ ] Endpoint offline xác thực được mà **không ghi DB**, và từ chối được QR bị sửa
+- [ ] Vé của suất khác bị từ chối với `422`
 - [ ] QR ký bằng secret khác bị từ chối
 - [ ] So sánh chữ ký constant-time
 - [ ] Chỉ staff được quét; endpoint bị rate limit
 - [ ] Payload không chứa PII, và có `showtimeId` + `seatLabel` để cổng đọc được ghế
 - [ ] Vé của suất chiếu không được phân công trực → bị từ chối
-- [ ] Vé chưa thanh toán → bị từ chối, không ghi check-in
-- [ ] Tài liệu nói rõ giới hạn của chế độ offline và cách đồng bộ
+- [ ] Mã cho ghế chưa có vé → `422 TICKET_INVALID`, không ghi check-in
+- [ ] Phân công / gỡ phân công cổng hoạt động; chỉ chủ suất / quản trị viên làm được (`FR-40`)
+- [ ] Đếm lượt check-in của suất ≤ số vé đã cấp (`FR-27`)

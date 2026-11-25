@@ -7,6 +7,15 @@ Blocked by: 18, 20
 Traces to: FR-04, FR-06, FR-18, FR-19, FR-24
 Concurrency problem: #4
 
+> **Đồng bộ với design (2026-11-25, Gate C đóng).** Khi ticket này mâu thuẫn với `docs/design/`,
+> **design thắng**. Trạng thái đơn là `AwaitingPayment`, cột hạn là `bookings.expires_at` (không phải `Pending` /
+> `hold_expires_at`). Worker: `SELECT … WHERE status = 'AwaitingPayment' AND expires_at <= now() FOR
+> UPDATE SKIP LOCKED`, rồi đổi đơn + trả ghế theo `hold_id` + intent `Unpaid → Closed` **cùng một
+> transaction** (`concurrency.md` #4). Worker là việc **dọn dẹp**: ghế quá hạn đã được người khác lấy
+> được trước khi worker chạy (ADR-0015). Dispatcher outbox: claim bằng lease `locked_until` (không giữ
+> transaction khi gọi ra ngoài), tối đa 10 lần thử rồi `dead_at` (`data-model.md` mục Outbox). Handler
+> thật (không stub): hoàn tiền / huỷ intent Stripe, cập nhật cache ghế, email nhắc hết hạn (`FR-19`).
+
 ## Vì sao có ticket này
 
 Chỗ giữ ghế không tự hết hạn. Cần một worker quét và giải phóng. Nhưng worker chạy **đồng
@@ -23,7 +32,7 @@ mà không xử lý trùng message.
 ## Bạn tạo ra
 
 - **Worker hết hạn chỗ giữ ghế**:
-  - Quét đơn `Pending` có `hold_expires_at < now()`.
+  - Quét đơn `AwaitingPayment` có `expires_at <= now()`.
   - Chuyển đơn sang `Expired`, **có điều kiện theo trạng thái hiện tại**.
   - Chỉ khi transition thành công mới trả lại ghế.
   - Thứ tự thao tác được chốt ở T12 — và nó phải **an toàn khi process chết giữa chừng**.

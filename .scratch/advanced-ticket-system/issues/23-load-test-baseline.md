@@ -7,6 +7,11 @@ Blocked by: 22
 Traces to: FR-11, FR-12, FR-13, FR-30
 Concurrency problem: #11 #12
 
+> **Đồng bộ với design (2026-11-25, Gate C đóng).** Khi ticket này mâu thuẫn với `docs/design/`,
+> **design thắng**. Kịch bản đo và tiêu chí: `concurrency.md` #11 (admission control, `dotnet-counters`), #9 (tỉ lệ
+> hit cache), #13 (p99 giữ ghế có khoá quota), ADR-0002 (ba biến thể khoá ghế). Mỗi lần chạy ghi một dòng
+> `perf/baseline.csv`, có cả biến thể **không** admission control để so.
+
 ## Vì sao có ticket này
 
 Đo baseline **trước khi tối ưu**. Đây là nguyên tắc không thể bàn cãi trong dự án CV:
@@ -26,7 +31,7 @@ mà latency p99 không cho bạn thấy.
   - `hot-release.js` — N VUs đánh `POST /bookings` cùng lúc khi mở bán phim hot, tranh một suất
     chiếu còn khoảng 100 ghế. Kịch bản phải có **nhiều người chọn ghế chồng nhau** để kích
     hoạt cả bài toán #2 và #3.
-  - `checkin.js` — lưu lượng quét vé ở cổng.
+  - `checkin.js` — lưu lượng quét vé ở cổng (`POST /api/check-in/scan`).
 - **Lệnh seed** tạo dữ liệu thực tế (ví dụ 50 phim, 20 phòng, 100 suất chiếu, 10 000 đơn)
   để phép đọc không vô nghĩa.
 - **Admission control**: giới hạn số request đồng thời vào đường tạo đơn, để khi quá tải

@@ -7,6 +7,13 @@ Blocked by: 15
 Traces to: FR-11, FR-12, FR-13, FR-20, FR-21, FR-22, FR-23, FR-28, FR-32, FR-34
 Concurrency problem: #9 #10
 
+> **Đồng bộ với design (2026-11-25, Gate C đóng).** Khi ticket này mâu thuẫn với `docs/design/`,
+> **design thắng**. Bảng thuộc **hai** module: `scheduling.movies|rooms|room_seats|showtimes|ticket_prices` và
+> `inventory.showtime_seats` (sinh khi **tạo** suất, không khi mở bán). Endpoint: `api-contract.md`
+> mục Scheduling + Inventory — `GET /api/showtimes/{id}/seats` thuộc module `Inventory`; bốn con số ở
+> `GET /api/manager/showtimes/{id}/availability`. Cache: `concurrency.md` #9, #10, ADR-0012 (TTL không
+> phải cơ chế độ mới). Exclusion constraint + đệm 15 phút: `data-model.md`.
+
 ## Vì sao có ticket này
 
 Đây là phần **đọc nhiều, ghi ít** của hệ thống, và là nơi cache thể hiện giá trị. Nó cũng là
@@ -24,10 +31,10 @@ phải "cache vẫn còn giá trị cũ" (sai).
 ## Bạn tạo ra
 
 - Schema (theo T11):
-  - `inventory.rooms` — phòng chiếu.
-  - `inventory.seats` — ghế **của phòng**: hàng, số, loại ghế. Tĩnh, ghi hiếm.
-  - `inventory.seat_types` — loại ghế (Standard / Couple / VIP).
-  - `inventory.showtimes` — suất chiếu: phim, phòng, giờ bắt đầu, giờ kết thúc, trạng thái
+  - `scheduling.rooms`, `scheduling.room_seats` — phòng và ghế **của phòng** (loại ghế là cột
+    `seat_type`, không có bảng loại ghế riêng). Tĩnh, ghi hiếm.
+  - `scheduling.movies`, `scheduling.ticket_prices` (giá theo suất × loại ghế).
+  - `scheduling.showtimes` — suất chiếu: phim, phòng, giờ bắt đầu, giờ kết thúc, trạng thái
     (chưa mở bán / đang bán / đã hủy), giá theo loại ghế.
   - `inventory.showtime_seats` — **trạng thái ghế của suất chiếu**: ghế nào còn trống, đang
     được giữ, đã bán, bị chặn. Đây là bảng **ghi nóng** — tần suất ghi cao nhất hệ thống.

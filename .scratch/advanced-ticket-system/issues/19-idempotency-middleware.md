@@ -7,6 +7,13 @@ Blocked by: 18
 Traces to: FR-37, FR-38
 Concurrency problem: #5
 
+> **Đồng bộ với design (2026-11-25, Gate C đóng).** Khi ticket này mâu thuẫn với `docs/design/`,
+> **design thắng**. Cơ chế **đã đổi** so với bản ticket (ADR-0011): bảng `booking.idempotency_records`
+> PK `(customer_id, idempotency_key)`; chiếm key bằng `INSERT … ON CONFLICT` là **lệnh đầu tiên của
+> transaction nghiệp vụ**, lỗi nghiệp vụ giữ bằng `SAVEPOINT`. **Không có** trạng thái `InProgress`
+> được lưu: request trùng **chờ** trên unique index (tối đa 3s) rồi nhận cùng kết quả; quá 3s ⇒ `409
+> IDEMPOTENCY_IN_PROGRESS` + `Retry-After`. Hợp đồng đầy đủ: `api-contract.md` mục Idempotency.
+
 ## Vì sao có ticket này
 
 Client không biết request của mình đã tới đâu. Mạng chập chờn, request timeout nhưng server
@@ -21,14 +28,15 @@ rồi đọc lại.
 
 ## Bạn tạo ra
 
-- Schema `ordering.idempotency_records` (theo T11).- **Cơ chế idempotency dùng chung** — một middleware hoặc service, áp dụng cho mọi endpoint
+- Schema `booking.idempotency_records` (theo T11).
+- **Cơ chế idempotency dùng chung** — một middleware hoặc service, áp dụng cho mọi endpoint
   mutating, không phải viết riêng cho từng cái.
 - `request_hash` tính trên method + path + canonical body.
 - Hành vi:
   - Key chưa từng thấy → xử lý, lưu response, trả.
   - Key đã thấy, hash **khác** → `422`.
   - Key đã thấy, hash **giống**, đã xử lý → trả lại response đã lưu.
-  - Key đã thấy, hash giống, **đang xử lý** → `409` kèm `Retry-After`.
+  - Key đã thấy, hash giống, **đang xử lý** → chờ request đầu xong rồi trả cùng kết quả; chờ quá 3s → `409` kèm `Retry-After` (ADR-0011).
 - Bản ghi hết hạn sau 24 giờ; có job dọn.
 - Test.
 
@@ -51,7 +59,7 @@ AI **không viết code**. Khi review, AI hỏi sắm nhất:
 - [ ] 50 request đồng thời cùng key → **đúng 1** đơn đặt vé được tạo, các request còn lại trả
       cùng response
 - [ ] Cùng key với body khác → `422`
-- [ ] Cùng key, request đang chạy → `409` kèm `Retry-After`
+- [ ] Cùng key, request đang chạy → chờ và trả cùng kết quả; quá `lock_timeout` → `409` kèm `Retry-After`
 - [ ] Request lại sau khi xử lý xong → trả **giống hệt** response cũ, kể cả status code
 - [ ] Cơ chế là **dùng chung**, áp dụng được cho endpoint khác không cần sửa code thêm
 - [ ] `request_hash` ổn định với body có cùng nghĩa

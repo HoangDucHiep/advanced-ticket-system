@@ -7,6 +7,11 @@ Blocked by: 23
 Traces to: FR-30
 Concurrency problem: #11 #12
 
+> **Đồng bộ với design (2026-11-25, Gate C đóng).** Khi ticket này mâu thuẫn với `docs/design/`,
+> **design thắng**. Metric cụ thể đã nêu ở `concurrency.md` (#9 hit cache, #11 counters của Npgsql / ASP.NET
+> Core / rate limiter, #12 lỗi Redis) và `data-model.md` (`payment_webhook_poison_total`). `/metrics` không
+> public (`api-contract.md` mục Vận hành).
+
 ## Vì sao có ticket này
 
 Hệ thống chạy trong production mà không có observability thì bạn **mù**. Khi mở bán phim hot
