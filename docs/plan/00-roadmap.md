@@ -179,7 +179,7 @@ Chi tiết từng ticket nằm ở `.scratch/advanced-ticket-system/issues/`.
 
 | # | Ticket | Mode | Blocked by | Vấn đề concurrency |
 |---|---|---|---|---|
-| T15 | Skeleton + Docker Compose + CI | `ai-implements` | T14 | — |
+| T15 | Skeleton + Docker Compose + CI | `ai-implements` | T14 | — | **xong 2026-11-26** |
 | T16 | Identity: register, login, JWT, refresh rotation | `you-implement-i-review` | T15 | #6 |
 | T17 | Phòng chiếu, sơ đồ ghế, lịch chiếu và cache | `you-implement-i-review` | T15 | #9 #10 |
 | T18 | Đặt vé: giữ n ghế all-or-nothing | `pair-tdd` | T15, T17 | #1 #2 #3 |

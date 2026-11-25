@@ -1,7 +1,7 @@
 # 15: Skeleton — solution, Docker Compose, CI
 
 Mode: ai-implements
-Status: ready-for-human
+Status: done
 Gate: D
 Layer: code
 Blocked by: 14
@@ -56,7 +56,7 @@ Postgres, secret Stripe).
 - [x] `dotnet build` sạch, không warning
 - [x] `dotnet test` chạy và qua (unit test có thể chưa có, nhưng lệnh phải thành công)
 - [x] App chạy được và trả `200` ở endpoint health
-- [ ] CI xanh trên GitHub
+- [x] CI xanh trên GitHub
 - [x] `.gitignore` loại `.env`, `secrets.json`, `bin/`, `obj/`
 - [x] **Không có secret nào trong file nào được commit** — kiểm tra bằng cách tìm chuỗi khóa
 - [x] Cấu trúc thư mục khớp với T10 (`architecture.md` D2)
@@ -76,5 +76,5 @@ Người học tự thực hiện theo hướng dẫn từng bước (thay cho `
   đỏ; cho `DbContext` tự mở connection ⇒ cả 4 test Unit of Work đỏ.
 - `/health`: `200` khi Postgres + Redis chạy, `503` khi dừng Redis.
 - Quét toàn bộ lịch sử git: không có mật khẩu / khoá; `.env` chưa từng được track.
-- **Còn lại:** push và xem CI xanh (tiêu chí "CI xanh trên GitHub").
+- CI workflow `backend` xanh trên GitHub sau lần push đầu (người học xác nhận 2026-11-26).
 
