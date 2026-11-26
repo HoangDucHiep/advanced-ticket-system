@@ -59,6 +59,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TicketSystem.ArchitectureTe
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TicketSystem.IntegrationTests", "tests\TicketSystem.IntegrationTests\TicketSystem.IntegrationTests.csproj", "{C82DDB04-274C-40DC-B55D-2BF42675BA3B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TicketSystem.Shared.Tests", "tests\TicketSystem.Shared.Tests\TicketSystem.Shared.Tests.csproj", "{EC2CFCA0-FE82-4344-8110-E3EB701E48DA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -273,6 +275,18 @@ Global
 		{C82DDB04-274C-40DC-B55D-2BF42675BA3B}.Release|x64.Build.0 = Release|Any CPU
 		{C82DDB04-274C-40DC-B55D-2BF42675BA3B}.Release|x86.ActiveCfg = Release|Any CPU
 		{C82DDB04-274C-40DC-B55D-2BF42675BA3B}.Release|x86.Build.0 = Release|Any CPU
+		{EC2CFCA0-FE82-4344-8110-E3EB701E48DA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EC2CFCA0-FE82-4344-8110-E3EB701E48DA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EC2CFCA0-FE82-4344-8110-E3EB701E48DA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{EC2CFCA0-FE82-4344-8110-E3EB701E48DA}.Debug|x64.Build.0 = Debug|Any CPU
+		{EC2CFCA0-FE82-4344-8110-E3EB701E48DA}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{EC2CFCA0-FE82-4344-8110-E3EB701E48DA}.Debug|x86.Build.0 = Debug|Any CPU
+		{EC2CFCA0-FE82-4344-8110-E3EB701E48DA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EC2CFCA0-FE82-4344-8110-E3EB701E48DA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EC2CFCA0-FE82-4344-8110-E3EB701E48DA}.Release|x64.ActiveCfg = Release|Any CPU
+		{EC2CFCA0-FE82-4344-8110-E3EB701E48DA}.Release|x64.Build.0 = Release|Any CPU
+		{EC2CFCA0-FE82-4344-8110-E3EB701E48DA}.Release|x86.ActiveCfg = Release|Any CPU
+		{EC2CFCA0-FE82-4344-8110-E3EB701E48DA}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -304,5 +318,6 @@ Global
 		{980C1783-C96E-4F8C-AB47-675F788BD578} = {C8E42992-5E42-0C2B-DBFE-AA848D06431C}
 		{74ADDE76-8045-419E-BB27-F394B3243C30} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{C82DDB04-274C-40DC-B55D-2BF42675BA3B} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{EC2CFCA0-FE82-4344-8110-E3EB701E48DA} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
