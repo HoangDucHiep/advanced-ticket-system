@@ -122,6 +122,10 @@ côi" (`FR-02`, `SC-02`, `BR-02`).
 
 ### Cơ chế — luồng giữ ghế đầy đủ (một transaction)
 
+Đây là **thứ tự lệnh trong một transaction**, không phải một class. Mỗi module chạy phần SQL trên bảng của
+chính nó: lệnh trên `inventory.*` nằm trong `Inventory`, `Booking` gọi qua interface ở `Inventory.Contracts`
+(architecture D4, D5); tất cả dùng chung connection + transaction của Unit of Work (ADR-0008).
+
 ```sql
 BEGIN;  -- READ COMMITTED; UoW của request (ADR-0008)
 
@@ -662,19 +666,24 @@ Con số `30 / 100` là **khởi điểm**; đo baseline ở bước load test r
 Token bucket trên Redis, một script Lua nguyên tử cho mỗi lần kiểm:
 
 ```lua
--- KEYS[1] = rl:{policy}:{subject}; ARGV = capacity, refill_per_ms, now_ms
+-- KEYS[1] = rl:{policy}:{subject}; ARGV = capacity, refill_per_ms
+local t = redis.call('TIME')
+local now = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
 local b = redis.call('HMGET', KEYS[1], 'tokens', 'ts')
 local tokens = tonumber(b[1]) or tonumber(ARGV[1])
-local ts = tonumber(b[2]) or tonumber(ARGV[3])
-tokens = math.min(tonumber(ARGV[1]), tokens + (tonumber(ARGV[3]) - ts) * tonumber(ARGV[2]))
+local ts = tonumber(b[2]) or now
+tokens = math.min(tonumber(ARGV[1]), tokens + (now - ts) * tonumber(ARGV[2]))
 local allowed = tokens >= 1
 if allowed then tokens = tokens - 1 end
-redis.call('HSET', KEYS[1], 'tokens', tokens, 'ts', ARGV[3])
+redis.call('HSET', KEYS[1], 'tokens', tokens, 'ts', now)
 redis.call('PEXPIRE', KEYS[1], math.ceil(tonumber(ARGV[1]) / tonumber(ARGV[2])))
 return allowed and 1 or 0
 ```
 
-`now_ms` lấy từ `TIME` của Redis (không từ đồng hồ từng instance — đồng hồ lệch nhau).
+Thời gian lấy bằng `TIME` **ngay trong script**: một đồng hồ chung cho mọi instance (đồng hồ từng máy
+lệch nhau), và đọc giờ + cập nhật bucket nằm trong cùng một lần chạy nguyên tử. Không truyền giờ từ
+ứng dụng vào, và không gọi `TIME` riêng trước đó — hai lệnh tách rời thì không còn nguyên tử. Redis 7
+mặc định nhân bản script theo hiệu ứng nên `TIME` trong script là hợp lệ.
 
 | Policy | Subject | Hạn mức |
 |---|---|---|

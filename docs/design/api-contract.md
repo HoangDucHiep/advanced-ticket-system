@@ -480,6 +480,10 @@ Thứ tự kiểm: quyền (vai trò + phân công) → chữ ký → vé tồn 
 | `GET /health/live` | không | Tiến trình còn sống |
 | `GET /health/ready` | không | Postgres + Redis kết nối được |
 | `GET /metrics` | mạng nội bộ (không public qua reverse proxy) | Prometheus scrape; Grafana dashboard là nơi quản trị viên xem chỉ số (`FR-30`) |
+| `GET /openapi/v1.json` | không | Tài liệu OpenAPI sinh bằng `Microsoft.AspNetCore.OpenApi` (built-in); UI xem tài liệu chỉ bật ở môi trường Development. Mọi response lỗi khai báo `application/problem+json` |
+
+Mọi response có header `X-Correlation-Id`: lấy từ request nếu client gửi, không thì sinh mới; cùng giá trị
+nằm trong log của request đó (log JSON có cấu trúc — `architecture.md` mục Stack).
 
 ---
 

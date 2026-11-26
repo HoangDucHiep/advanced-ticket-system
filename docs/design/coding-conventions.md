@@ -56,7 +56,7 @@ Luật đã được compiler / analyzer / arch test kiểm thì **không** lặ
 |---|---|---|
 | C-21 | Log dạng **message template**: `logger.LogInformation("User {UserId} registered", id)` — không string interpolation `$"..."` | Structured log query được theo trường (xem phần observability ở [`architecture.md`](architecture.md#stack)); không cấp phát chuỗi khi log level tắt |
 | C-22 | Không log password, token (access / refresh), hash, `Authorization` header, connection string, secret Stripe | Log là nơi rò rỉ phổ biến nhất |
-| C-23 | So sánh giá trị bí mật (hash token) bằng `CryptographicOperations.FixedTimeEquals`, không `==` / `SequenceEqual` | Chống timing attack |
+| C-23 | So sánh giá trị bí mật **trong code** (chữ ký HMAC của QR, hash) bằng `CryptographicOperations.FixedTimeEquals`, không `==` / `SequenceEqual`. Tra refresh token theo index trên `token_hash` là được: token ngẫu nhiên 256 bit, thời gian tra index không lộ gì dùng được | Chống timing attack |
 | C-24 | Số ngẫu nhiên cho token: `RandomNumberGenerator`, không `Random` | `Random` đoán được |
 | C-25 | Cấu hình qua Options pattern + `ValidateOnStart` (B11); secret chỉ từ user-secrets / biến môi trường | Fail fast; không commit secret |
 

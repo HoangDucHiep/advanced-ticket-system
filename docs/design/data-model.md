@@ -492,10 +492,21 @@ Constraint: `PRIMARY KEY (showtime_id, staff_id)` — không phân công trùng.
 | `email` | `text` | không | Lưu dạng chữ thường |
 | `password_hash` | `text` | không | ASP.NET Core `PasswordHasher` (PBKDF2) — không plaintext |
 | `role` | `text` | không | `Customer` / `TheaterManager` / `GateStaff` / `Administrator` |
-| `role_version` | `int` | không | Tăng mỗi lần đổi vai trò — khoá cache vai trò |
+| `role_version` | `int` | không | Tăng mỗi lần đổi vai trò — version của cache vai trò (dưới) |
 | `created_at` | `timestamptz` | không | |
 
 Constraint: `UNIQUE (email)`; `CHECK (role IN (...))`; `CHECK (email = lower(email))`.
+
+**Cache vai trò** (`BR-26` — thu quyền có hiệu lực ngay, kể cả với JWT còn hạn):
+
+- Mỗi request đã xác thực đọc vai trò hiện hành theo `sub` từ Redis key `role:{userId}` = `role|role_version`.
+  Miss ⇒ đọc `identity.users`, ghi vào Redis (TTL 10 phút).
+- Đổi vai trò: transaction ghi `users` (tăng `role_version`) + `role_changes`; **sau commit** ghi đè key
+  bằng script "chỉ ghi khi `role_version` mới hơn" — cùng quy tắc với cache ghế (#10), nên một lần đọc
+  DB cũ chạy chậm không đè được vai trò mới.
+- Redis lỗi ⇒ đọc thẳng DB (chậm hơn, vẫn đúng). Không dùng `IMemoryCache` riêng mỗi instance: instance
+  khác sẽ giữ vai trò cũ tới hết TTL, trái `BR-26`.
+- Claim `role` trong JWT chỉ để client hiển thị; policy phân quyền **không** đọc nó.
 
 Tên giá trị vai trò trong code/DB bỏ dấu cách (`TheaterManager`, `GateStaff`) — là tên định danh của
 thuật ngữ `Theater manager`, `Gate staff` trong `GLOSSARY.md`.
@@ -546,7 +557,7 @@ Có ở `inventory`, `booking`, `payment` (architecture D8). Cùng một hình d
 | Cột | Kiểu | Null | Ghi chú |
 |---|---|---|---|
 | `id` | `bigint` identity | không | PK — thứ tự xử lý |
-| `type` | `text` | không | Ví dụ `RefundRequested`, `SeatStatesChanged`, `ExpiryReminderDue` |
+| `type` | `text` | không | Một trong các loại ở bảng dưới |
 | `payload` | `jsonb` | không | |
 | `available_at` | `timestamptz` | không | Hẹn giờ (email nhắc) và backoff khi thử lại |
 | `attempts` | `int` | không | |
@@ -557,6 +568,20 @@ Có ở `inventory`, `booking`, `payment` (architecture D8). Cùng một hình d
 
 Index: `(available_at, id) WHERE processed_at IS NULL AND dead_at IS NULL` — dispatcher chỉ quét
 việc còn lại.
+
+**Các loại message** — mỗi loại thuộc đúng một bảng (module ghi nó) và có một handler:
+
+| `type` | Bảng | Ghi khi | Handler làm gì |
+|---|---|---|---|
+| `SeatStatesChanged` | `inventory.outbox_messages` | Ghế đổi trạng thái (giữ, trả, bán, chặn) | Ghi đè từng ghế trong cache theo version (#10) |
+| `ExpiryReminderDue` | `booking.outbox_messages` | Giữ ghế thành công; `available_at = expires_at - 5 phút` | Đơn vẫn `AwaitingPayment` ⇒ gửi email nhắc (`FR-19`); không thì bỏ qua |
+| `RefundRequested` | `payment.outbox_messages` | Intent `→ RefundPending` | Gọi Stripe refund, `Idempotency-Key = refunds.id` (#7) |
+| `PaymentIntentCancelRequested` | `payment.outbox_messages` | Intent `Unpaid → Closed` khi đơn hết hạn / bị huỷ | Huỷ PaymentIntent phía Stripe, `Idempotency-Key = <intent id>:cancel`; best-effort (ADR-0006) |
+
+Payload chỉ chứa id (`booking_id`, `customer_id`, `intent_id`…), **không** chứa email hay dữ liệu cá
+nhân: handler `ExpiryReminderDue` lấy địa chỉ email lúc gửi qua interface của `IdentityAccess.Contracts`
+(cạnh phụ thuộc `* → IdentityAccess` được phép — architecture D9). Lý do: email đổi sau khi giữ ghế vẫn
+gửi đúng chỗ, và bảng outbox không thành nơi lưu PII thứ hai.
 
 **Claim bằng lease, không giữ transaction trong lúc gọi ra ngoài:**
 
