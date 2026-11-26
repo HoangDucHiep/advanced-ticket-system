@@ -1,7 +1,7 @@
 # M0-01: Results — `Result`, `Result<T>`, `Error`, `ErrorType`, `PagedResponse<T>`
 
 Mode: pair-tdd
-Status: ready
+Status: done
 Blocked by: —
 Traces to: FR-36
 Concurrency: —
@@ -54,5 +54,5 @@ Arch test hiện có (`Rule2_Shared_Abstractions_has_no_infrastructure_dependenc
 3. Vì sao `Value` ném exception thay vì trả `default` khi thất bại (C-13, B1)?
 
 ## Done khi
-- [ ] Các test trên xanh; `TicketSystem.Shared.Tests` nằm trong `.sln` và CI chạy nó
-- [ ] Không có `!` (C-13); `Error`/`Result` không tham chiếu ASP.NET Core; arch test xanh
+- [x] Các test trên xanh; `TicketSystem.Shared.Tests` nằm trong `.sln` và CI chạy nó
+- [x] Không có `!` (C-13); `Error`/`Result` không tham chiếu ASP.NET Core; arch test xanh

@@ -184,3 +184,11 @@ Câu hỏi chưa có đáp án: [`open-questions.md`](open-questions.md).
 ## Nhật ký ticket
 
 <!-- Mục mới thêm ở đây theo template trong README.md -->
+
+## 2026-11-26 — M0-01 Results
+**Làm gì**: Viết `Result`, `Result<T>`, `Error`, `ErrorType`, `PagedResponse<T>` ở `Shared.Abstractions/Results/` theo 10 test đỏ; thêm project `TicketSystem.Shared.Tests` vào `.sln`.
+**Vì sao làm thế này**: Lỗi nghiệp vụ là lỗi đã biết, xác định được, nên trả bằng `Result` thay vì exception: rẻ hơn và không bị bỏ sót `catch`. `Result` có constructor `protected` để `Result<T>` kế thừa được; `Result<T>` là `sealed` với constructor `private` để không tạo được instance không hợp lệ. `Result<T>.Failure` che `Result.Failure` và cần `new` (bỏ thì CS0108 thành lỗi build do `TreatWarningsAsErrors`).
+**Phương án khác và vì sao không**: Exception cho lỗi nghiệp vụ (đắt, dễ bị `catch` nuốt); FluentResults/ErrorOr/OneOf (xem B1).
+**Test chứng minh, đỏ khi nào**: `Failure_value_access_throws` đỏ đúng trên bản đầu `_value ?? throw`, vì với `Result<int>` thì `default` là `0` nên `Value` không ném mà trả `0`, người gọi tưởng thành công. Sửa bằng cách kiểm `IsFailure` thay vì kiểm `null`, và dùng `[AllowNull]` thay `!`. Các test còn lại đã chạy phép thử âm tính (bảng ở brief).
+**Vấp ở đâu**: Kiểm "giá trị có null không" để suy ra thất bại chỉ đúng với kiểu tham chiếu; phải dựa vào trạng thái thất bại của lớp cha. Hai `Error` cùng `Code` nhưng khác `Extensions` không bằng nhau vì `Extensions` là reference type, nên test so `Code`/`Type`, không so cả `Error`.
+**Còn mở**: —
