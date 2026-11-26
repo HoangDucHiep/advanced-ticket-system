@@ -1,7 +1,6 @@
 # API contract
 
-Lớp 3 — Design. Ticket: [`T13`](../../.scratch/advanced-ticket-system/issues/13-api-contract.md).
-Quyết định: AI (hợp đồng 2026-11-25 — `AGENTS.md`). Cơ chế đằng sau: [`concurrency.md`](concurrency.md);
+Lớp 3 — Design. Cơ chế đằng sau: [`concurrency.md`](concurrency.md);
 bảng: [`data-model.md`](data-model.md); module sở hữu endpoint: [`architecture.md`](architecture.md) D9.
 
 ---
@@ -13,12 +12,13 @@ bảng: [`data-model.md`](data-model.md); module sở hữu endpoint: [`architec
 | Base path | `/api` | |
 | Định dạng | JSON, `camelCase`; thời gian ISO-8601 UTC (`2026-12-01T12:00:00Z`); tiền là số nguyên **đồng** (`"amount": 90000`) | VND không có phần lẻ |
 | Id | UUID dạng chuỗi | |
-| Xác thực | `Authorization: Bearer <access token>` (JWT, 15 phút) | `T16` |
+| Xác thực | `Authorization: Bearer <access token>` (JWT, 15 phút) | |
 | Vai trò | **Đọc từ `IdentityAccess`**, không tin `role` trong JWT (cache có `role_version`) | `BR-26` — thu quyền có hiệu lực ngay |
 | Tài nguyên của người khác | **`404`**, không `403` | `FR-10`: không rò rỉ việc tài nguyên tồn tại |
 | Nhóm đường dẫn | Công khai / người xem: `/api/...`; quản lý rạp: `/api/manager/...`; quản trị: `/api/admin/...`; cổng: `/api/check-in/...` | Đọc đường dẫn là biết cần vai trò gì; chính sách phân quyền gắn theo nhóm |
 | Phân trang | `?page=1&pageSize=20` (tối đa 100); response `{ items, page, pageSize, totalCount }` | Danh sách ở đây nhỏ (đơn của một người, người dùng cho quản trị) — offset đủ và dễ hiểu. Keyset pagination để dành khi có số đo cần nó |
 | Sắp xếp mặc định | Mới nhất trước (`createdAt` giảm dần); lịch chiếu: `startsAt` tăng dần | |
+| Thời gian giữ ghế | Cố định 15 phút (`BR-03`), không cấu hình theo suất | Quy tắc nghiệp vụ một giá trị; giá trị nằm trong cấu hình ứng dụng để test rút ngắn được |
 | Phiên bản API | Không đặt version trong đường dẫn | Một client, một repo; thêm `/v2` khi có thay đổi phá vỡ |
 
 ### Định dạng lỗi — `application/problem+json` (RFC 9457)
@@ -51,7 +51,7 @@ bảng: [`data-model.md`](data-model.md); module sở hữu endpoint: [`architec
 | `422` | Request hợp lệ về cú pháp nhưng **vi phạm luật nghiệp vụ** của chính nó: quá 6 ghế, vượt 10 ghế/suất, ghế không thuộc suất, giá âm, dùng lại `Idempotency-Key` với nội dung khác, vé không hợp lệ | Sửa nội dung yêu cầu; với `IDEMPOTENCY_KEY_REUSED`: sinh key **mới** |
 | `429` | Vượt rate limit (`login`, `refresh`, `hold`, `scan`) | Chờ `Retry-After` |
 | `503` | Quá tải — admission control từ chối (bài toán #11) | Chờ `Retry-After` rồi gửi lại **cùng** `Idempotency-Key` |
-| `500` | Lỗi không mong đợi | Retry với cùng `Idempotency-Key` (an toàn) |
+| `500` | Lỗi không mong đợi (`INTERNAL_ERROR`, không lộ chi tiết) | Retry với cùng `Idempotency-Key` (an toàn) |
 
 **Phân biệt `409` và `422`:** `409` = yêu cầu đúng, nhưng **thế giới** đã đổi (ghế vừa bị giữ). `422` =
 bản thân **yêu cầu** sai luật (7 ghế). Client xử lý khác nhau: `409` thì làm mới rồi chọn lại, `422`
@@ -106,7 +106,7 @@ các ghế đó trên sơ đồ và để người xem chọn lại. Không endp
 
 ---
 
-## Identity — `T16`
+## Identity
 
 ### `POST /api/auth/register`
 
@@ -169,7 +169,7 @@ Body `{ refreshToken }`. `200` — cặp token mới (rotation, bài toán #6).
 
 ---
 
-## Scheduling — `T17`
+## Scheduling
 
 ### `GET /api/movies` — `FR-11`
 
@@ -188,7 +188,7 @@ Body `{ refreshToken }`. `200` — cặp token mới (rotation, bài toán #6).
 ### `POST /api/admin/movies`, `PUT /api/admin/movies/{movieId}` — `FR-28`
 
 **Auth**: `Administrator`. Body `{ title, description, durationMinutes }`. `201` / `200`.
-`422 VALIDATION_FAILED` khi `durationMinutes <= 0`.
+`400 VALIDATION_FAILED` khi `durationMinutes <= 0` (sai hình dạng đầu vào, kiểm bằng `[Range]` — [`building-blocks.md`](building-blocks.md) B5).
 
 ### `POST /api/manager/rooms` — `FR-20`
 
@@ -258,7 +258,7 @@ Suất của người gọi, lọc `?from=&to=&status=`. Phân trang.
 
 ---
 
-## Inventory — `T17`, `T18`
+## Inventory
 
 ### `GET /api/showtimes/{showtimeId}/seats` — `FR-13`, `BR-23`, `SC-11`
 
@@ -304,7 +304,7 @@ roomSeatCount` (ghế `Held` quá hạn tính vào `available`).
 
 ---
 
-## Booking — `T18`, `T19`
+## Booking
 
 ### `POST /api/showtimes/{showtimeId}/bookings` — giữ ghế
 
@@ -389,7 +389,7 @@ thanh toán (`payment_events`, qua `Payment.Contracts`) theo thời gian:
 
 ---
 
-## Payment — `T20`
+## Payment
 
 ### `POST /api/webhooks/stripe` — `FR-38`, `FR-39`
 
@@ -406,7 +406,7 @@ khác ⇒ `200` bỏ qua.
 
 ---
 
-## Ticketing — `T24`
+## Ticketing
 
 ### Định dạng mã QR
 
@@ -473,7 +473,7 @@ Thứ tự kiểm: quyền (vai trò + phân công) → chữ ký → vé tồn 
 
 ---
 
-## Vận hành — `T25`
+## Vận hành
 
 | Endpoint | Auth | Dùng cho |
 |---|---|---|
@@ -482,40 +482,6 @@ Thứ tự kiểm: quyền (vai trò + phân công) → chữ ký → vé tồn 
 | `GET /metrics` | mạng nội bộ (không public qua reverse proxy) | Prometheus scrape; Grafana dashboard là nơi quản trị viên xem chỉ số (`FR-30`) |
 
 ---
-
-## Truy vết FR → endpoint
-
-| FR | Endpoint |
-|---|---|
-| FR-01, FR-02, FR-03, FR-14, FR-15 | `POST /api/showtimes/{id}/bookings` |
-| FR-04 | Worker hết hạn (không endpoint) + `GET /api/showtimes/{id}/seats` thấy ghế trống lại |
-| FR-05, FR-16 | `POST /api/bookings/{id}/payment` + `POST /api/webhooks/stripe` + `GET /api/bookings/{id}/tickets` |
-| FR-06, FR-39 | `POST /api/webhooks/stripe` (nhánh hoàn tiền) + outbox |
-| FR-07, FR-08, FR-25, FR-33, FR-35 | `POST /api/check-in/scan` |
-| FR-09, FR-37, FR-41 | `POST /api/showtimes/{id}/bookings` |
-| FR-10 | `GET /api/bookings`, `GET /api/bookings/{id}`, `GET /api/tickets`, `…/cancel` (`404` cho người khác) |
-| FR-11 | `GET /api/movies` |
-| FR-12 | `GET /api/movies/{id}/showtimes` |
-| FR-13 | `GET /api/showtimes/{id}/seats` |
-| FR-17 | `GET /api/tickets`, `GET /api/bookings/{id}/tickets` |
-| FR-18 | `POST /api/bookings/{id}/cancel` |
-| FR-19 | Outbox `ExpiryReminderDue` → email (không endpoint) |
-| FR-20 | `POST/GET /api/manager/rooms`, `PUT …/seats`, `POST …/seats/block|unblock` |
-| FR-21 | `POST/PUT/DELETE /api/manager/showtimes` |
-| FR-22 | `POST …/open-sale` |
-| FR-23 | `GET /api/manager/showtimes/{id}/availability` |
-| FR-24 | `POST /api/manager/showtimes/{id}/cancel` |
-| FR-26 | — (loại khỏi scope, `NR-15`) |
-| FR-27 | `GET …/check-ins/count` |
-| FR-28 | `/api/admin/movies` + các endpoint `/api/manager/showtimes` với vai trò `Administrator` |
-| FR-29 | `GET /api/admin/users`, `PUT /api/admin/users/{id}/role` |
-| FR-30 | `/metrics` + Grafana |
-| FR-31 | `GET /api/admin/bookings/{id}/history` |
-| FR-32 | Kiểm chủ ở mọi `/api/manager/showtimes/{id}…` |
-| FR-34 | `404` cho suất chưa mở bán ở mọi endpoint công khai |
-| FR-36 | Định dạng lỗi `code` + `action` — toàn bộ API |
-| FR-38 | `POST /api/webhooks/stripe` |
-| FR-40 | `…/gate-assignments` |
 
 ## Truy vết user journey → endpoint
 
@@ -536,8 +502,3 @@ Thứ tự kiểm: quyền (vai trò + phân công) → chữ ký → vé tồn 
 | `GET /api/showtimes/{id}/seats` | Redis hash theo suất (#9, #10) | Cập nhật theo ghế qua outbox, ≈ < 1s |
 | `GET /api/movies`, `GET /api/movies/{id}/showtimes` | Redis, TTL 30s | Mở bán / hủy suất thấy sau ≤ 30s — chấp nhận được; giữ ghế vẫn kiểm trạng thái suất |
 | Còn lại | Không | |
-
-## Trạng thái
-
-Bản đầy đủ, 2026-11-25. Đóng Q04 (thời gian giữ cố định 15 phút — `BR-03`; không cấu hình theo suất:
-quy tắc nghiệp vụ một giá trị, giá trị nằm trong cấu hình ứng dụng để test rút ngắn được).

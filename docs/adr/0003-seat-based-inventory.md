@@ -4,7 +4,7 @@ title: Mô hình tồn kho theo ghế của suất chiếu
 status: accepted
 date: 2026-11-19
 Supersedes: ADR-0001
-Revalidated at: 2026-11-21 (T07); accepted 2026-11-25. Ranh giới aggregate: ADR-0005 (thay ADR-0004)
+Related: ADR-0005
 ---
 
 # Mô hình tồn kho theo ghế của suất chiếu

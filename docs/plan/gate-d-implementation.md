@@ -1,60 +1,105 @@
-# Plan Gate D — Implementation
+# Gate D — Implementation
 
-Gate D biến design thành **code chạy được và test chứng minh được**. Người học viết production code
-(`AGENTS.md`); AI làm skeleton (T15), viết test đỏ ở ticket `pair-tdd`, và review.
+Biến design thành **code chạy được và test chứng minh được**. Người học viết production code; AI in
+hướng dẫn, viết test đỏ ở ticket `pair-tdd`, review (`AGENTS.md`). Quy trình mỗi ticket:
+[`../agents/dev-workflow.md`](../agents/dev-workflow.md).
 
-**Quy tắc vàng:** khi ticket mâu thuẫn với `docs/design/`, **design thắng**. Mỗi ticket T15–T26 có khối
-"Đồng bộ với design" ở đầu.
+**Đã có** (skeleton, xong): solution `backend/` với 6 module + `.Contracts`, `Shared.Abstractions` /
+`Shared.Infrastructure`, Unit of Work một connection + một transaction (ADR-0008), architecture test quy
+tắc phụ thuộc, test UoW trên Testcontainers, Docker Compose (Postgres + `btree_gist`, Redis, pgAdmin),
+CI GitHub Actions, endpoint `/health`.
 
-## Entry criteria
+## Milestone và thứ tự
 
-- [x] Gate C đóng 2026-11-25 — exit checklist trong `docs/README.md` tick đủ
-- [x] `docs/design/` đủ bốn file; ADR-0001..0015
-- [x] Ma trận truy vết: mọi `FR` trong scope có ticket + quyết định design
-- [x] Ticket T15–T26 đã đồng bộ với design
+Thứ tự trong bảng là thứ tự thực hiện. Ticket: `.scratch/advanced-ticket-system/issues/<mã>-<slug>.md`.
 
-## Đọc gì trước khi code
+### M0 — Nền móng
 
-1. [`../design/architecture.md`](../design/architecture.md) — module, project, quy tắc phụ thuộc.
-2. [`../design/data-model.md`](../design/data-model.md) — bảng của module đang làm.
-3. [`../design/concurrency.md`](../design/concurrency.md) — bài toán của ticket (trường `Concurrency
-   problem:`), **gồm test và dòng "đỏ nếu…"**.
-4. [`../design/api-contract.md`](../design/api-contract.md) — endpoint và mã lỗi.
-5. [`../design/building-blocks.md`](../design/building-blocks.md) — khuôn chung: Result, problem+json,
-   handler, transaction, repository (thêm 2026-11-26).
-6. [`../design/coding-conventions.md`](../design/coding-conventions.md) — checklist review (C-01…C-32).
-7. [`../../GLOSSARY.md`](../../GLOSSARY.md) — tên class, bảng, trạng thái.
+**Demo:** request body sai ⇒ `400` problem+json có `traceId`; tìm được `traceId` đó trong log JSON;
+`/health/ready` đỏ khi tắt Redis; OpenAPI liệt kê endpoint.
 
-## Thứ tự
+| Mã | Ticket | Mode | Blocked by | Bài toán |
+|---|---|---|---|---|
+| M0-01 | `Result`, `Error`, `ErrorType`, `PagedResponse` | `pair-tdd` | — | — |
+| M0-02 | Pipeline lỗi problem+json + `TimeProvider` | `pair-tdd` | M0-01 | — |
+| M0-03 | Arch test bề mặt `public` + OpenAPI | `pair-tdd` | M0-02 | — |
+| M0-04 | Log JSON, correlation ID, `/health/live` + `/health/ready` | `you-implement-i-review` | M0-02 | — |
 
-| Bước | Ticket | Mode | Ghi chú |
-|---|---|---|---|
-| 1 | T15 Skeleton + Compose + CI | `ai-implements` | UoW (ADR-0008), architecture test, `btree_gist` — **xong 2026-11-26** |
-| 1b | T28 Building blocks | `pair-tdd` | Result, problem+json, exception handler (ADR-0016, ADR-0017) — chèn 2026-11-26 |
-| 2 | T16 Identity | `you-implement-i-review` | #6, #12 — module đầu tiên áp khuôn building blocks |
-| 3 | T17 Phòng, suất, sơ đồ ghế, cache | `you-implement-i-review` | #9, #10 |
-| 4 | T18 Giữ n ghế | `pair-tdd` | #1, #2, #3, #13, #14 — **lõi** |
-| 5 | T19 Idempotency | `you-implement-i-review` | #5 |
-| 6 | T20 Stripe | `pair-tdd` | #7 |
-| 7 | T21 Worker hết hạn + outbox | `you-implement-i-review` | #4 |
-| 8 | T22 Bộ test concurrency | `you-implement-i-review` | gom + phép thử âm tính |
-| 9 | T24 Check-in | `pair-tdd` | #8 — cắt đầu tiên nếu trễ |
-| 10 | T23 Load test + baseline | `pair-tdd` | #11; số đo cho ADR-0002, ADR-0007 |
-| 11 | T25 Observability | `you-implement-i-review` | |
-| 12 | T26 README + CV | `co-design` | |
-| 13 | T27 Frontend người xem (`frontend/`) | `you-implement-i-review` | cắt **đầu tiên** nếu trễ |
+### M1 — Walking skeleton
 
-Lõi bắt buộc: T15–T22 + T26 + T28. Cắt khi trễ: T24 → T25 → mở rộng T23.
+**Demo:** test E2E `J01_happy_path` — quản trị viên tạo phim, quản lý rạp tạo phòng + suất + mở bán,
+người xem đăng ký → xem sơ đồ ghế → giữ 2 ghế → thanh toán Stripe test mode → có 2 vé.
 
-## Câu hỏi còn mở trong gate này
+| Mã | Ticket | Mode | Blocked by | Bài toán |
+|---|---|---|---|---|
+| M1-01 | Identity: đăng ký, đăng nhập, `/me`, JWT, vai trò đọc từ DB | `you-implement-i-review` | M0-03, M0-04 | — |
+| M1-02 | Scheduling: phim, phòng, suất, giá, mở bán, sinh ghế của suất, seed | `you-implement-i-review` | M1-01 | — |
+| M1-03 | Đọc công khai: phim, lịch chiếu, sơ đồ ghế (đọc DB), availability, chặn ghế | `you-implement-i-review` | M1-02 | — |
+| M1-04 | Giữ n ghế all-or-nothing | `pair-tdd` | M1-03 | #1 #2 |
+| M1-05 | Thanh toán + webhook + cấp vé, E2E J-01 | `pair-tdd` | M1-04 | #7 (một phần) |
 
-| # | Câu hỏi | Ticket |
-|---|---|---|
-| Q07 | Token bucket Redis chịu được bao nhiêu request/giây? | T23 |
-| — | Ngưỡng `PermitLimit` / `QueueLimit` của admission control (khởi điểm 30 / 100) | T23 |
-| — | Ngưỡng tách service (architecture D10) | sau T23 |
-| — | Biến thể khoá ghế nào nhanh nhất (ADR-0002, số đo) | T23 |
+### M2 — Đúng dưới tranh chấp
 
-## Exit checklist
+**Demo:** `dotnet test --filter Category=Concurrency` xanh; mỗi test có phép thử âm tính
+(`Concurrency:UnsafeVariant`) cho ra đỏ.
 
-Xem `docs/README.md` mục Gate D.
+| Mã | Ticket | Mode | Blocked by | Bài toán |
+|---|---|---|---|---|
+| M2-01 | Thứ tự khoá, quota 10 ghế, lấy ghế giữ quá hạn | `pair-tdd` | M1-04 | #3 #13 |
+| M2-02 | Idempotency trong transaction nghiệp vụ | `you-implement-i-review` | M2-01 | #5 |
+| M2-03 | Refresh token rotation + reuse detection, logout | `you-implement-i-review` | M1-01 | #6 |
+| M2-04 | Quản lý vai trò, thu quyền có hiệu lực ngay | `you-implement-i-review` | M2-03 | — |
+| M2-05 | Outbox dùng chung + dispatcher | `you-implement-i-review` | M1-05 | — |
+| M2-06 | Worker hết hạn, huỷ đơn, email nhắc hạn | `you-implement-i-review` | M2-01, M2-05 | #4 |
+| M2-07 | Thanh toán muộn → hoàn tiền, lịch sử đơn | `pair-tdd` | M2-06 | #4 #7 |
+| M2-08 | Hủy suất | `pair-tdd` | M2-07 | #14 |
+| M2-09 | Vé QR ký HMAC + phân công cổng | `pair-tdd` | M1-05 | — |
+| M2-10 | Quét vé check-in | `pair-tdd` | M2-09 | #8 |
+| M2-11 | Kiểm toán bộ test concurrency | `you-implement-i-review` | M2-02, M2-04, M2-08, M2-10 | tất cả |
+
+### M3 — Đo, tối ưu, đo lại
+
+**Demo:** `perf/report.md` có bảng trước / sau (cache, biến thể khoá ghế) kèm điều kiện đo; Grafana cho
+thấy pool, lock contention, rate limit khi mở bán phim hot.
+
+| Mã | Ticket | Mode | Blocked by | Bài toán |
+|---|---|---|---|---|
+| M3-01 | Metric + trace + Prometheus / Grafana | `you-implement-i-review` | M2-11 | — |
+| M3-02 | k6 + seed lớn + admission control; **baseline chưa có cache** | `pair-tdd` | M3-01 | #11 |
+| M3-03 | Cache sơ đồ ghế theo từng ghế + version | `you-implement-i-review` | M3-02 | #9 #10 |
+| M3-04 | Rate limit Redis dùng chung nhiều instance | `you-implement-i-review` | M3-02 | #12 |
+| M3-05 | Đo lại, so biến thể khoá ghế, `perf/report.md` | `pair-tdd` | M3-03, M3-04 | — |
+| M3-06 | Dashboard + alert | `you-implement-i-review` | M3-05 | — |
+
+### M4 — Ra mắt
+
+**Demo:** đi hết J-01 trên trình duyệt; người lạ đọc README 3 phút là hiểu hệ thống.
+
+| Mã | Ticket | Mode | Blocked by | Bài toán |
+|---|---|---|---|---|
+| M4-01 | Frontend người xem | `you-implement-i-review` | M2-11 | — |
+| M4-02 | README, báo cáo benchmark, CV | `co-design` | M3-05, M4-01 | — |
+
+### Vì sao thứ tự này
+
+- **Walking skeleton trước** (M1): tích hợp 5 module là rủi ro lớn nhất, nên phải lộ ra sớm nhất. Mỗi
+  ticket M1 đã làm đúng cơ chế chính (khoá ghế đúng ngay từ M1-04), M2 làm cứng các nhánh còn lại.
+- **Test concurrency viết cùng ticket tạo ra tính năng**; M2-11 chỉ kiểm toán.
+- **Cache sau baseline** (M3-02 → M3-03): không có số "trước" thì không có câu chuyện tối ưu.
+- **Metric trước load test** (M3-01 → M3-02): đo tải mà không nhìn được bên trong là đo mù.
+- Log + correlation ID ở M0 vì debug M1 cần nó.
+
+## Câu hỏi còn mở
+
+Xem [`../learning/open-questions.md`](../learning/open-questions.md).
+
+## Exit checklist — Gate D
+
+- [ ] Không bán trùng ghế dưới tranh chấp, **chứng minh bằng test**
+- [ ] Giữ n ghế là all-or-nothing; không deadlock khi tranh ghế chồng nhau ngược thứ tự
+- [ ] Idempotency ở giữ ghế, webhook, check-in — có test
+- [ ] Mỗi bài toán #1–#14 có test xanh và phép thử âm tính đã chạy (`../design/concurrency.md`)
+- [ ] Test integration trên Postgres và Redis thật (Testcontainers), không InMemory
+- [ ] `perf/baseline.csv` có dòng trước và sau mỗi lần tối ưu; `perf/report.md` có điều kiện đo
+- [ ] README có sơ đồ kiến trúc, bảng số liệu, link ADR
+- [ ] CI xanh, repo public, không secret trong lịch sử commit

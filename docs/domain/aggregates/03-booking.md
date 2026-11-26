@@ -2,7 +2,7 @@
 
 Bounded context `Booking` (xem [`../context-map.md`](../context-map.md)).
 
-Thuật ngữ: [`../ubiquitous-language.md`](../ubiquitous-language.md).
+Thuật ngữ: [`GLOSSARY.md`](../../../GLOSSARY.md). Vòng đời: [`../state-machines.md`](../state-machines.md#state-machine-booking).
 
 ## Trách nhiệm
 
@@ -18,7 +18,7 @@ tới lúc nào", và "đơn này đang ở trạng thái nào".
 
 **Bản chất**: entity, aggregate root. Một lần đặt vé — tồn tại từ lúc người xem bấm xác nhận giữ
 ghế đến lúc đơn kết thúc (`Paid` / `Expired` / `Cancelled`). Là **nơi duy nhất** đại diện cho "một
-lần đặt" (ADR-0005 — không còn aggregate `Seat hold` song song).
+lần đặt".
 
 **Chứa**:
 
@@ -63,41 +63,41 @@ lần đặt" (ADR-0005 — không còn aggregate `Seat hold` song song).
 
 - **INV-04** — Mỗi ghế trong đơn sinh ra **đúng một vé**, và vé **chỉ tồn tại sau khi** đơn đã
   `Paid`. Đơn `Paid` **luôn** đã có đủ vé.
-  - *Cơ chế bảo vệ*: `AwaitingPayment → Paid` và cấp vé (`Ticketing`) nằm trong **cùng một** DB
-    transaction (R6). Vì vậy "đơn `Paid` mà chưa cấp vé" là trạng thái **không thể xảy ra** — không
-    cần cờ "đã cấp vé" riêng (đóng Q26).
+  - *Cơ chế bảo vệ*: `AwaitingPayment → Paid` và cấp vé (`Ticketing`) nằm trong **cùng một** lần ghi
+    atomic (R6). Vì vậy "đơn `Paid` mà chưa cấp vé" là trạng thái **không thể xảy ra** — không cần
+    cờ "đã cấp vé" riêng.
   - *Ai có thể vi phạm*: code tách cấp vé ra transaction khác — xem [`05-ticketing.md`](05-ticketing.md).
   - *Traces to*: `BR-09`, `FR-05`, `FR-08`, `FR-16`.
 
 - **INV-05** — Trạng thái đơn chỉ đi theo **một chiều**. Đơn quá `expires_at` **không bao giờ**
-  sang `Paid` — kể cả khi worker chưa kịp chuyển nó sang `Expired`.
-  - *Cơ chế bảo vệ*: state machine ([`../state-machines.md`](../state-machines.md)) + điều kiện lệnh
-    của transition `→ Paid`: `WHERE status = 'AwaitingPayment' AND expires_at > now()` (ADR-0006).
-    Hết hạn được định nghĩa bằng **thời gian**, không bằng việc worker đã chạy hay chưa.
-  - *Ai có thể vi phạm*: code xử lý thanh toán chỉ kiểm `status = 'AwaitingPayment'` — đơn quá hạn
-    nhưng worker chưa quét vẫn được `Paid`. `BR-05` yêu cầu hoàn tiền thay vì cấp vé.
+  sang `Paid` — kể cả khi tác vụ nền chưa kịp chuyển nó sang `Expired`.
+  - *Cơ chế bảo vệ*: state machine + điều kiện của transition `→ Paid`: đơn đang `AwaitingPayment`
+    **và** `expires_at > now` (ADR-0006). Hết hạn được định nghĩa bằng **thời gian**, không bằng việc
+    tác vụ nền đã chạy hay chưa — race: [`../state-machines.md`](../state-machines.md#race-thông-báo-thanh-toán-đến-sát-thời-điểm-hết-hạn).
+  - *Ai có thể vi phạm*: code xử lý thanh toán chỉ kiểm trạng thái — đơn quá hạn nhưng chưa được quét
+    vẫn được `Paid`. `BR-05` yêu cầu hoàn tiền thay vì cấp vé.
   - *Traces to*: `BR-04`, `FR-06`.
 
 - **INV-06** — Huỷ đơn chỉ có tác dụng khi đơn **chưa thanh toán**; huỷ **trả ghế về ngay**. Huỷ
   xảy ra theo hai nguyên nhân: người xem chủ động huỷ, hoặc suất chiếu bị huỷ. Nguyên nhân được
   ghi trong lịch sử đơn.
   - *Cơ chế bảo vệ*: state machine chặn huỷ đơn `Paid`. Trả ghế là lệnh ở `Inventory` lọc theo
-    `hold_id` của đơn (INV-03 ở [`02-inventory.md`](02-inventory.md)), **cùng transaction** (R3).
+    `hold_id` của đơn (INV-03 ở [`02-inventory.md`](02-inventory.md)), atomic cùng đơn (R3).
   - *Ai có thể vi phạm*: code huỷ đơn mà quên trả ghế — ghế mất vĩnh viễn.
   - *Traces to*: `BR-21`, `FR-18`, `FR-24`, `SC-07`.
 
 - **INV-07** — Lịch sử của đơn là **append-only**: mỗi lần thay đổi trạng thái ghi đúng một lần,
   theo thứ tự thời gian, không sửa, không xoá.
-  - *Cơ chế bảo vệ*: aggregate chỉ **thêm**; quyền ghi bảng lịch sử thuộc module `Booking`.
+  - *Cơ chế bảo vệ*: aggregate chỉ **thêm**; chỉ `Booking` được ghi lịch sử của đơn.
   - *Traces to*: `BR-27`, `FR-31`.
 
 - **INV-08** — Cùng một **định danh yêu cầu** của cùng một người chỉ tạo ra **một** đơn, và trả về
   **cùng kết quả** cho mọi lần gửi — **kể cả khi lần đầu bị từ chối**.
-  - *Cơ chế bảo vệ*: một **bản ghi idempotency** riêng, ràng buộc duy nhất trên
-    `(customer_id, định danh yêu cầu)`, lưu **kết quả của lần đầu** (thành công *hoặc* từ chối) và
-    dấu vân tay của nội dung yêu cầu. Cùng định danh mà khác nội dung ⇒ từ chối. Chi tiết ở T19.
-  - *Vì sao không đặt unique trên chính `Booking`*: lần đầu bị từ chối (ghế đã có người) thì không
-    có `Booking` nào được tạo — gửi lại cùng định danh có thể thành công ⇒ "cùng kết quả" bị vi phạm.
+  - *Cơ chế bảo vệ*: một **bản ghi idempotency** riêng theo (người, định danh yêu cầu), lưu **kết quả
+    của lần đầu** (thành công *hoặc* từ chối) và dấu vân tay nội dung yêu cầu. Cùng định danh mà khác
+    nội dung ⇒ từ chối. Cơ chế: [`../../design/concurrency.md`](../../design/concurrency.md) #5 (ADR-0011).
+  - *Vì sao không đặt ràng buộc duy nhất trên chính `Booking`*: lần đầu bị từ chối (ghế đã có người) thì
+    không có `Booking` nào được tạo — gửi lại cùng định danh có thể thành công ⇒ "cùng kết quả" bị vi phạm.
   - *Ai có thể vi phạm*: định danh do server sinh (timestamp) thay vì do client cung cấp.
   - *Traces to*: `BR-18`, `FR-37`.
 
@@ -110,31 +110,25 @@ lần đặt" (ADR-0005 — không còn aggregate `Seat hold` song song).
   tính trên các đơn `AwaitingPayment` **còn hạn** và `Paid` của người đó cho suất đó.
   - *Vì sao không nằm trong một aggregate*: nó đếm theo **người** qua **nhiều đơn**; ranh giới
     `Booking` chỉ bảo vệ một đơn.
-  - *Cơ chế bảo vệ*: trong transaction giữ ghế, **trước khi đếm**, lấy một **khoá theo cặp
-    (`customer_id`, `showtime_id`)** giữ tới hết transaction ⇒ các yêu cầu của cùng người cho cùng
-    suất xếp hàng, "đếm rồi giữ" không có cửa sổ race (ADR-0007).
-  - *Vì sao không phải điểm tranh chấp toàn cục*: khoá chỉ tranh giữa các yêu cầu **của chính người
-    đó** cho **chính suất đó**.
+  - *Cơ chế bảo vệ*: trong lần giữ ghế, **trước khi đếm**, lấy một **khoá theo cặp (người, suất)** giữ
+    tới hết lần giữ ⇒ các yêu cầu của cùng người cho cùng suất xếp hàng, "đếm rồi giữ" không có cửa sổ
+    race (ADR-0007). Không phải điểm tranh chấp toàn cục: khoá chỉ tranh giữa các yêu cầu của chính
+    người đó cho chính suất đó.
   - *Ai có thể vi phạm*: (1) đếm chỉ ghế đang giữ, quên ghế đã mua; (2) đếm trước khi lấy khoá.
   - *Traces to*: `BR-08`, `FR-09`.
 
-> **Đã sửa (2026-11-25).** Ở T07, INV-10 được coi là "không bảo vệ được" và chấp nhận cửa sổ race,
-> với lý do "chỉ người dùng tự hại" và "khoá sẽ là điểm tranh chấp toàn cục". Cả hai lý do đều sai:
-> luật tồn tại để chống phe vé (người bị hại là người khác), và khoá theo cặp (người, suất) không
-> toàn cục. Xem ADR-0007.
+### Ranh giới atomic
 
-### Transaction boundary
+**Giữ ghế** — một lần ghi atomic (ranh giới bị cắt #1, ADR-0005):
 
-**Giữ ghế** — một DB transaction (ranh giới bị cắt R3, ADR-0005):
-
-1. Khoá quota `(customer_id, showtime_id)`, đếm, so với 10 (INV-10);
+1. Khoá quota (người, suất), đếm, so với 10 (INV-10);
 2. Chuyển n `Showtime seat` `Available → Held` với `hold_id` = id đơn, `held_until` = `expires_at`;
 3. Tạo `Booking` ở `AwaitingPayment` kèm các `Booking line`, giá đã chốt, `expires_at`;
 4. Ghi lịch sử (dòng đầu tiên).
 
-**Mỗi thao tác đổi trạng thái đơn** — một DB transaction:
+**Mỗi thao tác đổi trạng thái đơn** — một lần ghi atomic:
 
-- **Thanh toán thành công** (khi `expires_at > now()`): đơn → `Paid`, ghế → `Sold`, cấp vé, ghi
+- **Thanh toán thành công** (khi `expires_at > now`): đơn → `Paid`, ghế → `Sold`, cấp vé, ghi
   lịch sử (R4 + R6).
 - **Hết hạn**: đơn → `Expired`, ghế của đơn → `Available`, ghi lịch sử.
 - **Huỷ** (người xem, hoặc do hủy suất chiếu): đơn → `Cancelled`, ghế của đơn → `Available`, ghi
@@ -144,8 +138,8 @@ lần đặt" (ADR-0005 — không còn aggregate `Seat hold` song song).
 
 ## Invariant không bảo vệ được bằng một aggregate
 
-`INV-10` (`BR-08`) — bảo vệ bằng khoá **ngoài** ranh giới aggregate, nhưng **trong** một DB
-transaction. Không còn cửa sổ race.
+`INV-10` (`BR-08`) — bảo vệ bằng khoá **ngoài** ranh giới aggregate, nhưng **trong** một lần ghi
+atomic. Không còn cửa sổ race.
 
 ### Hệ quả đối với `FR-09`
 

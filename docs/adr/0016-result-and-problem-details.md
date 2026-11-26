@@ -8,7 +8,6 @@ Related: ADR-0011, ADR-0017
 
 # Lỗi nghiệp vụ là `Result`; mọi lỗi ra ngoài là `problem+json` qua một cơ chế duy nhất
 
-*AI quyết định (hợp đồng 2026-11-25). Người học phát hiện thiếu thiết kế này trước T16.*
 Chi tiết: [`docs/design/building-blocks.md`](../design/building-blocks.md) B1–B4.
 
 ## Context

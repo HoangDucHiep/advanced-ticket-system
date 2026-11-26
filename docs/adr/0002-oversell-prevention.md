@@ -1,12 +1,11 @@
 ---
 id: 0002
-title: Chống bán trùng bằng conditional UPDATE trên ghế
+title: Chống bán trùng bằng khoá ghế theo thứ tự (SELECT … ORDER BY id FOR UPDATE) rồi conditional UPDATE
 status: accepted
 date: 2026-11-18
-Updated: 2026-11-19 (sang mô hình seat-based, xem ADR-0003); accepted 2026-11-25 (Gate C, T12)
 ---
 
-# Chống bán trùng bằng conditional UPDATE trên ghế
+# Chống bán trùng bằng khoá ghế theo thứ tự rồi conditional UPDATE
 
 > **Chốt ở Gate C (2026-11-25).** Phiên bản cuối: **khoá tường minh theo thứ tự rồi cập nhật có
 > điều kiện** — `SELECT … WHERE id = ANY(@ids) ORDER BY id FOR UPDATE` (khoá theo thứ tự id, đọc trạng

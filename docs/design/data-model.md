@@ -1,7 +1,6 @@
 # Data model
 
-Lớp 3 — Design. Ticket: [`T11`](../../.scratch/advanced-ticket-system/issues/11-data-model.md).
-Quyết định: AI (hợp đồng 2026-11-25 — `AGENTS.md`). Mỗi quyết định có lý do và phương án bị loại.
+Lớp 3 — Design. Mỗi quyết định có lý do và phương án bị loại.
 
 Nguồn: [`architecture.md`](architecture.md) (module, sở hữu bảng), [`../domain/aggregates/`](../domain/aggregates/)
 (`INV-nn`), [`../domain/state-machines.md`](../domain/state-machines.md), [`../prd/04-business-rules.md`](../prd/04-business-rules.md)
@@ -20,7 +19,7 @@ Nguồn: [`architecture.md`](architecture.md) (module, sở hữu bảng), [`../
 | Tiền | `bigint`, đơn vị **đồng** (VND) | VND không có phần lẻ (cũng là quy ước của Stripe). Không dùng `numeric`/`decimal`: không cần, và tránh lẫn với "cent" |
 | Thời gian | `timestamptz`, luôn UTC | |
 | `now()` | Trong Postgres là **thời điểm bắt đầu transaction** | Mọi so sánh `expires_at` / `held_until` trong một transaction dùng cùng một mốc ⇒ nhất quán. Transaction ngắn nên sai lệch không đáng kể |
-| Isolation | `READ COMMITTED` (mặc định) | Mọi bất biến được ép bằng điều kiện lệnh, khoá dòng, ràng buộc. Không cần `SERIALIZABLE` (đóng Q02 — xem `concurrency.md`) |
+| Isolation | `READ COMMITTED` (mặc định) | Mọi bất biến được ép bằng điều kiện lệnh, khoá dòng, ràng buộc. Không cần `SERIALIZABLE` (xem `concurrency.md`) |
 | Khoá ngoại | Chỉ **trong** một schema | Khoá ngoại xuyên schema = module A phụ thuộc bảng của module B; khi tách service sẽ vỡ. Tham chiếu chéo module là cột `uuid` không có FK, nhất quán do ranh giới bị cắt (một transaction) |
 | Append-only | Role ứng dụng **không** có quyền `UPDATE`, `DELETE` trên bảng lịch sử | Ép `INV-07` (Booking), `INV-03` (Identity) ở tầng DB, không phụ thuộc code |
 
@@ -157,7 +156,7 @@ Constraint: `PRIMARY KEY (showtime_id, seat_type)` — `INV-01`; `CHECK (amount 
 "Mỗi loại ghế **có trong phòng** đều có giá" kiểm ở lệnh tạo suất (cùng transaction) — ràng buộc
 xuyên hai bảng, không biểu diễn bằng `CHECK`.
 
-> **Chốt câu hỏi T11 #8 — giá lưu ở đâu:** theo **(suất, loại ghế)**, không phải "giá loại ghế của
+> **Giá lưu ở đâu:** theo **(suất, loại ghế)**, không phải "giá loại ghế của
 > phòng × hệ số". Nếu giá nằm ở phòng, đổi giá một loại ghế sẽ đổi giá mọi suất đang bán của phòng
 > đó. Giá đã chốt của đơn vẫn là bản sao ở `booking.booking_lines` (`Booking` `INV-02`).
 
@@ -197,7 +196,7 @@ Index:
 - **Không** index `status`: cột ghi nóng nhất hệ thống; mọi truy vấn theo trạng thái đều đã lọc
   theo `showtime_id` (≤ vài trăm dòng).
 
-> **Chốt câu hỏi T11 #7 — có cần bảng riêng không:** có. Mỗi ghế của suất là **một dòng** (ADR-0003,
+> **Có cần bảng riêng không:** có. Mỗi ghế của suất là **một dòng** (ADR-0003,
 > ADR-0005) — khoá dòng là đơn vị tranh chấp. Giữ "danh sách id ghế" trong dòng suất chiếu thì mọi
 > người tranh **một** dòng.
 >
@@ -209,7 +208,7 @@ Index:
 Tác động: mỗi lần giữ ghế cập nhật `hold_id` (cột có index) ⇒ **không** phải HOT update, mỗi lần ghi
 cập nhật 2 index (PK không đổi nên thực chất là index `hold_id` + heap). Giữ số index ở mức tối
 thiểu là vì vậy. Dòng của suất đã kết thúc không bao giờ ghi lại; nếu cần, partition theo tháng của
-suất là phương án sau T23 — chưa làm vì chưa có số đo.
+suất là phương án sau bước load test — chưa làm vì chưa có số đo.
 
 Câu SQL tay của bảng này (giữ n ghế, trả ghế, `→ Sold`, chặn ghế, sinh ghế) nằm ở
 [`concurrency.md`](concurrency.md) #1–#4. Ghi chú vì sao không dùng ORM ở mục "Câu SQL tay" cuối file.
@@ -629,7 +628,3 @@ Phần còn lại (tạo phim, phòng, suất, phân công, người dùng) dùn
 | `Gate assignment` `INV-08` | `PRIMARY KEY (showtime_id, staff_id)` | Kiểm phân công khi quét |
 | `User` `INV-03` | `REVOKE UPDATE, DELETE` ở `role_changes` | — |
 | `User` `INV-04` | Một cột `role` | — |
-
-## Trạng thái
-
-Bản đầy đủ, 2026-11-25. Tên cột là tên sẽ dùng trong migration (T15+).

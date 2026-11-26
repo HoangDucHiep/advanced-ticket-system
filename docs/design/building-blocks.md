@@ -1,14 +1,9 @@
 # Building blocks — khối nền dùng chung cho mọi module
 
-Lớp 3 — Design. Ticket triển khai: [`T28`](../../.scratch/advanced-ticket-system/issues/28-building-blocks.md).
+Lớp 3 — Design.
 ADR: [ADR-0016](../adr/0016-result-and-problem-details.md) (B1–B4),
 [ADR-0017](../adr/0017-handler-per-use-case-no-mediator.md) (B6–B8).
 Checklist dùng khi review: [`coding-conventions.md`](coding-conventions.md).
-
-> **Ai quyết định.** Toàn bộ tài liệu này: *AI quyết định* (hợp đồng 2026-11-25 — `AGENTS.md`), viết
-> ngày 2026-11-26. **Người học phát hiện chỗ thiếu**: sau T15, tài liệu đã chốt *định dạng* lỗi
-> (`api-contract.md`) và *vị trí* của `Result` (`architecture.md` D6) nhưng chưa ai thiết kế khối nền ở
-> giữa — nếu vào T16 luôn, mỗi module sẽ tự phát minh một kiểu.
 
 **Tài liệu này trả lời:** một request đi từ controller tới DB rồi quay về thì đi qua những "khuôn" nào,
 và khuôn đó giống nhau ở cả 6 module.
@@ -28,7 +23,7 @@ và khuôn đó giống nhau ở cả 6 module.
 | B7 | Handler điều khiển transaction **tường minh** (`BeginAsync` / `CommitAsync`) | module `Application/` |
 | B8 | Repository theo aggregate, chỉ cho phía ghi EF Core; phía đọc chiếu thẳng ra DTO | module |
 | B9 | Domain tối thiểu: aggregate `sealed`, factory trả `Result<T>`, value object là `record`, UUIDv7 | module `Domain/` |
-| B10 | `TimeProvider` (built-in) thay `IClock` | DI ở host |
+| B10 | `TimeProvider` (built-in), không có `IClock` tự viết | DI ở host |
 | B11 | Options pattern + `ValidateOnStart` cho mọi cấu hình | module / host |
 | B12 | Code web dùng chung nằm ở `Shared.Infrastructure/Web/`, không tạo project thứ ba | `Shared.Infrastructure` |
 
@@ -65,7 +60,7 @@ người, email đã đăng ký, đơn đã hết hạn, quá 6 ghế. Chúng kh
 chúng, và client phải nhận `code` + `action` riêng cho từng cái (`FR-36`).
 
 **Quyết định.** Kiểu trả về của mọi handler và mọi method domain có thể thất bại là `Result` /
-`Result<T>`. Chữ ký (thân hàm do người học viết ở T28):
+`Result<T>`. Chữ ký (chỉ chữ ký, thân hàm do hiện thực quyết định):
 
 ```csharp
 namespace TicketSystem.Shared.Abstractions.Results;
@@ -121,7 +116,7 @@ internal static class UserErrors
   exception riêng cho từng mã.
 - **Rẻ.** Không tạo stack trace, không unwind — quan trọng ở luồng giữ ghế khi mở bán phim hot, nơi
   `409` là kết quả *bình thường* của hàng trăm request.
-- **Nhỏ.** Khoảng 80 dòng — người học đọc hết, hiểu hết.
+- **Nhỏ.** Khoảng 80 dòng — đọc hết, hiểu hết.
 
 **Không chọn:**
 
@@ -182,7 +177,7 @@ public sealed record PagedResponse<T>(IReadOnlyList<T> Items, int Page, int Page
 - **HTTP status đã là "success flag".** Envelope lặp lại thông tin đó, và tạo khả năng hai nguồn mâu
   thuẫn (`200` + `"success": false` — đúng thứ `api-contract.md` cấm: "không có `200` cho lỗi nghiệp vụ").
 - **Lỗi đã có chuẩn** (RFC 9457). Envelope tự chế nghĩa là hai định dạng lỗi song song.
-- **Client đơn giản**: frontend (T27), k6 (T23), test integration đọc thẳng body; không phải bóc vỏ.
+- **Client đơn giản**: frontend, k6, test integration đọc thẳng body; không phải bóc vỏ.
 
 **Không chọn:**
 
@@ -204,14 +199,14 @@ Phần này chốt **cơ chế** để mọi lỗi ra đúng shape đó.
 |---|---|---|
 | `Validation` | `400` | `VALIDATION_FAILED`, `IDEMPOTENCY_KEY_REQUIRED` |
 | `Unauthorized` | `401` | `INVALID_CREDENTIALS`, `REFRESH_TOKEN_REUSED` |
-| `Forbidden` | `403` | `GATE_NOT_ASSIGNED` |
+| `Forbidden` | `403` | `NOT_ASSIGNED` |
 | `NotFound` | `404` | `USER_NOT_FOUND`, `MOVIE_NOT_FOUND` |
 | `Conflict` | `409` | `EMAIL_TAKEN`, `SEATS_UNAVAILABLE` |
-| `BusinessRule` | `422` | `CANNOT_CHANGE_OWN_ROLE`, `TOO_MANY_SEATS` |
+| `BusinessRule` | `422` | `CANNOT_CHANGE_OWN_ROLE`, `BOOKING_TOO_LARGE` |
 
 `429` (rate limiter) và `503` (admission control) **không** đi qua `Result` — chúng do middleware sinh
 ra trước khi vào controller. `OnRejected` của chúng gọi cùng `IProblemDetailsService` để ra cùng shape
-(T16, T23).
+(xem [`api-contract.md`](api-contract.md)).
 
 ### Bốn mảnh
 
@@ -226,7 +221,7 @@ ra trước khi vào controller. `OnRejected` của chúng gọi cùng `IProblem
 Đăng ký một chỗ: `services.AddApiErrorHandling()` + `app.UseApiErrorHandling()` trong
 `Shared.Infrastructure/Web/`. `Program.cs` chỉ gọi hai dòng đó.
 
-Controller trông như sau (chỉ là hình dạng — thân handler do người học viết ở T16):
+Controller trông như sau (chỉ là hình dạng):
 
 ```csharp
 [HttpPost("register")]
@@ -243,7 +238,7 @@ public async Task<IActionResult> Register(RegisterRequest request, CancellationT
 
 - **Built-in, đã có sẵn từ .NET 8.** `IExceptionHandler`, `AddProblemDetails`, `IProblemDetailsService`
   là cơ chế chính thức; không viết lại middleware try/catch.
-- **`traceId` ở mọi lỗi** — người dùng chụp màn hình lỗi, ta tìm được log (nối với T25).
+- **`traceId` ở mọi lỗi** — người dùng chụp màn hình lỗi, ta tìm được log (nối với log và trace ở phần observability).
 - **Không lộ nội tạng ở 500.** Message exception có thể chứa câu SQL, tên bảng, connection string.
 
 **Không chọn:**
@@ -279,8 +274,7 @@ Value object vẫn tự bảo vệ: `Email.Create(string)` trả `Result<Email>`
 
 ## B6 — Use case: mỗi lệnh một handler, không mediator
 
-**Quyết định** (trả lời câu treo ở `architecture.md` D4 — "mediator bên trong module là quyết định tầng
-code"):
+**Quyết định** (mediator bên trong module — câu để mở ở `architecture.md` D4):
 
 ```csharp
 // Application/Register/RegisterUserCommand.cs
@@ -312,7 +306,7 @@ internal sealed class RegisterUserHandler(
 
 - *MediatR + `IPipelineBehavior`*: ma thuật với người mới; license.
 - *Generic `ICommandHandler<TCommand, TResult>` + decorator (Scrutor)*: trừu tượng thêm khi chưa có
-  cross-cutting thứ hai cần nó. Nếu sau này cần (ví dụ log/metric mỗi use case ở T25) thì thêm lúc đó,
+  cross-cutting thứ hai cần nó. Nếu sau này cần (ví dụ log/metric mỗi use case) thì thêm lúc đó,
   kèm ADR thay thế.
 
 ---
@@ -331,7 +325,7 @@ HandleAsync:
   6. return value
 ```
 
-Query handler cũng gọi `BeginAsync` (interceptor của T15 cấm `DbContext` mở connection ngoài Unit of
+Query handler cũng gọi `BeginAsync` (interceptor cấm `DbContext` mở connection ngoài Unit of
 Work); không commit thì rollback — với transaction chỉ đọc, rollback và commit tương đương.
 
 **Vì sao chọn:**
@@ -341,8 +335,7 @@ Work); không commit thì rollback — với transaction chỉ đọc, rollback 
   `Result.IsSuccess`" sẽ làm **sai** đúng luồng quan trọng nhất của dự án.
 - **Ranh giới transaction là thứ phải review được** ở mọi bài concurrency (`concurrency.md`). Nó phải
   nằm trong code của use case, không nằm trong một attribute ở chỗ khác.
-- **Rollback đã an toàn**: `NpgsqlUnitOfWork.DisposeAsync` rollback mọi transaction chưa commit (T15,
-  có test). Handler quên commit ⇒ test đỏ ngay, không mất dữ liệu âm thầm.
+- **Rollback đã an toàn**: `NpgsqlUnitOfWork.DisposeAsync` rollback mọi transaction chưa commit (có test). Handler quên commit ⇒ test đỏ ngay, không mất dữ liệu âm thầm.
 
 **Không chọn:**
 
@@ -358,7 +351,7 @@ Work); không commit thì rollback — với transaction chỉ đọc, rollback 
 |---|---|---|
 | Ghi aggregate ít tranh chấp (EF Core — D7) | **Repository** theo aggregate root | `IUserRepository.GetByIdAsync`, `GetByEmailAsync`, `Add` |
 | Đọc ra DTO | **Query handler** dùng thẳng `DbContext` (`AsNoTracking` + `Select`) hoặc Dapper | `GetCurrentUserHandler`, `ListUsersHandler` |
-| Hot path tranh chấp (D7) | **Class SQL tay** đặt tên theo việc, không gọi là repository | `SeatHoldSql`, `QuotaLock` (T18) |
+| Hot path tranh chấp (D7) | **Class SQL tay** đặt tên theo việc, không gọi là repository | `SeatHoldSql`, `QuotaLock` |
 
 Quy tắc của repository:
 
@@ -395,8 +388,8 @@ Quy tắc của repository:
 |---|---|---|
 | Aggregate root | `internal sealed class`; setter `private`; constructor `private` (thêm constructor rỗng `private` cho EF); tạo bằng factory tĩnh trả `Result<T>`; đổi trạng thái bằng method có tên nghiệp vụ trả `Result` | `User.Register(email, passwordHash, now)`, `user.ChangeRole(newRole, changedBy, now)` |
 | Value object | `sealed record` hoặc `readonly record struct`; tạo qua `Create` trả `Result<T>`; bất biến | `Email` |
-| Id | `Guid.CreateVersion7()` (UUIDv7 — `data-model.md` T11); strongly-typed `readonly record struct UserId(Guid Value)` **chỉ khi** id đi qua `.Contracts` sang module khác | `UserId` ở `IdentityAccess.Contracts` (R8) |
-| Enum trạng thái | C# `enum`, lưu DB dạng `text` (`HasConversion<string>()`) khớp `CHECK` của T11 | `Role` |
+| Id | `Guid.CreateVersion7()` (UUIDv7 — xem [`data-model.md`](data-model.md)); strongly-typed `readonly record struct UserId(Guid Value)` **chỉ khi** id đi qua `.Contracts` sang module khác | `UserId` ở `IdentityAccess.Contracts` (R8) |
+| Enum trạng thái | C# `enum`, lưu DB dạng `text` (`HasConversion<string>()`) khớp `CHECK` ở [`data-model.md`](data-model.md) | `Role` |
 | Thời gian | luôn nhận `DateTimeOffset now` từ ngoài vào (handler lấy từ `TimeProvider`) — domain không tự đọc đồng hồ | |
 
 **Không** tạo base class `Entity<TId>` / `AggregateRoot` / `ValueObject` ở `Shared` bây giờ: luật 2 của
@@ -408,10 +401,9 @@ trong aggregate cũng chưa cần — event giữa module dùng cơ chế D4 (ha
 
 ---
 
-## B10 — `TimeProvider` thay `IClock`
+## B10 — `TimeProvider`
 
-`architecture.md` D6 (2026-11-25) liệt kê `IClock` trong `Shared.Abstractions`. Sửa: dùng
-**`System.TimeProvider`** (built-in từ .NET 8), đăng ký `services.AddSingleton(TimeProvider.System)` ở
+Dùng **`System.TimeProvider`** (built-in từ .NET 8), đăng ký `services.AddSingleton(TimeProvider.System)` ở
 host; test dùng `FakeTimeProvider` (`Microsoft.Extensions.TimeProvider.Testing`) để tua giờ (hết hạn giữ
 ghế 15 phút, refresh token 14 ngày).
 
@@ -433,7 +425,7 @@ services.AddOptions<JwtOptions>()
 ```
 
 Mỗi nhóm cấu hình một class `sealed` có `SectionName` và DataAnnotations (`[Required]`, `[MinLength(32)]`
-cho khoá ký). Secret vẫn đến từ `user-secrets` / biến môi trường (T15), không vào `appsettings.json`.
+cho khoá ký). Secret vẫn đến từ `user-secrets` / biến môi trường không vào `appsettings.json`.
 
 **Vì sao:** cấu hình sai ⇒ app **không khởi động** (fail fast), thay vì request đầu tiên trả 500.
 **Không chọn:** `configuration["Jwt:Key"]` rải rác — không kiểm, không có kiểu, khó tìm.
@@ -494,7 +486,7 @@ TicketSystem.IdentityAccess/
 **Hiển thị:** mọi type trong project nội bộ là `internal` (và `sealed` nếu không thiết kế để kế thừa),
 **trừ** `<Module>Module` và controller (`public` để MVC tìm thấy). Project test của module được thấy
 `internal` qua `<InternalsVisibleTo Include="TicketSystem.<Module>.Tests" />` trong `.csproj`.
-Kiểm bằng arch test mới ở T28.
+Kiểm bằng architecture test.
 
 **Ba loại DTO, không dùng lẫn:**
 
@@ -522,9 +514,3 @@ Trả thẳng entity ra HTTP là lỗi review: lộ `password_hash`, khoá API v
 | 8. `CommitAsync`, trả `UserResponse` | handler | B7 |
 | 9. `201` + body thẳng, hoặc `result.ToProblem(this)` ⇒ `409 EMAIL_TAKEN` có `action`, `traceId` | controller | B3, B4(a) |
 | — Postgres sập giữa chừng | — | B4(b): `500 INTERNAL_ERROR`, log có exception, body không có chi tiết |
-
----
-
-## Trạng thái
-
-Bản đầu, 2026-11-26. Triển khai ở T28 (trước T16).

@@ -1,38 +1,56 @@
 # Architecture — module và ranh giới phụ thuộc
 
-Lớp 3 — Design. Ticket: [`T10`](../../.scratch/advanced-ticket-system/issues/10-architecture.md).
+Lớp 3 — Design.
 
 Nguồn: [`../domain/context-map.md`](../domain/context-map.md) (6 context, R1–R9),
 [`../domain/cross-context-contracts.md`](../domain/cross-context-contracts.md) (5 ranh giới bị
 cắt), [`../domain/aggregates/`](../domain/aggregates/), ADR-0005, ADR-0006, ADR-0007.
 Thuật ngữ: [`../../GLOSSARY.md`](../../GLOSSARY.md).
 
-> **Ai quyết định gì.** Quyết định 1–3 do người học chọn (2026-11-25). Từ quyết định 4 trở đi
-> người học yêu cầu AI quyết định và giải thích lý do để học — các mục đó ghi
-> *(AI đề xuất, người học chấp nhận)*. Mỗi mục có phần "Không chọn" để thấy đánh đổi.
->
-> ADR: [ADR-0008](../adr/0008-cross-module-transaction.md) (D3),
-> [ADR-0009](../adr/0009-module-communication.md) (D4, D9),
-> [ADR-0010](../adr/0010-payment-intent-states.md) (tên trạng thái `Payment intent`).
+ADR liên quan: [ADR-0008](../adr/0008-cross-module-transaction.md) (D3),
+[ADR-0009](../adr/0009-module-communication.md) (D4, D9),
+[ADR-0010](../adr/0010-payment-intent-states.md) (tên trạng thái `Payment intent`).
 
 Kiến trúc ở đây không phải "folder nào chứa file nào", mà là **module nào biết gì về module nào**.
 
 ---
 
+## Stack
+
+| Hạng mục | Quyết định |
+|---|---|
+| Runtime | .NET 10 (`net10.0`, LTS) |
+| API | ASP.NET Core Controllers + `[ApiController]` |
+| Data | EF Core (write, migrations) + Dapper (read path nóng) + raw SQL (câu tranh chấp) — xem D7 |
+| Database | PostgreSQL, schema riêng theo module, **mỗi module 1 `DbContext`**, chung connection + transaction qua Unit of Work (D3) |
+| Cache | Redis (`StackExchange.Redis`) trực tiếp |
+| Auth | `JwtBearer` tự viết, refresh token rotation + reuse detection |
+| Payments | Stripe PaymentIntent + webhook idempotent theo `event.id` |
+| Tickets / check-in | HMAC-SHA256 signed QR, verify chữ ký tại server khi quét, chống quét lại (không hỗ trợ offline) |
+| Test | xUnit + Shouldly + Testcontainers (Postgres + Redis thật) |
+| Load test | k6 (Docker image `grafana/k6`) |
+| Observability | Serilog + correlation ID → OTel / Prometheus / Grafana |
+| Infra | Docker Compose, GitHub Actions, GitHub repo public |
+| Config | `appsettings.json` non-secret + user-secrets + biến môi trường |
+
+Quy tắc dùng nhiều tầng: **một hot path chỉ đi qua một tầng truy cập dữ liệu**.
+
+---
+
 ## Tóm tắt quyết định
 
-| # | Quyết định | Ai chốt |
-|---|---|---|
-| D1 | 6 module, một module ứng với một bounded context, không gộp | người học |
-| D2 | Mỗi module 2 project: `<Module>` (nội bộ) + `<Module>.Contracts` (public) | người học |
-| D3 | Mỗi module một `DbContext` (schema riêng); mọi module dùng **chung một connection + một transaction** qua Unit of Work theo request (trả lời Q20) | người học |
-| D4 | Ba cách gọi giữa module, chọn theo use case: interface / event trong transaction / outbox | AI đề xuất, người học chấp nhận |
-| D5 | Mỗi bảng có đúng một module sở hữu; chỉ module đó được ghi **và** đọc trực tiếp | AI đề xuất, người học chấp nhận |
-| D6 | `Shared` chia hai project, không chứa thuật ngữ domain | AI đề xuất, người học chấp nhận |
-| D7 | EF Core / Dapper / SQL tay: mỗi thao tác một tầng, chọn theo bảng | AI đề xuất, người học chấp nhận |
-| D8 | Outbox: một bảng **mỗi module**, một dispatcher chung ở host | AI đề xuất, người học chấp nhận |
-| D9 | Đồ thị phụ thuộc không vòng; R4, R6 chọn một hướng compile-time, chiều kia bằng event | AI đề xuất, người học chấp nhận |
-| D10 | Điều kiện tách service: điều kiện cấu trúc + ngưỡng đo ở T23 | AI đề xuất, người học chấp nhận |
+| # | Quyết định |
+|---|---|
+| D1 | 6 module, một module ứng với một bounded context, không gộp |
+| D2 | Mỗi module 2 project: `<Module>` (nội bộ) + `<Module>.Contracts` (public) |
+| D3 | Mỗi module một `DbContext` (schema riêng); mọi module dùng **chung một connection + một transaction** qua Unit of Work theo request |
+| D4 | Ba cách gọi giữa module, chọn theo use case: interface / event trong transaction / outbox |
+| D5 | Mỗi bảng có đúng một module sở hữu; chỉ module đó được ghi **và** đọc trực tiếp |
+| D6 | `Shared` chia hai project, không chứa thuật ngữ domain |
+| D7 | EF Core / Dapper / SQL tay: mỗi thao tác một tầng, chọn theo bảng |
+| D8 | Outbox: một bảng **mỗi module**, một dispatcher chung ở host |
+| D9 | Đồ thị phụ thuộc không vòng; R4, R6 chọn một hướng compile-time, chiều kia bằng event |
+| D10 | Điều kiện tách service: điều kiện cấu trúc + ngưỡng đo ở bước load test |
 
 ---
 
@@ -94,7 +112,7 @@ Mỗi module có hai project:
 Ranh giới là ranh giới **compile-time**: muốn gọi class nội bộ của module khác thì không có
 `ProjectReference` để gọi. Kiểm tra được bằng compiler, không phụ thuộc kỷ luật.
 
-### Bố cục repo: backend và frontend *(AI quyết định, 2026-11-25)*
+### Bố cục repo: backend và frontend
 
 Repo chứa hai ứng dụng dùng hai toolchain khác nhau (.NET và Node). Mỗi ứng dụng có **thư mục
 riêng, tự chứa toàn bộ cấu hình build của nó**. Gốc repo chỉ giữ những thứ thuộc về **cả hệ
@@ -107,11 +125,11 @@ advanced-ticket-system/
   .gitignore                      chỉ luật chung: .env, secrets.json, file của OS/IDE
   .github/workflows/
     backend.yml                   chạy khi backend/** đổi
-    frontend.yml                  chạy khi frontend/** đổi (ticket T27)
+    frontend.yml                  chạy khi frontend/** đổi
   docker-compose.yml              môi trường dev của cả hệ thống: Postgres, Redis
   .env.example                    biến cho compose (.env thật bị gitignore)
   infra/postgres/init/            script khởi tạo DB (btree_gist)
-  perf/                           k6 (T23) — bắn vào API qua HTTP, không thuộc backend hay frontend
+  perf/                           k6 — bắn vào API qua HTTP, không thuộc backend hay frontend
   backend/                        mọi thứ của .NET
     TicketSystem.sln
     global.json                   ghim SDK 10 — chỉ có hiệu lực trong backend/
@@ -119,7 +137,7 @@ advanced-ticket-system/
     .editorconfig                 luật C#
     .gitignore                    bin/, obj/, *.user
     src/   tests/                 (cây ở dưới)
-  frontend/                       SPA cho người xem (T27) — package.json, vite config, .gitignore riêng
+  frontend/                       SPA cho người xem — package.json, vite config, .gitignore riêng
 ```
 
 **Vì sao chọn:**
@@ -136,14 +154,14 @@ advanced-ticket-system/
 
 **Không chọn:**
 
-- *Solution và cấu hình .NET ở gốc repo, frontend ở `web/`* (bản D2 trước 2026-11-25): gốc repo bị
+- *Solution và cấu hình .NET ở gốc repo, frontend ở `web/`*: gốc repo bị
   lẫn file của backend, và cấu hình .NET áp lên cả phần frontend.
 - *Monorepo kiểu `apps/` + `packages/` với Nx hoặc Turborepo*: những công cụ này giải quyết việc
   chia sẻ code giữa nhiều package JS. Ở đây chỉ có một ứng dụng .NET và một SPA, không có code
   chung, nên tooling là thừa.
 - *Frontend ở repo riêng*: dự án chỉ có một người làm. Một repo giữ CI, README và link CV ở cùng
   một chỗ, và một PR có thể đổi API và UI cùng lúc.
-- *Backend render UI (Razor / Blazor Server)*: trộn UI vào host. Load test T23 khi đó sẽ đo lẫn cả
+- *Backend render UI (Razor / Blazor Server)*: trộn UI vào host. Load test khi đó sẽ đo lẫn cả
   phần render.
 
 ### Cấu trúc thư mục backend
@@ -179,11 +197,11 @@ tests/
   Modules/TicketSystem.<Module>.Tests/      unit test domain
 ```
 
-`perf/` (k6, T23) nằm ở **gốc repo**, không nằm trong `backend/` — xem bố cục repo ở trên.
+`perf/` (k6) nằm ở **gốc repo**, không nằm trong `backend/` — xem bố cục repo ở trên.
 
 ---
 
-## D3 — Transaction xuyên module (trả lời Q20)
+## D3 — Transaction xuyên module
 
 **Cơ chế:**
 
@@ -208,13 +226,12 @@ map bảng của schema mình.
 **Hệ quả:**
 
 - Migrations **theo module**: mỗi `DbContext` có bảng lịch sử migration trong schema của nó.
-- Roadmap mục "Stack đã chốt" đổi từ "1 `DbContext` + `HasDefaultSchema`" sang cơ chế trên.
 - Khi tách một module thành service, đây là chỗ đầu tiên phải đổi: connection chung không
   còn ⇒ ranh giới bị cắt của module đó phải thành saga (xem D10).
 
 ---
 
-## D4 — Module gọi nhau thế nào *(AI đề xuất, người học chấp nhận)*
+## D4 — Module gọi nhau thế nào
 
 Chọn theo use case, bằng hai câu hỏi và một ràng buộc:
 
@@ -229,7 +246,7 @@ Chọn theo use case, bằng hai câu hỏi và một ràng buộc:
 
 **Không chọn mediator giữa module** (MediatR hoặc tự viết): so với interface nó không thêm gì,
 lại che mất hướng phụ thuộc (vẫn phụ thuộc kiểu command, chỉ là không thấy trong `.csproj`).
-Dùng mediator *bên trong* một module là quyết định của tầng code — **đã chốt 2026-11-26: cũng không**;
+Dùng mediator *bên trong* một module là quyết định của tầng code — **cũng không**;
 mỗi use case một handler gọi thẳng ([ADR-0017](../adr/0017-handler-per-use-case-no-mediator.md),
 [`building-blocks.md`](building-blocks.md) B6).
 
@@ -248,17 +265,17 @@ trả tiền, nên `Payment` không cần biết "suất chiếu" là gì.
 
 ---
 
-## D5 — Quyền sở hữu bảng *(AI đề xuất, người học chấp nhận)*
+## D5 — Quyền sở hữu bảng
 
 Mỗi module là **một schema Postgres**. Chỉ module sở hữu được **ghi và đọc trực tiếp** bảng của
 mình. Module khác đi qua `.Contracts`. Tên bảng ở đây là tên khái niệm; cột, index, constraint
-chốt ở T11.
+xem [`data-model.md`](data-model.md).
 
 | Schema / module | Bảng (khái niệm) | Ghi chú |
 |---|---|---|
 | `scheduling` | `movies`, `rooms`, `room_seats`, `showtimes`, `ticket_prices` | `room_seats` tĩnh, ghi hiếm |
 | `inventory` | `showtime_seats`, `outbox_messages` | Bảng nóng nhất hệ thống; **chỉ `Inventory` được ghi** |
-| `booking` | `bookings`, `booking_lines`, `booking_history`, `idempotency_records`, `outbox_messages` | Cách hiện thực khoá quota (advisory lock hay bảng quota) chốt ở T12 — ADR-0007 |
+| `booking` | `bookings`, `booking_lines`, `booking_history`, `idempotency_records`, `outbox_messages` | Khoá quota = advisory lock theo (người xem, suất) — ADR-0007 |
 | `payment` | `payment_intents`, `payment_events`, `refunds`, `outbox_messages` | |
 | `ticketing` | `tickets`, `check_ins`, `gate_assignments` | |
 | `identity` | `users`, `role_changes`, `refresh_tokens` | |
@@ -277,21 +294,16 @@ mọi mặt quan trọng:
 còn tách riêng được. Cầu nối duy nhất là event `ShowtimeCreated` (#5). `Inventory` **chép** loại
 ghế lúc sinh ghế và không đọc lại `room_seats`.
 
-> Ví dụ trong ticket T10 ghi "Chỉ **Ordering** được ghi `inventory.showtime_seats`". `Ordering`
-> là tên cũ và domain hiện tại (ADR-0005) đặt `Showtime seat` ở `Inventory`. `Booking` muốn
-> đổi trạng thái ghế phải gọi `Inventory.Contracts`.
-
 ---
 
-## D6 — `Shared` chứa gì *(AI đề xuất, người học chấp nhận)*
+## D6 — `Shared` chứa gì
 
 | Project | Chứa | Ai reference |
 |---|---|---|
 | `Shared.Abstractions` | `IUnitOfWork`, interface event in-process (`IInProcessEvent`, `IEventHandler<T>`, `IEventPublisher`), `IOutboxWriter`, `Result` / `Error` / `PagedResponse<T>` (ADR-0016) | Mọi project |
 | `Shared.Infrastructure` | Hiện thực UoW trên Npgsql, event bus in-process, cấu hình bảng outbox dùng lại cho từng schema, outbox dispatcher; `Web/` — map `Result` → problem+json, exception handler (ADR-0016; có `FrameworkReference` ASP.NET Core) | Project nội bộ của module + host. **Không** `.Contracts` nào reference |
 
-> **Sửa 2026-11-26:** bản đầu có `IClock` ở `Shared.Abstractions`. Thay bằng `System.TimeProvider`
-> built-in (`building-blocks.md` B10) — không cần interface tự viết.
+Thời gian dùng `System.TimeProvider` built-in, không có interface tự viết ([`building-blocks.md`](building-blocks.md) B10).
 
 **Ba luật để `Shared` không thành "thùng rác":**
 
@@ -307,7 +319,7 @@ giá trị của nó. `Inventory` không diễn giải giá trị đó.
 
 ---
 
-## D7 — EF Core, Dapper, SQL tay *(AI đề xuất, người học chấp nhận)*
+## D7 — EF Core, Dapper, SQL tay
 
 Luật của roadmap: **một hot path chỉ đi qua một tầng truy cập dữ liệu.**
 
@@ -324,7 +336,7 @@ biểu đạt được (quy tắc ở `docs/design/README.md`).
 
 ---
 
-## D8 — Outbox *(AI đề xuất, người học chấp nhận)*
+## D8 — Outbox
 
 **Vì sao có:** có những việc phải xảy ra **khi và chỉ khi** transaction commit, nhưng lại không
 nằm trong transaction được: gọi Stripe (hoàn tiền, huỷ intent — ADR-0006), vô hiệu cache Redis,
@@ -343,7 +355,7 @@ vào một bảng, trái với D5 (mỗi bảng một chủ). Khi tách một mo
 theo nó.
 
 Dùng outbox cho: `Payment` (hoàn tiền, huỷ intent phía Stripe), `Inventory` (vô hiệu cache sơ đồ
-ghế; cơ chế cache cụ thể chốt ở T12, bài toán #10), `Booking` (sự kiện cần thông báo ra ngoài, nếu
+ghế; cơ chế cache: ghi đè từng ghế theo version, ADR-0012, bài toán #10), `Booking` (sự kiện cần thông báo ra ngoài, nếu
 có).
 
 **Event in-process (D4) khác outbox:** event in-process chạy **trong** transaction và là một
@@ -351,7 +363,7 @@ phần của ranh giới bị cắt. Outbox chạy **sau** commit và không bao
 
 ---
 
-## D9 — Đồ thị phụ thuộc *(AI đề xuất, người học chấp nhận)*
+## D9 — Đồ thị phụ thuộc
 
 ```mermaid
 graph TD
@@ -390,15 +402,12 @@ reference `IdentityAccess.Contracts` (R8), nhưng không vẽ để sơ đồ đ
   `Inventory`. Nếu `Scheduling` reference `Inventory.Contracts` thì sẽ thành vòng với R1.
 - **Sơ đồ ghế của suất (`FR-13`)** cũng là endpoint của **`Inventory`**: nó lấy bố cục phòng (hàng,
   số) và giá theo loại ghế từ `Scheduling.Contracts`, ghép với trạng thái ghế của chính nó, rồi cache
-  (bài toán #9, #10 — T12). Chỉ `Inventory` ghép được mà không tạo vòng, vì nó là bên duy nhất được
+  (bài toán #9, #10). Chỉ `Inventory` ghép được mà không tạo vòng, vì nó là bên duy nhất được
   phép biết cả hai phía.
-
-> `context-map.md` R4, R6 đã được sửa (2026-11-25) cho khớp: hai chiều về dữ liệu, hướng phụ thuộc
-> trong code theo D9.
 
 ### Quy tắc phụ thuộc (kiểm được)
 
-Mỗi quy tắc có một architecture test ở `tests/TicketSystem.ArchitectureTests/` (viết ở T15). Test
+Mỗi quy tắc có một architecture test ở `tests/TicketSystem.ArchitectureTests/`. Test
 đọc `ProjectReference` và kiểm assembly bằng reflection.
 
 1. **Project nội bộ của một module không reference project nội bộ của module khác.** Chỉ được
@@ -454,7 +463,7 @@ sequenceDiagram
 ```
 
 Đi qua **ba module** (`Booking` điều phối, `Scheduling` đọc, `Inventory` ghi) và **một**
-transaction. Chi tiết chưa chốt, để lại cho ticket sau:
+transaction. Chi tiết:
 
 - Bản ghi idempotency được chèn **đầu** transaction; thất bại nghiệp vụ dùng savepoint để giữ kết quả
   `409` (ADR-0011) — sơ đồ trên vẽ gọn.
@@ -463,17 +472,17 @@ transaction. Chi tiết chưa chốt, để lại cho ticket sau:
 
 ---
 
-## D10 — Điều kiện tách service *(AI đề xuất, người học chấp nhận)*
+## D10 — Điều kiện tách service
 
 Chỉ tách một module khi **cả ba** điều kiện đúng:
 
 1. **Điều kiện cấu trúc:** hợp đồng của module đó **không** nằm trong ranh giới bị cắt nào, hoặc
    đã chấp nhận thay ranh giới đó bằng saga kèm ADR. Hiện chỉ R2 (bốn con số), R7, R8
    (`IdentityAccess`) đạt điều kiện này.
-2. **Điều kiện đo:** baseline k6 ở T23 cho thấy module đó là nút cổ chai **riêng**, tức là tải
+2. **Điều kiện đo:** baseline k6 cho thấy module đó là nút cổ chai **riêng**, tức là tải
    của nó làm chậm module khác mà scale cả monolith thì không giải quyết được. Ví dụ đo: tỉ lệ
    thời gian giữ connection Postgres của luồng đọc sơ đồ ghế trong kịch bản mở bán phim hot; p95
-   của giữ ghế khi tải đọc tăng. Ngưỡng: *(chưa xác định — đặt sau khi có baseline ở T23)*.
+   của giữ ghế khi tải đọc tăng. Ngưỡng: *(chưa xác định — cần số đo từ bước load test, xem [`gate-d-implementation.md`](../plan/gate-d-implementation.md))*.
 3. **Điều kiện chi phí:** đã liệt kê được những gì phải đổi và chấp nhận đánh đổi.
 
 **Phép thử ranh giới — nếu tách `Booking` ra service riêng thì phải đổi gì?** Cả bốn ranh giới
@@ -486,23 +495,3 @@ Thứ tự ứng viên nếu điều kiện 2 xảy ra: luồng đọc của `In
 `IdentityAccess`, rồi phần đọc của `Scheduling` (R7).
 
 ---
-
-## ADR
-
-- [ADR-0008](../adr/0008-cross-module-transaction.md) — transaction xuyên module (D3).
-- [ADR-0009](../adr/0009-module-communication.md) — cách gọi giữa module + hướng phụ thuộc (D4, D9);
-  gồm luôn đề xuất treo từ T09 ("đọc chéo context chỉ qua interface của context sở hữu").
-
-## Câu hỏi chuyển sang ticket sau
-
-| Câu hỏi | Ticket |
-|---|---|
-| ~~Khoá dòng `showtimes` để chặn race giữ ghế ↔ hủy suất~~ — `FOR KEY SHARE` / `FOR UPDATE` (`concurrency.md` #14) | — |
-| ~~Khoá quota~~ — advisory lock (ADR-0007) | — |
-| ~~Lưu kết quả idempotency của lần thất bại~~ — savepoint trong cùng transaction (ADR-0011) | — |
-| ~~Cơ chế cập nhật cache sơ đồ ghế~~ — outbox + version (ADR-0012) | — |
-| ~~Tên `AwaitingPayment` ở `Payment intent` (Q28)~~ — đã chốt `Unpaid` / `Closed` (ADR-0010) | — |
-
-## Trạng thái
-
-Bản đầu, 2026-11-25. Đáp ứng 8 tiêu chí của T10.

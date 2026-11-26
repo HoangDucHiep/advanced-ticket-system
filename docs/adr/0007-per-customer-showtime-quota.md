@@ -4,7 +4,6 @@ title: Giới hạn 10 ghế mỗi người mỗi suất (BR-08) ép bằng kho�
 status: accepted
 date: 2026-11-25
 Related: ADR-0005
-Updated: 2026-11-25 (Gate C, T12) — chốt cách hiện thực khoá
 ---
 
 # Giới hạn 10 ghế mỗi người mỗi suất (`BR-08`) ép bằng khoá theo cặp (người xem, suất chiếu)

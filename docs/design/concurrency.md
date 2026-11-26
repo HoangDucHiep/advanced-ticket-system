@@ -1,7 +1,6 @@
 # Concurrency design
 
-Lớp 3 — Design. Ticket: [`T12`](../../.scratch/advanced-ticket-system/issues/12-concurrency-design.md).
-Quyết định: AI (hợp đồng 2026-11-25 — `AGENTS.md`). Bảng và cột: [`data-model.md`](data-model.md).
+Lớp 3 — Design. Bảng và cột: [`data-model.md`](data-model.md).
 Module và transaction: [`architecture.md`](architecture.md), ADR-0008, ADR-0009.
 
 Đây là trái tim của dự án. Mỗi bài toán có: kịch bản, hậu quả nếu sai, **cơ chế tới mức viết được
@@ -32,9 +31,9 @@ SQL**, phương án bị loại, và **test chứng minh** — kèm dòng "test 
 bảo vệ — thêm một khoá ngoài không cứu được logic DB sai, chỉ thêm một hop mạng; (2) khoá có thời hạn
 không an toàn khi tiến trình bị dừng (GC pause) quá thời hạn mà không có fencing token — phân tích
 nổi tiếng của Martin Kleppmann. Redis ở đây chỉ dùng cho **tối ưu** (single-flight, rate limit), không
-bao giờ cho **tính đúng đắn**. Đóng Q06: **không cần distributed lock**.
+bao giờ cho **tính đúng đắn**. **Không cần distributed lock**.
 
-**Isolation:** toàn hệ thống `READ COMMITTED`. Đóng Q02: **không** dùng `SERIALIZABLE` ở đâu.
+**Isolation:** toàn hệ thống `READ COMMITTED`. **Không** dùng `SERIALIZABLE` ở đâu.
 
 ### Thứ tự khoá toàn cục
 
@@ -289,7 +288,7 @@ Hệ quả, theo từng thứ tự đến:
 | Webhook của X đến sau khi Y đã giữ | X quá hạn ⇒ hoàn tiền. Lệnh `Held → Sold` của X (nếu có) lọc `hold_id = X` ⇒ không thể lấy ghế của Y |
 
 **Tiến trình chết giữa chừng:** đổi trạng thái đơn và trả ghế **cùng một transaction** ⇒ chết là
-rollback cả hai, lượt sau làm lại. Không có cửa sổ "đơn `Expired` mà ghế còn `Held`". Q25 đóng: lệnh
+rollback cả hai, lượt sau làm lại. Không có cửa sổ "đơn `Expired` mà ghế còn `Held`". Lệnh
 giữ **được** lấy ghế `Held` quá hạn (ADR-0015).
 
 Thứ tự khoá: worker khoá đơn (3) rồi ghế (4) — khớp thứ tự toàn cục. Người mua mới khoá ghế (4) và
@@ -362,7 +361,6 @@ chờn, retry tự động).
   người kia huỷ; gửi lại cùng key ⇒ vẫn `409` với body cũ.
 - `HoldSeats_SameKeyDifferentBody_422`.
 - **Đỏ nếu** bỏ `PRIMARY KEY (customer_id, idempotency_key)` (migration test xoá ràng buộc) ⇒ > 1 đơn.
-  Đây cũng là tiêu chí T19.
 
 ---
 
@@ -493,7 +491,7 @@ VALUES (...) ON CONFLICT (ticket_id) DO NOTHING RETURNING checked_in_at;
 Các kiểm tra trước đó (chữ ký, đúng suất, suất chưa hủy, phân công) là **đọc** — không cần khoá.
 Suất bị hủy **đúng lúc** đang quét: chấp nhận được — check-in ghi nhận trước thời điểm hủy commit.
 
-**Không dùng Redis `SETNX`** như kế hoạch ban đầu của T24 (ADR-0013): ràng buộc DB đã là bảo đảm;
+**Không dùng Redis `SETNX`** (ADR-0013): ràng buộc DB đã là bảo đảm;
 Redis chỉ thêm một chỗ có thể lệch (key Redis còn mà transaction DB rollback ⇒ vé hợp lệ bị báo "đã
 dùng"). Tải ở cổng là vài lượt/giây — không cần chặn sớm.
 
@@ -555,7 +553,7 @@ Khi đọc: ghế `Held` có `heldUntil <= now` hiển thị là `Available` (kh
   `GET /api/showtimes/{id}/seats` trên một instance ⇒ bộ đếm lệnh SQL có tag `seatmap.load` = **1**;
   100 response giống nhau.
 - **Đỏ nếu** tắt single-flight (`UnsafeVariant=NoSingleFlight`) ⇒ bộ đếm ≈ 100.
-- Đo: tỉ lệ hit cache ở T23 (metric `seatmap_cache_requests_total{result}`).
+- Đo: tỉ lệ hit cache ở bước load test (metric `seatmap_cache_requests_total{result}`).
 
 ---
 
@@ -630,7 +628,7 @@ theo (`SC-10`, `FR-30`).
 - Endpoint đọc sơ đồ ghế được cache phục vụ (#9) nên gần như không cần connection.
 - `statement_timeout = 5s` cho role ứng dụng: không câu nào giữ connection vô hạn.
 
-Con số `30 / 100` là **khởi điểm**; T23 đo baseline rồi chỉnh — ghi số đo vào `perf/baseline.csv`.
+Con số `30 / 100` là **khởi điểm**; đo baseline ở bước load test rồi chỉnh — ghi số đo vào `perf/baseline.csv`.
 
 ### Phương án đã cân nhắc
 
@@ -642,7 +640,7 @@ Con số `30 / 100` là **khởi điểm**; T23 đo baseline rồi chỉnh — g
 
 ### Test chứng minh
 
-- **Load test** (k6, T23): kịch bản mở bán 500 req/s trong 60s vào một suất 100 ghế.
+- **Load test** (k6): kịch bản mở bán 500 req/s trong 60s vào một suất 100 ghế.
 - Khẳng định: **0** lỗi pool exhausted trong log; mọi response thuộc `{201, 409, 503}`; p99 < 2s; sau
   test, kiểm invariant #1 trên DB (không ghế nào có hai đơn).
 - Đo bằng **`dotnet-counters`** (không chỉ latency): `Npgsql` — `busy-connections`, `idle-connections`,
@@ -657,7 +655,7 @@ Con số `30 / 100` là **khởi điểm**; T23 đo baseline rồi chỉnh — g
 
 **Kịch bản**: 3 instance sau load balancer; hạn mức đăng nhập 10 lần/phút/IP.
 **Hậu quả nếu sai**: limiter trong bộ nhớ mỗi instance ⇒ thực tế 30 lần/phút — dò mật khẩu nhanh gấp
-3 (`T16`).
+3.
 
 ### Cơ chế
 
@@ -741,7 +739,7 @@ Chốt câu hỏi của ADR-0007: **advisory lock**, không phải dòng quota.
 
 ---
 
-## Bài toán #14 — Giữ ghế đua với hủy suất *(mới, phát hiện ở T10)*
+## Bài toán #14 — Giữ ghế đua với hủy suất
 
 **Kịch bản**: quản lý rạp hủy suất đúng lúc một người đang giữ ghế.
 **Hậu quả nếu sai**: lệnh giữ đọc `OnSale`, hủy suất commit và huỷ "mọi đơn đang chờ" (chưa thấy đơn
@@ -794,11 +792,11 @@ mà không hoàn.
 | 6 | Refresh reuse | DB | `UPDATE … WHERE revoked_at IS NULL` + revoke family | integration | — |
 | 7 | Webhook trùng / sai thứ tự / hoàn tiền | DB + Stripe | `UNIQUE event_id`, điều kiện trạng thái, outbox + `Idempotency-Key` | integration (Stripe test mode) | — |
 | 8 | Quét lại QR | DB | PK `ticket_id` + `ON CONFLICT` | integration | — |
-| 9 | Cache stampede | **Redis** + tiến trình | Single-flight hai tầng | integration | hit rate (T23) |
+| 9 | Cache stampede | **Redis** + tiến trình | Single-flight hai tầng | integration | hit rate |
 | 10 | Cache theo ghế | **Redis** | Ghi đè theo `version`, qua outbox | integration (2 host) | — |
 | 11 | Cạn pool | Ứng dụng | Admission control trước pool | **load (k6)** | **`dotnet-counters`** |
 | 12 | Rate limit nhiều instance | **Redis** | Token bucket Lua | integration (3 host) | — |
-| 13 | Quota 10 ghế | DB | Advisory lock (người, suất) | integration | p99 giữ ghế (T23) |
+| 13 | Quota 10 ghế | DB | Advisory lock (người, suất) | integration | p99 giữ ghế |
 | 14 | Giữ ghế ↔ hủy suất | DB | `FOR KEY SHARE` vs `FOR UPDATE` | integration | — |
 
 **Bài toán nào chỉ tồn tại vì domain model này:** #2, #3 (seat-based, n ghế — ADR-0003); #4 dạng "lấy
@@ -816,14 +814,3 @@ vé `BR-08`); #14 (hủy suất huỷ đơn chờ — ADR-0006). Với mô hình
 4. **#8** — PK ở DB thắng Redis `SETNX` vì nó là bảo đảm, còn Redis chỉ thêm khả năng lệch.
 5. **#10** — ghi đè theo `version` thắng xoá key vì không biến mỗi lần giữ ghế thành một lần miss, và
    thắng "version theo suất" vì không tạo hot row.
-
-## Câu hỏi đã đóng ở đây
-
-Q01 (cơ chế chống bán trùng — khoá theo thứ tự + điều kiện; số đo so sánh biến thể ở T23), Q02 (không
-`SERIALIZABLE`), Q06 (không distributed lock), Q08 (admission control ở middleware), Q11 (không dùng
-`teach`; phần giảng nằm ngay trong file này), Q25 (lấy ghế `Held` quá hạn — ADR-0015), khoá quota
-(advisory lock).
-
-## Trạng thái
-
-Bản đầy đủ, 2026-11-25. Số đo (pool, limiter, p99) bổ sung ở T23.

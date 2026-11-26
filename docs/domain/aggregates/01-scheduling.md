@@ -2,7 +2,7 @@
 
 Bounded context `Scheduling` (xem [`../context-map.md`](../context-map.md)).
 
-Thuật ngữ: [`../ubiquitous-language.md`](../ubiquitous-language.md).
+Thuật ngữ: [`GLOSSARY.md`](../../../GLOSSARY.md).
 
 ## Trách nhiệm
 
@@ -12,10 +12,10 @@ Quản lý phim, phòng chiếu, sơ đồ ghế vật lý, lịch chiếu và g
 `Inventory` sinh ra `Showtime seat` theo sơ đồ phòng, qua lớp dịch (xem R1). Mở bán chỉ đổi trạng
 thái suất chiếu.
 
-> **Đã đổi (2026-11-25):** trước đây ghế được sinh lúc **mở bán**. Nhưng J-06 cho quản lý rạp
-> **chặn ghế trước khi mở bán** — lúc đó chưa có `Showtime seat` nào, nên danh sách ghế bị chặn
-> phải nằm tạm ở `Scheduling` rồi được chép sang, tức là `Blocked` có **hai** nguồn sự thật. Sinh
-> ghế ngay lúc tạo suất thì `Blocked` chỉ còn **một** chủ: `Inventory`.
+Ghế được sinh ngay lúc **tạo** suất (không phải lúc mở bán) vì quản lý rạp chặn ghế **trước khi mở
+bán** (J-06): nếu ghế chưa tồn tại thì danh sách ghế bị chặn phải nằm tạm ở `Scheduling` rồi chép
+sang, tức `Blocked` có hai nguồn sự thật. Sinh ghế lúc tạo suất thì `Blocked` chỉ có **một** chủ:
+`Inventory`.
 
 ---
 
@@ -46,8 +46,8 @@ thái suất chiếu.
   suất có cùng giá; giá **không** thuộc về ghế cụ thể, và **không** thuộc về phim.
   - *Cơ chế bảo vệ*: `Showtime` chứa tập `Ticket price` — mỗi loại ghế **một** giá. Không có
     chỗ nào lưu giá theo ghế, nên "hai ghế cùng loại khác giá" **không thể biểu diễn được**.
-  - *Ai có thể vi phạm*: code tạo `Ticket price` trùng loại ghế — cần ràng buộc duy nhất trên
-    `(showtime_id, seat_type)`.
+  - *Ai có thể vi phạm*: code tạo `Ticket price` trùng loại ghế — cần ràng buộc duy nhất theo
+    (suất, loại ghế).
   - *Traces to*: `BR-12`, `FR-16`, `FR-12`.
 
 - **INV-02** — Người xem chỉ nhìn thấy và chỉ giữ ghế được suất chiếu **đang bán** và **chưa tới
@@ -83,12 +83,12 @@ thái suất chiếu.
   - *Ai có thể vi phạm*: lệnh chặn ghế không kiểm tra chủ sở hữu suất.
   - *Traces to*: `BR-11`, `BR-16`, `FR-20`, `FR-23`.
 
-- **INV-06** — *(Đã chuyển, 2026-11-25.)* Phân công nhân viên cổng giờ là aggregate
-  `Gate assignment` ở `Ticketing` — xem [`05-ticketing.md`](05-ticketing.md) `INV-08`, `INV-09`.
+- **INV-06** — Không dùng ở file này (id giữ nguyên). Phân công nhân viên cổng là aggregate
+  `Gate assignment` của `Ticketing` — xem [`05-ticketing.md`](05-ticketing.md) `INV-08`, `INV-09`.
 
 - **INV-07** — Một phòng chiếu không thể có **hai suất chiếu chồng nhau** về thời gian.
-  - *Cơ chế bảo vệ*: **KHÔNG bảo vệ được bằng transaction của aggregate `Showtime`** — xem mục
-    "Invariant không bảo vệ được bằng một transaction đơn lẻ" bên dưới.
+  - *Cơ chế bảo vệ*: **KHÔNG bảo vệ được bằng aggregate `Showtime`** — xem mục
+    "Invariant không bảo vệ được bằng một aggregate" bên dưới.
   - *Traces to*: `BR-20`, `FR-21`.
 
 ### Transaction boundary
@@ -102,11 +102,10 @@ Một transaction cho **mỗi lần sửa** (chỉ khi `NotOnSale`) và **mỗi 
 (`NotOnSale → OnSale`, chỉ đổi trạng thái).
 
 Một transaction cho **mỗi lần hủy suất** (ADR-0006): `OnSale → Cancelled`, huỷ mọi đơn
-`AwaitingPayment` của suất, ghi yêu cầu hoàn tiền (outbox) cho mọi đơn `Paid`. Việc gọi Stripe
+`AwaitingPayment` của suất, ghi yêu cầu hoàn tiền cho mọi đơn `Paid`. Việc gọi Stripe
 hoàn tiền chạy **sau**, bất đồng bộ.
 
-Tạo suất và hủy suất là **ranh giới bị cắt** (chạm `Inventory`, `Booking`, `Payment`) — xem
-[`../state-machines.md`](../state-machines.md).
+Tạo suất và hủy suất là **ranh giới bị cắt** #5 và #4 — xem [`README.md`](README.md#ranh-giới-bị-cắt--năm-chỗ).
 
 ---
 
@@ -134,7 +133,7 @@ Tạo suất và hủy suất là **ranh giới bị cắt** (chạm `Inventory`
 
 - **INV-08** — Mỗi `Room seat` có **vị trí duy nhất** trong phòng (hàng + số), và **một** loại
   ghế.
-  - *Cơ chế bảo vệ*: ràng buộc duy nhất trên `(room_id, row, number)`.
+  - *Cơ chế bảo vệ*: ràng buộc duy nhất theo (phòng, hàng, số).
   - *Ai có thể vi phạm*: code thêm ghế trùng vị trí.
   - *Traces to*: `BR-12`, `FR-23`.
 
@@ -206,7 +205,7 @@ nghiệp vụ phức tạp, nên ranh giới aggregate là ranh giới transacti
 
 ---
 
-## Invariant không bảo vệ được bằng một transaction đơn lẻ
+## Invariant không bảo vệ được bằng một aggregate
 
 - **INV-07 — `BR-20`: một phòng chiếu không thể có hai suất chiếu chồng nhau về thời gian.**
   - *Vì sao không bảo vệ được*: đây là quan hệ **giữa hai `Showtime` khác nhau**. Ranh giới
@@ -216,24 +215,19 @@ nghiệp vụ phức tạp, nên ranh giới aggregate là ranh giới transacti
     thì phải đặt ranh giới `Room` bao trọn tất cả suất chiếu của phòng — và khi đó lại quay
     về vấn đề aggregate quá lớn, cộng thêm việc một `Room` chứa hàng trăm ghế **và** hàng
     chục suất chiếu.
-  - *Cơ chế đã chọn*: **ràng buộc loại trừ** (exclusion constraint) ở tầng lưu trữ trên
-    `(room_id, khoảng thời gian)` — ở Postgres là `EXCLUDE USING gist (room_id WITH =,
-    time_range WITH &&)`. Cơ chế này **không nằm trong ranh giới aggregate** nhưng vẫn bảo vệ
-    invariant, và nó mạnh hơn kiểm tra ứng dụng vì chặn được cả **hai lệnh tạo suất chiếu chạy
-    đồng thời** — mà kiểm tra "có suất nào chồng không" trong ứng dụng thì không.
+  - *Cơ chế đã chọn*: **ràng buộc loại trừ** ở tầng lưu trữ theo (phòng, khoảng thời gian) — khung
+    [`../../design/data-model.md`](../../design/data-model.md). Nó **không nằm trong ranh giới
+    aggregate** nhưng vẫn bảo vệ invariant, và mạnh hơn kiểm tra ứng dụng vì chặn được cả **hai lệnh
+    tạo suất chạy đồng thời**.
   - *Hệ quả được chấp nhận*: việc bảo vệ invariant nằm **ngoài** ranh giới aggregate. Đây là
     hệ quả không tránh được của việc invariant mang tính chất **quan hệ giữa hai aggregate**.
   - *Điều kiện để chấp nhận được*: phải có **khoảng đệm giữa hai suất** (thời gian dọn dẹp) —
-    khoảng thời gian trong ràng buộc là `[giờ bắt đầu, giờ kết thúc + khoảng đệm)`. Suất
-    `Cancelled` **không** tính vào ràng buộc (ràng buộc có điều kiện), nếu không thì hủy một suất
-    sẽ chặn vĩnh viễn khung giờ đó. Khoảng đệm = **15 phút** (`BR-20`, đóng Q22).
+    khoảng bị chiếm là `[giờ bắt đầu, giờ kết thúc + khoảng đệm)`. Suất `Cancelled` **không**
+    tính, nếu không thì hủy một suất sẽ chặn vĩnh viễn khung giờ đó. Khoảng đệm = **15 phút** (`BR-20`).
   - *Traces to*: `BR-20`, `FR-21`.
 
-> **Bài học của `INV-07`.** Có những invariant mà **aggregate boundary không đủ** — không phải
-> vì ranh giới chọn sai, mà vì bản thân invariant mang tính chất **quan hệ giữa hai aggregate**
-> ("hai suất chiếu này không được chồng nhau"). Đây là dạng thứ ba của "không bảo vệ được bằng
-> transaction đơn lẻ": không phải do **tích luỹ xuyên nhiều aggregate** (`BR-08`), cũng không
-> phải do **cần điều phối nhiều bước** (`BR-17`), mà là do **quan hệ giữa hai aggregate**.
+> `INV-07` là dạng thứ ba của "không bảo vệ được bằng một aggregate": **quan hệ giữa hai aggregate**
+> (khác với *tích luỹ xuyên nhiều aggregate* — `BR-08`, và *điều phối nhiều bước* — `BR-17`).
 
 ---
 

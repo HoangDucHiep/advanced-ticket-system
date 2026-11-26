@@ -1,8 +1,6 @@
 # 00 — Overview
 
-Lớp 1 — PRD. File này nói **hệ thống dành cho ai, giải quyết vấn đề gì, và thành công trông như thế nào**. Nó không chứa giải pháp kỹ thu.
-
-Nguồn: ticket `.scratch/advanced-ticket-system/issues/01-overview.md`.
+Lớp 1 — PRD. File này nói **hệ thống dành cho ai, giải quyết vấn đề gì, và thành công trông như thế nào**. Nó không chứa giải pháp kỹ thuật.
 
 ## Vấn đề
 
@@ -69,7 +67,6 @@ Job là thứ actor **muốn**, không phải thứ hệ thống **làm**. Phầ
 | Job                             | Ý nghĩa                                               |
 | ------------------------------- | ----------------------------------------------------- |
 | Quét và xác minh vé             | Xác định người đó có vé hợp lệ, ghế nào, và chưa dùng |
-| ~~Làm được khi mất mạng~~       | **Đã loại khỏi phạm vi** — xem `NR-15`                |
 | Chặn vé không hợp lệ            | Vé giả, vé đã quét trước, vé của suất chiếu khác      |
 | Ghi nhận số người đã vào        | Đếm số lượt check-in thành công                       |
 
@@ -89,53 +86,36 @@ không sinh ra được phép đo nào thì là văn hoa, và sẽ bị loại k
 
 ### Tính đúng đắn — bắt buộc đúng 100%
 
-| #     | Tiêu chí                                                                                                       | Bằng chứng                                                                |
-| ----- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| SC-01 | Một ghế **không bao giờ** được bán cho hai người                                                               | 2 người cùng đặt 1 ghế → **đúng** 1 thắng, 1 thua                         |
-| SC-02 | Đặt N ghế phải **giữ được đủ N** hoặc **không giữ ghế nào**                                                    | Giữ được 3 trong 4 ghế → cả 4 ghế phải trở về trống                       |
-| SC-03 | Không bao giờ xảy ra **kẹt** khi hai người tranh cùng một lúc ghế                                              | 2 người chọn ghế ngược thứ tự → cả hai nhận phản hồi trong thời gian giới hạn, **không** yêu cầu nào bị hệ thống huỷ ngang vì kẹt; mỗi người thắng, hoặc thua với lý do "ghế đã có người" |
-| SC-04 | Mỗi lần thanh toán chỉ cấp **đúng một** bộ vé, dù thông báo kết quả thanh toán từ bên thứ ba đến lặp nhiều lần | Gửi cùng một thông báo 3 lần → đúng 1 lần cấp vé                          |
-| SC-05 | Mỗi vé chỉ check-in được **đúng một lần** — kể cả khi quét liên tục, hoặc nhiều cổng quét cùng lúc              | Quét cùng một vé 10 lần → 1 bản ghi check-in                              |
-| SC-06 | Không tạo ra hai đơn đặt vé cho cùng một yêu cầu, kể cả khi người dùng gửi lại yêu cầu cũ                      | 50 request cùng định danh yêu cầu → đúng 1 đơn                            |
-| SC-07 | Không mất ghế nào — chỗ giữ hết hạn phải trả lại ghế cho người khác đặt được                                   | Ghế hết thời gian giữ chỗ → lập tức người khác đặt được                   |
+| #     | Tiêu chí                                                                                                       | Bằng chứng                                                                | FR đáp ứng |
+| ----- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | --- |
+| SC-01 | Một ghế **không bao giờ** được bán cho hai người                                                               | 2 người cùng đặt 1 ghế → **đúng** 1 thắng, 1 thua                         | FR-01 |
+| SC-02 | Đặt N ghế phải **giữ được đủ N** hoặc **không giữ ghế nào**                                                    | Giữ được 3 trong 4 ghế → cả 4 ghế phải trở về trống                       | FR-02 |
+| SC-03 | Không bao giờ xảy ra **kẹt** khi hai người tranh cùng một lúc ghế                                              | 2 người chọn ghế ngược thứ tự → cả hai nhận phản hồi trong thời gian giới hạn, **không** yêu cầu nào bị hệ thống huỷ ngang vì kẹt; mỗi người thắng, hoặc thua với lý do "ghế đã có người" | FR-03 |
+| SC-04 | Mỗi lần thanh toán chỉ cấp **đúng một** bộ vé, dù thông báo kết quả thanh toán từ bên thứ ba đến lặp nhiều lần | Gửi cùng một thông báo 3 lần → đúng 1 lần cấp vé                          | FR-05, FR-06, FR-16, FR-24, FR-38, FR-39 |
+| SC-05 | Mỗi vé chỉ check-in được **đúng một lần** — kể cả khi quét liên tục, hoặc nhiều cổng quét cùng lúc              | Quét cùng một vé 10 lần → 1 bản ghi check-in                              | FR-07, FR-08, FR-25, FR-27, FR-33, FR-35, FR-40 |
+| SC-06 | Không tạo ra hai đơn đặt vé cho cùng một yêu cầu, kể cả khi người dùng gửi lại yêu cầu cũ                      | 50 request cùng định danh yêu cầu → đúng 1 đơn                            | FR-37 |
+| SC-07 | Không mất ghế nào — chỗ giữ hết hạn phải trả lại ghế cho người khác đặt được                                   | Ghế hết thời gian giữ chỗ → lập tức người khác đặt được                   | FR-04, FR-06, FR-18 |
 
 ### Hiệu năng — mục tiêu, con số chốt sau khi đo baseline
 
-| #     | Tiêu chí                                                                                                                                                         | Bằng chứng                                       |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| SC-08 | Đọc: p99 đáp ứng mục tiêu dưới tải đọc thông thường                                                                                                              | Số chốt sau baseline (T23)                       |
-| SC-09 | Ghi dưới tải mở bán phim hot: p99 đáp ứng mục tiêu                                                                                                               | Số chốt sau baseline (T23)                       |
-| SC-10 | Mở bán phim hot **không sập**: không có yêu cầu nào bị treo quá thời gian chờ, hệ thống vẫn phản hồi được thay vì không đáp ứng, và không ghế nào bị bán hai lần | Kịch bản mở bán ở T23 + kiểm tra invariant SC-01 |
-| SC-11 | Phần lớn lưu lượng xem sơ đồ ghế được phục vụ mà không phải đọc tới nơi lưu trữ dữ liệu gốc                                                                      | Tỉ lệ trúng đo được ở T17/T23                    |
+| #     | Tiêu chí                                                                                                                                                         | Bằng chứng                                       | FR đáp ứng |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | --- |
+| SC-08 | Đọc: p99 đáp ứng mục tiêu dưới tải đọc thông thường                                                                                                              | Số chốt sau khi đo baseline                       | FR-11, FR-12, FR-30 |
+| SC-09 | Ghi dưới tải mở bán phim hot: p99 đáp ứng mục tiêu                                                                                                               | Số chốt sau khi đo baseline                       | FR-14, FR-16, FR-21, FR-30 |
+| SC-10 | Mở bán phim hot **không sập**: không có yêu cầu nào bị treo quá thời gian chờ, hệ thống vẫn phản hồi được thay vì không đáp ứng, và không ghế nào bị bán hai lần | Kịch bản tải mở bán + kiểm tra SC-01 | FR-01, FR-30 |
+| SC-11 | Phần lớn lưu lượng xem sơ đồ ghế được phục vụ mà không phải đọc tới nơi lưu trữ dữ liệu gốc                                                                      | Tỉ lệ trúng đo được dưới tải                    | FR-13, FR-30 |
 
 > **Vì sao không ghi con số cứng:** nếu PRD ghi `p99 < 200ms` rồi đo ra `350ms`, bạn phải sửa PRD
 > hoặc nói dối. Ghi "mục tiêu, chốt sau baseline" vẫn trung thực và vẫn đo được — và nó buộc
 > bạn **đo trước khi cam kết**, đúng nguyên tắc của cả dự án.
 
+SC-08 đến SC-11 là **tiêu chí phi chức năng**: chúng không sinh ra FR hành vi riêng, mà được kiểm chứng bằng cách đo trên các hành vi đã có.
+
 ### Tiêu chí bằng chứng
 
-| #     | Tiêu chí                                                                                                                       |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------ |
-| SC-12 | Mọi tuyên bố về tính đúng đắn và hiệu năng trong repo đều có **test hoặc số đo** đi kèm. Không một câu nào là khẳng định trần. |
+| #     | Tiêu chí                                                                                                                       | FR đáp ứng |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------ | --- |
+| SC-12 | Mọi tuyên bố về tính đúng đắn và hiệu năng trong repo đều có **test hoặc số đo** đi kèm. Không một câu nào là khẳng định trần. | mọi FR (dòng Kiểm chứng) |
 
 SC-12 là tiêu chí quan trọng nhất với mục đích CV: nó biến "tôi đã xử lý concurrency" (không
 có giá trị) thành "test này fail nếu bỏ cơ chế đó" (có giá trị, và không ai phản bác được).
-
-## Bài học mong muốn có được
-
-Đây là tiêu chí thành công quan trọng nhất về mặt cá nhân, và nó cũng là công cụ **cắt scope**
-sau này: mỗi khi bạn muốn thêm một tính năng, hãy hỏi nó có giúp học được điều này không.
-
-- Hiểu cơ chế nào thực sự ngăn được việc bán trùng, và **đo** sự khác biệt giữa các phương án.
-- Hiểu vì sao giữ **nhiều ghế cùng lúc** là bài toán khác hẳn giữ **một ghế**, và vì sao thứ tự
-  khoá lại quan trọng.
-- Biết viết test concurrency có giá trị — test mà **fail** khi cơ chế bị thay bằng cách sai.
-- Biết thiết kế để một request có thể đến lặp, đến trễ, đến sai thứ tự mà hệ thống vẫn đúng.
-- Biết đo hiệu năng có baseline, không chỉ có con số đẹp.
-
-## Ghi chú
-
-- File này nói về **nghiệp vụ**. Cơ chế, mô hình lưu trữ, giao diện lập trình thuộc về Lớp 2 và
-  Lớp 3 — không có ở đây. (Ngoại lệ duy nhất: `p99` trong success criteria là **cách đo**,
-  không phải cơ chế.)
-- 13 bài toán concurrency (bài #13 thêm 2026-11-25) và stack công nghệ đã chốt nằm ở `docs/plan/00-roadmap.md`.

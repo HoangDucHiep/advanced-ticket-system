@@ -2,7 +2,7 @@
 
 Bounded context `Identity & Access` (xem [`../context-map.md`](../context-map.md)).
 
-Thuật ngữ: [`../ubiquitous-language.md`](../ubiquitous-language.md).
+Thuật ngữ: [`GLOSSARY.md`](../../../GLOSSARY.md).
 
 ## Trách nhiệm
 
@@ -22,9 +22,9 @@ chứ không sở hữu dữ liệu này. Vì vậy aggregate ở đây là aggr
 | Thành phần | Bản chất | Vai trò |
 |---|---|---|
 | Vai trò (`Customer`, `Theater manager`, `Gate staff`, `Administrator`) | value object | Người dùng thuộc **đúng một** vai trò; quyền suy ra từ vai trò (không có tập quyền riêng) |
-| Số phiên bản vai trò | thuộc tính | Tăng mỗi lần đổi vai trò — dùng để vô hiệu cache vai trò (INV-02) |
+| Số phiên bản vai trò | thuộc tính | Tăng mỗi lần đổi vai trò — dùng để vô hiệu bản sao vai trò đã nhớ (INV-02) |
 | Lịch sử thay đổi quyền | append-only | Mọi lần cấp/thu quyền, kèm thời điểm và người thực hiện |
-| Mật khẩu / thông tin đăng nhập | — | Xem T16 (Lớp 4) |
+| Mật khẩu / thông tin đăng nhập | — | Cơ chế đăng nhập thuộc Lớp 3: [`../../design/architecture.md`](../../design/architecture.md) |
 
 **Boundary**: nằm **ngoài** aggregate này —
 
@@ -44,22 +44,20 @@ chứ không sở hữu dữ liệu này. Vì vậy aggregate ở đây là aggr
 
 - **INV-02** — Thu quyền phải có **hiệu lực ngay**: sau khi thu quyền, người dùng **mất** khả
   năng tương ứng, và thay đổi được ghi nhận lại.
-  - *Cơ chế bảo vệ*: lệnh thu quyền là **một transaction duy nhất** gồm: gỡ quyền khỏi tập
-    quyền **và** ghi một dòng lịch sử. Nếu chỉ một phía được ghi, thì hoặc quyền vẫn còn (lỗ hổng)
+  - *Cơ chế bảo vệ*: lệnh thu quyền là **một lần ghi atomic** gồm: gỡ quyền **và** ghi một dòng lịch
+    sử. Nếu chỉ một phía được ghi, thì hoặc quyền vẫn còn (lỗ hổng)
     hoặc mất quyền mà không có dấu vết.
-  - *Ai có thể vi phạm*: (1) code thu quyền ở một nơi và ghi log ở nơi khác, không cùng
-    transaction; (2) **các context khác tin vai trò ghi trong token đăng nhập**. Token (JWT) là
+  - *Ai có thể vi phạm*: (1) code thu quyền ở một nơi và ghi log ở nơi khác, không atomic; (2) **các context khác tin vai trò ghi trong token đăng nhập**. Token đăng nhập là
     ảnh chụp lúc đăng nhập — thu quyền xong, token cũ vẫn mang vai trò cũ tới khi hết hạn ⇒ "hiệu
     lực ngay" bị vi phạm.
   - *Quy tắc kèm theo*: token chỉ dùng để xác định **ai** đang gọi. **Vai trò hiện hành** luôn
-    được hỏi từ `Identity & Access` (R8). Được phép cache, nhưng cache phải bị **vô hiệu ngay** khi
-    vai trò đổi (ví dụ theo số phiên bản quyền của người dùng). Chi tiết cơ chế ở T16.
+    được hỏi từ `Identity & Access` (R8). Được phép nhớ tạm, nhưng bản nhớ phải bị **vô hiệu ngay** khi
+    vai trò đổi (theo số phiên bản vai trò). Cơ chế: [`../../design/concurrency.md`](../../design/concurrency.md) #6, [`../../design/api-contract.md`](../../design/api-contract.md).
   - *Traces to*: `BR-26`, `FR-29`.
 
 - **INV-03** — Lịch sử thay đổi quyền là **append-only** — không sửa, không xoá.
   - *Cơ chế bảo vệ*: aggregate chỉ **thêm** vào lịch sử; không có hành vi nào sửa hoặc xoá.
-  - *Ai có thể vi phạm*: mã nguồn có quyền ghi trực tiếp bảng lịch sử ngoài lĩnh vực của
-    aggregate.
+  - *Ai có thể vi phạm*: mã nguồn ngoài aggregate ghi trực tiếp vào lịch sử.
   - *Traces to*: `BR-26`, `FR-29`.
 
 - **INV-04** — Một người dùng có **đúng một** vai trò.
@@ -89,18 +87,11 @@ chứ không sở hữu dữ liệu này. Vì vậy aggregate ở đây là aggr
     suất chiếu thuộc cổng B.
   - *Traces to*: `BR-15`, `FR-33`, `FR-35`.
 
-### Transaction boundary
+### Ranh giới atomic
 
-Một transaction duy nhất cho **mỗi lần thay đổi quyền**:
-
-1. Kiểm tra vai trò người gọi là quản trị viên;
-2. Cập nhật vai trò;
-3. Ghi một dòng lịch sử thay đổi quyền.
-
-Một transaction duy nhất cho **mỗi lần đăng nhập / làm mới phiên đăng nhập** — chi tiết cơ chế
-(JWT, refresh rotation, reuse detection) là Lớp 4, xem T16.
-
-Ranh giới transaction = **ranh giới aggregate**.
+Một lần ghi atomic cho **mỗi lần thay đổi quyền**: kiểm tra người gọi là quản trị viên; cập nhật vai
+trò; ghi một dòng lịch sử. Cơ chế đăng nhập / làm mới phiên là Lớp 3
+([`../../design/concurrency.md`](../../design/concurrency.md) #6).
 
 ---
 
@@ -110,8 +101,7 @@ Ranh giới transaction = **ranh giới aggregate**.
 tới** aggregate của context nào khác. Mọi thứ nó biết về người khác — đơn, vé, lịch chiếu —
 đều là **thứ được hỏi**, không phải thứ được giữ.
 
-Đây là hệ quả trực tiếp của việc chọn quan hệ `Customer/Supplier` thay vì `Shared Kernel` ở
-T06. Nếu ta chọn `Shared Kernel`, aggregate `User` sẽ phải chứa một phần mô hình của `Booking`,
+Đây là hệ quả trực tiếp của quan hệ `Customer/Supplier` thay vì `Shared Kernel` (R8). Nếu chọn `Shared Kernel`, aggregate `User` sẽ phải chứa một phần mô hình của `Booking`,
 và ranh giới sẽ nở ra — và mọi thay đổi ở một bên sẽ phải đổi cả bên kia.
 
 ---

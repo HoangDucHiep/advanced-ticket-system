@@ -8,7 +8,7 @@ Related: ADR-0008, ADR-0009, ADR-0011, ADR-0016
 
 # Mỗi use case một handler gọi thẳng, transaction tường minh, repository theo aggregate — không mediator
 
-*AI quyết định (hợp đồng 2026-11-25).* Chi tiết: [`docs/design/building-blocks.md`](../design/building-blocks.md) B6–B8.
+Chi tiết: [`docs/design/building-blocks.md`](../design/building-blocks.md) B6–B8.
 
 ## Context
 

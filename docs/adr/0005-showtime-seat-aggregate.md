@@ -112,5 +112,5 @@ Thêm nữa, SQL trong ADR-0002 (`SET status='Held', held_until=…, …`) vốn
   bản ghi `Seat hold`".
 - `docs/domain/cross-context-contracts.md` — R3 (`Booking` lưu `expires_at`; bỏ cặp thuật ngữ
   `Seat hold` / `Booking`).
-- `docs/domain/ubiquitous-language.md` — `Seat hold` định nghĩa lại là thông tin giữ trên ghế.
+- `GLOSSARY.md` — `Seat hold` định nghĩa lại là thông tin giữ trên ghế.
 - `docs/plan/00-roadmap.md` — log quyết định.
