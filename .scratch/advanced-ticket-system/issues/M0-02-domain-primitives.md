@@ -16,7 +16,8 @@ minh (M0-03).
 **Trong** (`Shared.Abstractions/Domain/`):
 - `Entity<TId>` (bằng nhau theo `Id`), `AggregateRoot<TId>` (gom event; `DequeueDomainEvents` lấy và xoá),
   `ValueObject` (abstract record marker), `IDomainEvent` (có `OccurredAt`), `IEntityId`.
-- Cách tạo typed id mới bằng UUIDv7 (`Guid.CreateVersion7()`); một id mẫu trong test để chứng minh khuôn.
+- `IEntityId<TSelf>` + lớp tĩnh `EntityId` (`New<TId>()` bằng UUIDv7) theo B9; một id mẫu trong test để
+  chứng minh khuôn.
 - Test nằm ở `TicketSystem.Shared.Tests` (M0-01).
 
 **Ngoài:**
@@ -43,7 +44,7 @@ AI viết các test này trước. Dùng các class mẫu chỉ có trong test p
 | `ValueObject_is_immutable` | Property của value object mẫu không có setter public (init-only / positional) | Có setter public |
 | `Entity_has_no_public_setters` | Mọi property của `Entity<TId>` / `AggregateRoot<TId>` không có setter public | `Id` sửa được từ ngoài |
 | `TypedId_new_is_uuidv7_and_ordered` | Hai id tạo liên tiếp có thứ tự tăng, version nibble = 7 | Dùng `Guid.NewGuid()` (random v4) |
-| `TypedId_default_is_distinguishable` | Id mặc định (`Guid.Empty`) phân biệt được với id hợp lệ | Id rỗng lọt vào như hợp lệ mà không ai phát hiện |
+| `TypedId_default_is_rejected_by_entity` | Id mặc định (`Guid.Empty`) khác id mới; tạo entity với id mặc định ⇒ `ArgumentException` | Id rỗng lọt vào domain mà không ai phát hiện |
 
 ## Câu hỏi review
 1. Vì sao `ValueObject` chỉ là record marker, không có `GetEqualityComponents()`?
