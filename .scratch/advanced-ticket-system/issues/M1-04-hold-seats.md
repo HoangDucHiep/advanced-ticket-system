@@ -26,6 +26,7 @@ người cùng có một ghế — chứng minh bằng test chồng lấn thật
   `404 BOOKING_NOT_FOUND` (FR-10).
 - `Booking` gọi `Inventory` qua interface ở `Inventory.Contracts` (R3), SQL tay nằm trong `Inventory`; `Booking` đọc
   trạng thái + giá suất qua `Scheduling.Contracts` (R9). Migration của `booking` cho `bookings`, `booking_lines`, `booking_history`.
+- Test nằm ở project test của module (tạo từ template M0-08 nếu chưa có) và dùng `TicketSystem.Testing`.
 
 **Ngoài:**
 - Khử trùng theo `Idempotency-Key`, bảng `idempotency_records`, savepoint, `422 IDEMPOTENCY_KEY_REUSED` (M2-02, ADR-0011).

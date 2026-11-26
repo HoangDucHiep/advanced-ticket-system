@@ -12,8 +12,8 @@ requirement ở [`../prd/`](../prd/). Thiết kế không có nguồn gốc là 
 | [`data-model.md`](data-model.md) | Schema, cột, index, constraint; đối chiếu invariant → cơ chế ở DB |
 | [`concurrency.md`](concurrency.md) | 14 bài toán concurrency: cơ chế, SQL, test chứng minh, "đỏ nếu…" |
 | [`api-contract.md`](api-contract.md) | Endpoint, mã lỗi, ý nghĩa status, idempotency contract |
-| [`building-blocks.md`](building-blocks.md) | Result / `ErrorType` → status, problem+json, handler, transaction, repository, domain tối thiểu (B1–B12) |
-| [`coding-conventions.md`](coding-conventions.md) | Checklist viết và review code (C-01…C-32, smell) |
+| [`building-blocks.md`](building-blocks.md) | Nền móng dùng chung (B1–B19): Result / problem+json, handler interface + decorator, transaction, repository, domain primitives (base class), domain event + bus in-process, persistence / web / auth / observability / test foundation, tooling |
+| [`coding-conventions.md`](coding-conventions.md) | Checklist viết và review code (C-01…C-41, smell) |
 
 Ánh xạ FR → endpoint / bài toán: [`../plan/traceability.md`](../plan/traceability.md).
 

@@ -24,6 +24,7 @@ kể cả khi kết quả đó là lời từ chối. Đây là bảo đảm duy
   `Idempotent-Replayed: true`.
 - Cơ chế đặt ở `Shared.Infrastructure` (dùng chung), bảng `booking.idempotency_records` thuộc `Booking`.
 - Job dọn mỗi giờ, xoá lô 1000 dòng quá 24 giờ.
+- Test nằm ở project test của module (tạo từ template M0-08 nếu chưa có) và dùng `TicketSystem.Testing`.
 
 **Ngoài:**
 - Thiếu header ⇒ `400 IDEMPOTENCY_KEY_REQUIRED` đã có từ M1-04; ở đây chỉ giữ nguyên.

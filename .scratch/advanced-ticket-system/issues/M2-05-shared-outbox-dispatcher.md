@@ -13,16 +13,17 @@ gửi email, vô hiệu cache). M2-06, M2-07, M2-08 và M3-03 chỉ việc ghi m
 
 ## Phạm vi
 **Trong:**
-- Một bảng `outbox_messages` **mỗi module** cần nó (`inventory`, `booking`, `payment`), cùng hình dạng,
-  cấu hình từ `Shared.Infrastructure` (không bảng chung ở `shared` — D5).
-- Abstraction ghi outbox trong `Shared.Abstractions` (ghi qua connection/transaction của `IUnitOfWork`, cùng
-  transaction với thay đổi nghiệp vụ) và abstraction handler theo `type`.
+- Một bảng `outbox_messages` **mỗi module** cần nó (`inventory`, `booking`, `payment`), cùng hình dạng; dùng
+  **cấu hình bảng dùng chung** đã khai báo ở M0-04 (không bảng chung ở `shared` — D5), mỗi module thêm migration.
+- **Hiện thực** `IOutboxWriter` — interface đã có từ M0-03 — ghi qua connection / transaction của `IUnitOfWork`,
+  cùng transaction với thay đổi nghiệp vụ; cộng abstraction handler theo `type`.
 - Dispatcher là hosted service ở host: claim bằng lease (`locked_until`, tăng `attempts`) với
   `FOR UPDATE SKIP LOCKED`, **commit ngay rồi mới gọi handler**; thành công ⇒ `processed_at`; lỗi ⇒
   `last_error` + backoff qua `available_at`; quá 10 lần ⇒ `dead_at` + log mức `Critical`.
 - Hỗ trợ hẹn giờ (`available_at` ở tương lai) — M2-06 cần cho email nhắc.
 - Handler chỉ cần idempotent (at-least-once); ticket này chỉ có **handler thử** trong test, không có
   handler nghiệp vụ.
+- Test nằm ở project test của module (tạo từ template M0-08 nếu chưa có) và dùng `TicketSystem.Testing`.
 
 **Ngoài:**
 - Handler nghiệp vụ: huỷ intent Stripe, email nhắc → M2-06; hoàn tiền → M2-07; cache sơ đồ ghế
@@ -33,7 +34,7 @@ gửi email, vô hiệu cache). M2-06, M2-07, M2-08 và M3-03 chỉ việc ghi m
 - [`architecture.md`](../../../docs/design/architecture.md) — mục "D8 — Outbox".
 - [`data-model.md`](../../../docs/design/data-model.md) — mục "Outbox — mỗi module một bảng" (cột, index, câu claim).
 - [`concurrency.md`](../../../docs/design/concurrency.md) — "Bài toán #7" (phần gửi hoàn tiền: lease hết ⇒ worker khác làm lại).
-- [`building-blocks.md`](../../../docs/design/building-blocks.md) — B7, B11 (Options + `ValidateOnStart`).
+- [`building-blocks.md`](../../../docs/design/building-blocks.md) — mục "B7 — Ai mở và commit transaction", "B11 — Cấu hình: Options pattern + kiểm khi khởi động", "B13 — Domain event và bus in-process" (dòng `IOutboxWriter`), "B14 — Persistence foundation" (dòng Outbox).
 
 ## Test
 Gợi ý — người học viết. Integration trên Postgres thật.

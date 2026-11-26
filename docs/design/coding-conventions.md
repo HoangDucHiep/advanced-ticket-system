@@ -1,6 +1,6 @@
 # Coding conventions — checklist viết và review code
 
-Lớp 3 — Design. Đi kèm [`building-blocks.md`](building-blocks.md) (B1–B12).
+Lớp 3 — Design. Đi kèm [`building-blocks.md`](building-blocks.md) (B1–B19).
 
 Mỗi mục là một câu **kiểm được** khi đọc diff. Khi review (`/code-review`), AI đối chiếu với file này và
 trích số mục (vd "C-07"). Mục nào có "vì sao" thì lý do nằm ngay cạnh — đây cũng là giáo trình.
@@ -26,14 +26,14 @@ Luật đã được compiler / analyzer / arch test kiểm thì **không** lặ
 |---|---|---|
 | C-06 | Không `DateTime.Now` / `DateTime.UtcNow` / `DateTimeOffset.UtcNow` trong code nghiệp vụ — dùng `TimeProvider` (B10); domain nhận `now` làm tham số | Test tua giờ được; một nguồn thời gian |
 | C-07 | Thời gian là `DateTimeOffset` UTC, DB là `timestamptz` | Không lẫn múi giờ |
-| C-08 | Id mới: `Guid.CreateVersion7()`; không `Guid.NewGuid()` cho khoá chính | UUIDv7 tăng dần, không làm phân mảnh B-tree (`data-model.md`) |
+| C-08 | Id mới: typed id (`XxxId`) tạo bằng `Guid.CreateVersion7()`; không `Guid.NewGuid()` cho khoá chính, không dùng `Guid` trần làm id của aggregate | UUIDv7 tăng dần, không làm phân mảnh B-tree (`data-model.md`); typed id chặn truyền nhầm id (B9) |
 | C-09 | Tiền là `long` đơn vị **đồng**; không `decimal`/`double` cho VND | `api-contract.md`: VND không có phần lẻ |
 
 ## 3. Kiểu và hiển thị
 
 | # | Luật | Vì sao |
 |---|---|---|
-| C-10 | Type trong project nội bộ module là `internal`; class là `sealed` trừ khi thiết kế để kế thừa. Ngoại lệ: `<Module>Module`, controller | Bề mặt public nhỏ = ít thứ phải giữ ổn định; `sealed` giúp JIT và nói rõ ý định |
+| C-10 | Type trong project nội bộ module là `internal`; class là `sealed` trừ khi thiết kế để kế thừa. Ngoại lệ: `<Module>Module`, controller. Aggregate, handler, repository luôn `sealed` | Bề mặt public nhỏ = ít thứ phải giữ ổn định; `sealed` giúp JIT và nói rõ ý định |
 | C-11 | Inject qua **primary constructor**; không service locator (`IServiceProvider.GetService` trong code nghiệp vụ) | Phụ thuộc nhìn thấy ở chữ ký |
 | C-12 | DTO là `record` bất biến. Ba loại DTO không dùng lẫn: HTTP (`Api/`), `.Contracts`, domain ([`building-blocks.md`](building-blocks.md#cấu-trúc-thư-mục-bên-trong-một-module)) | Đổi schema DB không làm đổi API; không lộ `password_hash` |
 | C-13 | Không dùng `!` (null-forgiving) để im compiler — sửa kiểu, hoặc kiểm rồi ném `InvalidOperationException` có message | `!` là nói dối compiler; null vẫn tới lúc chạy |
@@ -47,14 +47,14 @@ Luật đã được compiler / analyzer / arch test kiểm thì **không** lặ
 | C-16 | Không `catch (Exception)` trong module. Chỉ bắt exception **cụ thể** mà mình xử lý được (vd `PostgresException` có `SqlState == "23505"` + tên constraint) | Nuốt lỗi = bug biến mất khỏi log; `GlobalExceptionHandler` lo phần còn lại |
 | C-17 | Mọi `Error` có `Code`, `Title`, `Action` không rỗng; `Code` khớp bảng của `api-contract.md` | `FR-36`; client dựa vào `code` |
 | C-18 | Tài nguyên của người khác ⇒ `NotFound`, không `Forbidden` | `FR-10`: không rò rỉ việc tài nguyên tồn tại |
-| C-19 | Handler mở transaction **tường minh** và chỉ commit ở cuối; không commit hai lần; không gọi `BeginAsync` trong vòng lặp (B7) | Ranh giới transaction phải review được |
+| C-19 | Handler mở transaction **tường minh** và chỉ commit ở cuối; không commit hai lần; không gọi `BeginAsync` trong vòng lặp (B7). Decorator và `IEventHandler` không bao giờ `BeginAsync` / `CommitAsync` | Ranh giới transaction phải review được |
 | C-20 | Mỗi câu SQL tay có comment một dòng: **vì sao ORM không biểu đạt được** (quy tắc ở [`README.md`](README.md)) và tham chiếu `concurrency.md #n` nếu có | Lý do của SQL tay là thứ dễ mất nhất khi refactor |
 
 ## 5. Log và bảo mật
 
 | # | Luật | Vì sao |
 |---|---|---|
-| C-21 | Log dạng **message template**: `logger.LogInformation("User {UserId} registered", id)` — không string interpolation `$"..."` | Structured log query được theo trường (xem phần observability ở [`architecture.md`](architecture.md#stack)); không cấp phát chuỗi khi log level tắt |
+| C-21 | Log dạng **message template** (tên trường trong ngoặc nhọn, giá trị truyền làm tham số riêng) — không nội suy chuỗi | Structured log query được theo trường (xem phần observability ở [`architecture.md`](architecture.md#stack)); không cấp phát chuỗi khi log level tắt |
 | C-22 | Không log password, token (access / refresh), hash, `Authorization` header, connection string, secret Stripe | Log là nơi rò rỉ phổ biến nhất |
 | C-23 | So sánh giá trị bí mật **trong code** (chữ ký HMAC của QR, hash) bằng `CryptographicOperations.FixedTimeEquals`, không `==` / `SequenceEqual`. Tra refresh token theo index trên `token_hash` là được: token ngẫu nhiên 256 bit, thời gian tra index không lộ gì dùng được | Chống timing attack |
 | C-24 | Số ngẫu nhiên cho token: `RandomNumberGenerator`, không `Random` | `Random` đoán được |
@@ -88,12 +88,29 @@ nghĩa (`Booking`, không `Order`; `Showtime`, không `Screening`).
 | C-31 | Assert hợp đồng lỗi bằng `code`, không bằng `title`/`detail` | `title` là văn bản cho người, đổi được |
 | C-32 | Thời gian trong test dùng `FakeTimeProvider`; không `Task.Delay` để "chờ hết hạn" | Test nhanh và không flaky |
 
-## 8. Smell — dừng lại khi thấy
+## 8. Domain, handler, event (ADR-0018)
+
+| # | Luật | Vì sao |
+|---|---|---|
+| C-33 | Aggregate kế thừa `AggregateRoot<TId>`, entity con kế thừa `Entity<TId>`, value object kế thừa `ValueObject`; không tự cài lại so sánh bằng | Một khuôn cho 6 module; arch test và quy ước EF bám vào base class (B9) |
+| C-34 | Mọi handler hiện thực `ICommandHandler` hoặc `IQueryHandler`; controller inject **interface của handler**, không inject class cụ thể; handler không gọi handler khác | Decorator và quét đăng ký áp được cho mọi handler (B6); handler gọi handler là use case dính nhau |
+| C-35 | Handler publish domain event bằng `IEventPublisher` **trước** `CommitAsync`, trong cùng transaction; lấy event bằng `DequeueDomainEvents`, không giữ lại sau khi publish | Thời điểm publish tường minh, exception ở handler event ⇒ rollback (B13) |
+| C-36 | Không dispatch event trong `SaveChanges` / interceptor; không `Task.Run` để publish | Giấu thời điểm, mất atomicity (B13) |
+| C-37 | Value object không có setter (`init` hoặc positional), tạo qua factory `Create` trả `Result<T>` | Bất biến; arch test kiểm (B9, B18) |
+| C-38 | Repository chỉ có cho `AggregateRoot<TId>`; không repository cho entity con, không `IRepository<T>` generic | Repository = ranh giới aggregate (B8) |
+| C-39 | Controller kế thừa `ApiControllerBase`; không tự map `Result` sang status bằng `if` rải rác | Một nơi map `Result → HTTP` (B15) |
+| C-40 | Không tự cấu hình JSON, tên bảng / cột, converter id ở module — dùng cấu hình nền (B14, B15) | Một quy ước cho mọi module |
+| C-41 | Mỗi module có project test `tests/Modules/TicketSystem.<Module>.Tests/`; dùng fixture / helper từ `TicketSystem.Testing`, không sao chép | Hạ tầng test một chỗ (B18) |
+
+## 9. Smell — dừng lại khi thấy
 
 | Smell | Thường có nghĩa là |
 |---|---|
 | Handler > ~80 dòng, hoặc gọi > 3 repository | Logic nghiệp vụ nằm ở handler thay vì domain; hoặc use case cần tách |
-| Entity có `public set` | Anemic model — invariant không được bảo vệ |
+| Entity có `public set`, hoặc value object có setter | Anemic model — invariant không được bảo vệ (C-33, C-37) |
+| Handler tạo aggregate rồi gán thuộc tính thay vì dùng factory / method nghiệp vụ | Luật nằm sai chỗ: chuyển vào aggregate |
+| Event publish sau `CommitAsync`, hoặc trong `SaveChanges` | Mất atomicity / giấu thời điểm (C-35, C-36) |
+| Controller inject class handler cụ thể | Bỏ qua interface — decorator không áp được (C-34) |
 | `if (user.Role == ...)` rải ở nhiều handler | Luật thiếu một method trên aggregate, hoặc thiếu policy phân quyền |
 | Controller có `if` nghiệp vụ | Logic sai tầng — controller chỉ map HTTP ↔ command/result |
 | `DbContext` của module A có `DbSet` bảng schema B | Vi phạm D5 |

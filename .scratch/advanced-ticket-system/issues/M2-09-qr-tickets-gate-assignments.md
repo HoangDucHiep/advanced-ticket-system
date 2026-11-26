@@ -24,6 +24,7 @@ Hai thứ này là đầu vào để M2-10 quét vé.
   `409 ALREADY_ASSIGNED`, `422 NOT_GATE_STAFF` (người được phân công phải có vai trò `GateStaff`).
 - `checkedInAt` đọc từ `ticketing.check_ins` — migration tạo bảng thuộc ticket này (ở đây chỉ đọc; ghi ở
   M2-10); chưa có dòng ⇒ `null`.
+- Test nằm ở project test của module (tạo từ template M0-08 nếu chưa có) và dùng `TicketSystem.Testing`.
 
 **Ngoài:**
 - Quét vé, các kết quả `FR-25`, `GET …/check-ins/count` → M2-10.

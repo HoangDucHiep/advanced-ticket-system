@@ -24,6 +24,7 @@ dù access token (15 phút) còn hạn, và mọi lần đổi đều có dấu 
 - Kiểm chính sách phân quyền theo nhóm đường dẫn (`/api/admin`, `/api/manager`, `/api/check-in`) bằng
   test đi qua HTTP thật: sau khi hạ `TheaterManager → Customer`, cùng access token cũ gọi
   `/api/manager/...` phải `403`.
+- Test nằm ở project test của module (tạo từ template M0-08 nếu chưa có) và dùng `TicketSystem.Testing`.
 
 **Ngoài:**
 - Rotation / logout của refresh token → M2-03.

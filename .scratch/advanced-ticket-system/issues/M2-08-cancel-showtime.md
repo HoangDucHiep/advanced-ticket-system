@@ -24,6 +24,7 @@ ai trả tiền mà không có vé lẫn không được hoàn. Giữ ghế đua
   `NoShowtimeLock` cho test. Lệnh giữ đến sau hủy ⇒ `409 SHOWTIME_CANCELLED`.
 - Vé của suất đã hủy hiển thị `showtime.status = "Cancelled"` (M2-09 đọc), người xem thấy
   `payment.refundStatus` ở `GET /api/bookings/{id}`.
+- Test nằm ở project test của module (tạo từ template M0-08 nếu chưa có) và dùng `TicketSystem.Testing`.
 
 **Ngoài:**
 - Hoàn tiền thực tế gọi Stripe và `Refunded` → M2-07 (handler đã có).

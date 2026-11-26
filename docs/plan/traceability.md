@@ -33,13 +33,13 @@ Mỗi `FR-nn` một dòng. Đây là **nơi duy nhất** nối requirement (PRD)
 | FR-27 | Đếm người đã vào | BR-25 | J-05 | `Check-in`; `Ticket` INV-04 | api-contract.md (Ticketing) | M2-10 |
 | FR-28 | Quản lý phim và lịch mọi rạp | BR-16, BR-32 | J-07 | `Administrator`; `Movie`; `Showtime` INV-04; BR-32 | api-contract.md (admin) | M1-02 |
 | FR-29 | Quản lý người dùng và quyền | BR-26 | J-07 | `User` INV-01..03 | ADR-0014 | M2-03, M2-04 |
-| FR-30 | Giám sát sức khỏe hệ thống | BR-28 | J-07 | (không có khái niệm domain) | concurrency.md #11; observability | M0-04, M3-01, M3-02, M3-04, M3-05, M3-06, M4-02 |
+| FR-30 | Giám sát sức khỏe hệ thống | BR-28 | J-07 | (không có khái niệm domain) | concurrency.md #11; observability | M0-07, M3-01, M3-02, M3-04, M3-05, M3-06, M4-02 |
 | FR-31 | Truy vết lịch sử giao dịch | BR-27 | J-07 | `Booking` INV-07; `Payment event` | api-contract.md (admin history) | M2-07 |
 | FR-32 | Chỉ chủ suất được sửa/hủy | BR-16 | J-06 | `Showtime` INV-04 | api-contract.md | M1-02 |
-| FR-33 | Chỉ nhân viên cổng check-in | BR-15 | J-05 | `Identity` INV-06 | api-contract.md (role policy) | M1-01, M2-04 |
+| FR-33 | Chỉ nhân viên cổng check-in | BR-15 | J-05 | `Identity` INV-06 | api-contract.md (role policy) | M0-06, M1-01, M2-04 |
 | FR-34 | Suất chưa mở bán ẩn, không đặt | BR-13 | J-01, J-03 | `Showtime` INV-02 | api-contract.md | M1-03 |
 | FR-35 | Chỉ quét vé được phân công | BR-15 | J-05 | `Gate assignment` INV-08 | api-contract.md (Ticketing) | M2-10 |
-| FR-36 | Từ chối kèm lý do, bước tiếp | BR-19 | J-03, J-04 | Bảng transitions bị từ chối | ADR-0016; api-contract.md (problem+json) | M0-01, M0-02, M4-01 |
+| FR-36 | Từ chối kèm lý do, bước tiếp | BR-19 | J-03, J-04 | Bảng transitions bị từ chối | ADR-0016; api-contract.md (problem+json) | M0-01, M0-05, M4-01 |
 | FR-37 | Yêu cầu đặt lặp tạo một đơn | BR-18 | J-04 | `Booking` INV-08; `Idempotency key` | concurrency.md #5, ADR-0011 | M2-02, M4-01 |
 | FR-38 | Thông báo thanh toán lặp, một vé | BR-17 | J-02, J-07 | `Payment intent` INV-01 | concurrency.md #7 | M1-05 |
 | FR-39 | Hoàn tiền khi trả mà không có vé | BR-05 | J-04, J-06 | `Payment intent`; `Refund` INV-02 | concurrency.md #7 | M2-07 |

@@ -21,6 +21,7 @@ cũ bị thay, dùng lại token đã thay thì cả chuỗi bị thu hồi. Kh�
 - `POST /api/auth/logout`: revoke cả `family_id` của token, `204`.
 - So sánh giá trị bí mật dùng `CryptographicOperations.FixedTimeEquals` (C-23) ở chỗ có so sánh trong
   code; chỗ tra bằng index theo hash thì ghi trong PR vì sao không cần so sánh thêm.
+- Test nằm ở project test của module (tạo từ template M0-08 nếu chưa có) và dùng `TicketSystem.Testing`.
 
 **Ngoài:**
 - Rate limit `refresh` / `login` dùng chung nhiều instance → M3-04.

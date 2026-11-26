@@ -24,6 +24,7 @@ Một hạn mức dùng chung cho cả cụm: 3 instance không được cho dò
 - Lấy IP thật sau load balancer (`X-Forwarded-For` — cấu hình forwarded headers chỉ tin proxy đã biết).
 - Cờ `UnsafeVariant=InMemoryRateLimit` (chỉ build test).
 - Đo throughput script Lua (req/s, độ trễ) bằng k6 và ghi dòng vào `perf/baseline.csv` để trả lời Q07.
+- Test nằm ở project test của module (tạo từ template M0-08 nếu chưa có) và dùng `TicketSystem.Testing`.
 
 **Ngoài:**
 - Admission control `503` (không phải rate limit) → M3-02.

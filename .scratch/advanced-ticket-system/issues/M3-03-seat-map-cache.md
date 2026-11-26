@@ -27,6 +27,7 @@ Phần lớn lượt xem sơ đồ ghế được phục vụ không chạm DB (
 - Ghế `Held` quá hạn hiển thị `Available` (khớp #1/#4); `asOf` là ảnh chụp (`BR-23`).
 - Cờ `UnsafeVariant=NoSingleFlight` và `UnsafeVariant=BlindCacheWrite` (chỉ build test).
 - Test trên **Redis và Postgres thật** (Testcontainers), hai host `WebApplicationFactory` dùng chung.
+- Test nằm ở project test của module (tạo từ template M0-08 nếu chưa có) và dùng `TicketSystem.Testing`.
 
 - Cache-aside Redis TTL 30s cho `GET /api/movies` và `GET /api/movies/{id}/showtimes` (`api-contract.md`
   "Endpoint có cache"); đo cùng lúc với cache sơ đồ ghế ở M3-05.

@@ -53,6 +53,11 @@ Quy trình đầy đủ (branch, PR, review, Definition of Done, đóng ticket):
 - **Đo trước khi tối ưu.** Không có baseline thì không có tối ưu.
 - **Mỗi sự thật một nơi.** Không chép nội dung design vào ticket hay chỗ khác — link tới mục canonical.
   Không ghi lịch sử ("sửa ngày…", gạch ngang) vào docs; lịch sử nằm ở git và ADR.
+- **Không có code trong docs và ticket.** Không khối code C#, SQL, Lua, JSON, HTTP hay pseudo-code — code
+  chỉ sống trong code và test, nơi nó được biên dịch và kiểm chứng. Docs mô tả ý định, luật, lý do,
+  phương án bị loại bằng chữ và bảng (bảng bước, bảng trường, bảng thành viên). Được phép: sơ đồ
+  `mermaid`, cây thư mục, template Markdown của docs, và *tên* trong backtick (type, bảng, mã lỗi,
+  `FOR UPDATE`). Hướng dẫn in ra chat cho người học thì được có lệnh terminal và chữ ký.
 - **Từ vựng.** Dùng đúng tên trong `GLOSSARY.md`; code dùng tên tiếng Anh. Thấy hai từ cùng nghĩa ⇒ chọn
   một, ghi từ còn lại vào mục "tránh".
 - **Bí mật.** Không commit `.env`, `secrets.json`, connection string, khoá Stripe/JWT.

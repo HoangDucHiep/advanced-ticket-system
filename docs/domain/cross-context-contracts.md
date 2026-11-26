@@ -72,9 +72,12 @@ R9. Xem [`../design/architecture.md`](../design/architecture.md) D9.
 
 ### Hợp đồng
 
-```
-{ available_count, held_count, sold_count, blocked_count }
-```
+| Trường | Ý nghĩa |
+|---|---|
+| `available_count` | Số ghế còn trống |
+| `held_count` | Số ghế đang giữ |
+| `sold_count` | Số ghế đã bán |
+| `blocked_count` | Số ghế bị chặn |
 
 Hiển thị cho quản lý rạp (`FR-23`).
 
@@ -107,12 +110,13 @@ ACL: **không cần**.
 
 **Lệnh giữ n ghế** (`BR-02`, `BR-06`, `BR-08`):
 
-```
-Yêu cầu từ client (qua Booking):
-  idempotency_key
-  showtime_id
-  showtime_seat_ids: [...]          ← CHỈ id ghế. Không nhận loại ghế hay giá từ client.
-```
+Yêu cầu từ client (qua `Booking`):
+
+| Trường | Ý nghĩa |
+|---|---|
+| `idempotency_key` | Khoá idempotency của yêu cầu |
+| `showtime_id` | Suất chiếu |
+| `showtime_seat_ids` | Danh sách ghế — **CHỈ id ghế**. Không nhận loại ghế hay giá từ client |
 
 Trong **một** lần ghi atomic, theo thứ tự:
 
@@ -266,10 +270,14 @@ hai lần qua hai `event.id` khác nhau (chi tiết: [`../design/api-contract.md
 
 ### Hợp đồng
 
-```
-Event BookingPaid (Booking phát, trong lần ghi → Paid):
-  booking_id, customer_id, showtime_id, showtime_seat_ids: [...]
-```
+Event `BookingPaid` (`Booking` phát, trong lần ghi → `Paid`):
+
+| Trường | Ý nghĩa |
+|---|---|
+| `booking_id` | Đơn |
+| `customer_id` | Chủ đơn |
+| `showtime_id` | Suất chiếu |
+| `showtime_seat_ids` | Danh sách ghế của đơn |
 
 `Ticketing` tạo một `Ticket` (`Issued`, mã có chữ ký) cho mỗi ghế, **chép** `customer_id` lên vé để tự
 kiểm tra chủ sở hữu (`FR-10`) mà không phải hỏi `Booking`. Mỗi ghế đúng một vé. Danh sách vé của người

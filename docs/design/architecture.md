@@ -175,14 +175,14 @@ src/
     TicketSystem.Api/                       composition root: Program.cs, middleware, auth,
                                             Unit of Work theo request, outbox dispatcher
   Shared/
-    TicketSystem.Shared.Abstractions/       interface kỹ thuật dùng chung (xem D6)
-    TicketSystem.Shared.Infrastructure/     hiện thực UoW, event bus in-process, outbox
+    TicketSystem.Shared.Abstractions/       Results/, Domain/, Application/ — kiểu và interface kỹ thuật (xem D6)
+    TicketSystem.Shared.Infrastructure/     Persistence/, Web/, Observability/: UoW, event bus, decorator, outbox
   Modules/
     Scheduling/
       TicketSystem.Scheduling.Contracts/
       TicketSystem.Scheduling/
-        Domain/          aggregate, value object, invariant
-        Application/     use case: <UseCase>/ chứa Command + Handler (building-blocks.md B6)
+        Domain/          aggregate (AggregateRoot), value object (ValueObject), invariant
+        Application/     use case: <UseCase>/ chứa Command/Query + Handler hiện thực interface (building-blocks.md B6)
         Infrastructure/  SchedulingDbContext, migrations, repository, SQL tay
         Api/             controller, Requests/, Responses/
         SchedulingModule.cs   AddSchedulingModule(...) — điểm đăng ký duy nhất
@@ -192,9 +192,10 @@ src/
     Ticketing/   (cùng khuôn)
     IdentityAccess/ (cùng khuôn)
 tests/
-  TicketSystem.ArchitectureTests/           kiểm tra quy tắc phụ thuộc (xem dưới)
+  TicketSystem.ArchitectureTests/           kiểm tra quy tắc phụ thuộc + lớp / public / value object (xem dưới)
+  TicketSystem.Testing/                     dùng chung: fixture Testcontainers, ApiFactory, helper token / concurrency
   TicketSystem.IntegrationTests/            Testcontainers: Postgres + Redis thật
-  Modules/TicketSystem.<Module>.Tests/      unit test domain
+  Modules/TicketSystem.<Module>.Tests/      unit domain + integration của module (một project mỗi module)
 ```
 
 `perf/` (k6) nằm ở **gốc repo**, không nằm trong `backend/` — xem bố cục repo ở trên.
@@ -246,9 +247,10 @@ Chọn theo use case, bằng hai câu hỏi và một ràng buộc:
 
 **Không chọn mediator giữa module** (MediatR hoặc tự viết): so với interface nó không thêm gì,
 lại che mất hướng phụ thuộc (vẫn phụ thuộc kiểu command, chỉ là không thấy trong `.csproj`).
-Dùng mediator *bên trong* một module là quyết định của tầng code — **cũng không**;
-mỗi use case một handler gọi thẳng ([ADR-0017](../adr/0017-handler-per-use-case-no-mediator.md),
-[`building-blocks.md`](building-blocks.md) B6).
+Dùng mediator *bên trong* một module — **cũng không**; mỗi use case một handler hiện thực interface,
+controller gọi thẳng ([ADR-0017](../adr/0017-handler-per-use-case-no-mediator.md),
+[ADR-0018](../adr/0018-domain-and-application-primitives.md), [`building-blocks.md`](building-blocks.md) B6).
+Event in-process do handler publish tường minh trước commit (B13).
 
 ### Áp vào năm ranh giới bị cắt
 
@@ -300,10 +302,13 @@ ghế lúc sinh ghế và không đọc lại `room_seats`.
 
 | Project | Chứa | Ai reference |
 |---|---|---|
-| `Shared.Abstractions` | `IUnitOfWork`, interface event in-process (`IInProcessEvent`, `IEventHandler<T>`, `IEventPublisher`), `IOutboxWriter`, `Result` / `Error` / `PagedResponse<T>` (ADR-0016) | Mọi project |
-| `Shared.Infrastructure` | Hiện thực UoW trên Npgsql, event bus in-process, cấu hình bảng outbox dùng lại cho từng schema, outbox dispatcher; `Web/` — map `Result` → problem+json, exception handler (ADR-0016; có `FrameworkReference` ASP.NET Core) | Project nội bộ của module + host. **Không** `.Contracts` nào reference |
+| `Shared.Abstractions` | `Results/`: `Result` / `Error` / `ErrorType` / `PagedResponse<T>` (ADR-0016). `Domain/`: `Entity<TId>`, `AggregateRoot<TId>`, `ValueObject`, `IDomainEvent`, `IEntityId` (ADR-0018). `Application/`: `ICommand` / `IQuery`, `ICommandHandler` / `IQueryHandler`, `IEventPublisher`, `IEventHandler<T>`, `ICurrentUser`, `IOutboxWriter`, `IUnitOfWork` | Mọi project |
+| `Shared.Infrastructure` | `Persistence/`: hiện thực UoW trên Npgsql, `ModuleDbContext` + quy ước EF, type handler Dapper, cấu hình bảng outbox dùng lại cho từng schema. Bus event in-process, decorator log / trace, quét đăng ký handler, outbox dispatcher. `Web/`: map `Result` → problem+json, exception handler, JSON options, `ApiControllerBase`, OpenAPI, plumbing JWT / policy (ADR-0016; có `FrameworkReference` ASP.NET Core). `Observability/`: Serilog, correlation ID, health | Project nội bộ của module + host. **Không** `.Contracts` nào reference |
 
 Thời gian dùng `System.TimeProvider` built-in, không có interface tự viết ([`building-blocks.md`](building-blocks.md) B10).
+Bảng đầy đủ thành phần dùng chung nằm ở [`building-blocks.md`](building-blocks.md) B12; base class domain
+và handler interface là quyết định của [ADR-0018](../adr/0018-domain-and-application-primitives.md) — chúng
+thoả luật 2 vì cả 6 module dùng ngay từ module đầu tiên.
 
 **Ba luật để `Shared` không thành "thùng rác":**
 
@@ -424,6 +429,9 @@ Mỗi quy tắc có một architecture test ở `tests/TicketSystem.Architecture
    cần). Nó chỉ biết id đơn như một giá trị.
 7. **Chỉ `Payment` reference thư viện Stripe** (ACL — R5).
 8. **`Shared.*` không chứa kiểu nào trùng tên với thuật ngữ trong `GLOSSARY.md`.**
+9. **Luật bên trong module** (lớp `Domain` không phụ thuộc hạ tầng, bề mặt `public`, value object
+   không setter, repository chỉ cho aggregate root): danh sách và cách kiểm ở
+   [`building-blocks.md`](building-blocks.md) mục B18.
 
 ---
 
@@ -443,21 +451,19 @@ sequenceDiagram
     participant DB as Postgres (1 transaction)
 
     C->>H: POST + Idempotency-Key + JWT
-    H->>H: xác thực JWT; vai trò hỏi IdentityAccess.Contracts (có cache)
-    H->>B: BookingController
-    B->>DB: tra idempotency_records (customer, key) — có thì trả kết quả cũ
-    H->>DB: UoW mở connection + BEGIN
-    B->>S: đọc trạng thái suất, giờ bắt đầu, giá theo loại ghế (R9)
-    B->>DB: khoá quota (customer, showtime) rồi đếm Held + Sold ≤ 10 (ADR-0007)
-    B->>I: Hold(showtime, seatIds tăng dần, hold_id, held_until)
-    I->>DB: UPDATE showtime_seats ... WHERE status='Available' ORDER BY id ... RETURNING
+    H->>H: xác thực JWT; vai trò hỏi IdentityAccess.Contracts (cache theo role_version)
+    H->>B: BookingController → handler giữ ghế
+    B->>DB: BEGIN; chiếm idempotency key (trùng ⇒ chờ rồi trả kết quả cũ); savepoint
+    B->>S: đọc suất (khoá chia sẻ dòng suất), giờ bắt đầu, giá theo loại ghế (R9)
+    B->>DB: khoá quota (người xem, suất) rồi đếm ghế Held + Sold ≤ 10 (ADR-0007)
+    B->>I: giữ ghế (danh sách ghế, hold_id, held_until)
+    I->>DB: khoá các ghế theo id tăng dần, kiểm trạng thái, đổi sang Held có điều kiện
     I-->>B: ghế giữ được / ghế thất bại
     alt thiếu ghế
-        B->>DB: ROLLBACK, lưu kết quả 409 vào idempotency_records
+        B->>DB: quay về savepoint; lưu kết quả 409 vào bản ghi idempotency; COMMIT
         B-->>C: 409 + danh sách ghế đã có người
     else đủ n ghế
-        B->>DB: INSERT bookings, booking_lines (giá đã chốt), booking_history, idempotency_records
-        B->>DB: COMMIT
+        B->>DB: tạo booking + dòng giá đã chốt + lịch sử; lưu kết quả 201; COMMIT
         B-->>C: 201 + booking, expires_at
     end
 ```
@@ -465,9 +471,7 @@ sequenceDiagram
 Đi qua **ba module** (`Booking` điều phối, `Scheduling` đọc, `Inventory` ghi) và **một**
 transaction. Chi tiết:
 
-- Bản ghi idempotency được chèn **đầu** transaction; thất bại nghiệp vụ dùng savepoint để giữ kết quả
-  `409` (ADR-0011) — sơ đồ trên vẽ gọn.
-- SQL đầy đủ và thứ tự khoá: `concurrency.md` #2.
+- Thứ tự lệnh và khoá đầy đủ: `concurrency.md` #2; idempotency + savepoint: ADR-0011.
 - Đọc suất ở bước R9 dùng `FOR KEY SHARE` để chặn race với hủy suất (`concurrency.md` #14).
 
 ---

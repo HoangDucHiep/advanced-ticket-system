@@ -24,6 +24,7 @@ xác định, đúng một trong năm loại, để nhân viên biết phải l�
 - Mã cho ghế chưa thanh toán không có vé ⇒ `TICKET_INVALID` (`FR-08`).
 - `GET /api/manager/showtimes/{showtimeId}/check-ins/count` (chủ suất / `Administrator`):
   `{ showtimeId, checkedIn, ticketsIssued }`.
+- Test nằm ở project test của module (tạo từ template M0-08 nếu chưa có) và dùng `TicketSystem.Testing`.
 
 **Ngoài:**
 - Rate limit `scan` dùng chung nhiều instance → M3-04.

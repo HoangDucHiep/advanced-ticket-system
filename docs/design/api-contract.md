@@ -23,18 +23,16 @@ bảng: [`data-model.md`](data-model.md); module sở hữu endpoint: [`architec
 
 ### Định dạng lỗi — `application/problem+json` (RFC 9457)
 
-```json
-{
-  "type": "https://errors.ticket.local/seats-unavailable",
-  "title": "Một số ghế đã có người",
-  "status": 409,
-  "code": "SEATS_UNAVAILABLE",
-  "detail": "Ghế D7 vừa được người khác giữ.",
-  "action": "Chọn ghế khác trên sơ đồ rồi thử lại.",
-  "traceId": "00-4bf9…",
-  "unavailableSeatIds": ["…"]
-}
-```
+| Trường | Kiểu | Ý nghĩa |
+|---|---|---|
+| `type` | string (URI) | Định danh loại lỗi, dạng `https://errors.ticket.local/<kebab-case của code>` (ví dụ `…/seats-unavailable`) |
+| `title` | string | Tiêu đề ngắn, người đọc được (ví dụ "Một số ghế đã có người") |
+| `status` | number | Mã HTTP (ví dụ `409`) |
+| `code` | string | Mã ổn định cho máy (ví dụ `SEATS_UNAVAILABLE`) |
+| `detail` | string | Giải thích cụ thể cho lần lỗi này (ví dụ "Ghế D7 vừa được người khác giữ.") |
+| `action` | string | Hành động tiếp theo cho người (ví dụ "Chọn ghế khác trên sơ đồ rồi thử lại.") |
+| `traceId` | string | Mã truy vết của request (dạng W3C trace, ví dụ `00-4bf9…`) |
+| `unavailableSeatIds` | array of uuid | Trường thêm, chỉ có với `SEATS_UNAVAILABLE`: các ghế đã có người |
 
 `code` là chuỗi ổn định cho máy; `action` là **hành động tiếp theo** cho người — mọi lỗi đều có
 (`FR-36`, `BR-19`). Trường thêm (ví dụ `unavailableSeatIds`) tuỳ `code`.
@@ -266,17 +264,20 @@ Suất của người gọi, lọc `?from=&to=&status=`. Phân trang.
 
 `200`:
 
-```json
-{
-  "showtimeId": "…", "startsAt": "…",
-  "availableSeatCount": 87,
-  "seats": [
-    { "id": "…", "row": "D", "number": 7, "label": "D7", "seatType": "VIP", "price": 120000,
-      "status": "Held" }
-  ],
-  "asOf": "2026-12-01T11:59:58Z"
-}
-```
+| Trường | Kiểu | Ý nghĩa |
+|---|---|---|
+| `showtimeId` | uuid | Suất chiếu |
+| `startsAt` | timestamp (UTC) | Giờ bắt đầu suất |
+| `availableSeatCount` | number | Số ghế `Available` (ví dụ `87`) |
+| `seats` | array | Danh sách ghế (không gồm ghế `Blocked`) |
+| `seats[].id` | uuid | Id ghế |
+| `seats[].row` | string | Hàng (ví dụ `D`) |
+| `seats[].number` | number | Số ghế trong hàng (ví dụ `7`) |
+| `seats[].label` | string | Nhãn hiển thị (ví dụ `D7`) |
+| `seats[].seatType` | string | Loại ghế (ví dụ `VIP`) |
+| `seats[].price` | number | Giá, đơn vị tiền nhỏ nhất của VND (ví dụ `120000`) |
+| `seats[].status` | string | `Available` / `Held` / `Sold` |
+| `asOf` | timestamp (UTC) | Thời điểm dữ liệu cache có hiệu lực (ví dụ `2026-12-01T11:59:58Z`) |
 
 - `status` ∈ `Available` / `Held` / `Sold`. Ghế `Blocked` **không** có trong danh sách (`BR-11`). Ghế
   `Held` đã quá hạn hiển thị `Available` (bài toán #4).
@@ -322,14 +323,17 @@ hai bộ ghế (`FR-37`). **Rate limit**: `hold`. **Admission control**: có (#1
 
 `201`:
 
-```json
-{
-  "bookingId": "…", "status": "AwaitingPayment",
-  "expiresAt": "2026-12-01T12:15:00Z",
-  "lines": [{ "seatId": "…", "label": "D7", "seatType": "VIP", "price": 120000 }],
-  "totalAmount": 240000
-}
-```
+| Trường | Kiểu | Ý nghĩa |
+|---|---|---|
+| `bookingId` | uuid | Id đơn |
+| `status` | string | `AwaitingPayment` |
+| `expiresAt` | timestamp (UTC) | Hạn giữ ghế (ví dụ `2026-12-01T12:15:00Z`) |
+| `lines` | array | Các dòng của đơn |
+| `lines[].seatId` | uuid | Id ghế |
+| `lines[].label` | string | Nhãn ghế (ví dụ `D7`) |
+| `lines[].seatType` | string | Loại ghế (ví dụ `VIP`) |
+| `lines[].price` | number | Giá đã chốt (ví dụ `120000`) |
+| `totalAmount` | number | Tổng tiền (ví dụ `240000`) |
 
 | Status | `code` | Thêm | `action` |
 |---|---|---|---|
@@ -410,11 +414,12 @@ khác ⇒ `200` bỏ qua.
 
 ### Định dạng mã QR
 
-```
-v1.<kid>.<payload>.<signature>
-payload   = base64url("<ticketId>|<showtimeId>|<seatLabel>|<issuedAtUnix>")
-signature = base64url(HMAC-SHA256(key[kid], "v1." + kid + "." + payload))
-```
+Chuỗi mã: `v1.<kid>.<payload>.<signature>`
+
+| Thành phần | Cách tính |
+|---|---|
+| `payload` | `base64url` của chuỗi nối bằng ký tự `\|`: `ticketId`, `showtimeId`, `seatLabel`, `issuedAtUnix` (theo thứ tự đó) |
+| `signature` | `base64url` của `HMAC-SHA256` với khoá `key[kid]`, trên chuỗi `"v1." + kid + "." + payload` |
 
 - `kid`: id khoá ký, để **xoay khoá** mà vé cũ vẫn quét được (giữ khoá cũ ở chế độ chỉ-xác-minh). Khoá
   trong cấu hình bí mật (user-secrets / biến môi trường), **không** trong DB.

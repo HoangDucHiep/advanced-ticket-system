@@ -85,12 +85,11 @@ Index: `UNIQUE` trên (tiền tố `room_id`) phục vụ "sơ đồ của phòn
 
 **Sửa sơ đồ (`INV-13`)** — lệnh sửa sơ đồ:
 
-```sql
-SELECT 1 FROM scheduling.rooms WHERE id = @room_id FOR UPDATE;
-SELECT EXISTS (SELECT 1 FROM scheduling.showtimes
-               WHERE room_id = @room_id AND status <> 'Cancelled' AND ends_at > now());
--- có ⇒ 409 ROOM_HAS_ACTIVE_SHOWTIMES; không ⇒ thay room_seats
-```
+| Bước | Lệnh | Khoá / điều kiện | Vì sao |
+|---|---|---|---|
+| 1 | `SELECT` dòng phòng `scheduling.rooms` theo `id = @room_id` | `FOR UPDATE` trên dòng phòng | Chặn tạo suất mới trên phòng này trong lúc sửa (xem bên dưới) |
+| 2 | Kiểm tra tồn tại (`EXISTS`) suất trong `scheduling.showtimes` với `room_id = @room_id`, `status <> 'Cancelled'` và `ends_at > now()` | — | Phát hiện suất còn hiệu lực |
+| 3 | Nếu có ở bước 2 ⇒ trả `409 ROOM_HAS_ACTIVE_SHOWTIMES`; nếu không ⇒ thay toàn bộ `room_seats` | cùng transaction với bước 1 | Giữ khoá phòng tới commit |
 
 `FOR UPDATE` trên dòng phòng **xung đột** với khoá `FOR KEY SHARE` mà Postgres tự lấy khi chèn một
 `showtimes` có FK tới phòng đó ⇒ không thể đồng thời "sửa sơ đồ" và "tạo suất" trên cùng phòng.
@@ -119,14 +118,15 @@ Constraint:
 - `CHECK ((status = 'Cancelled') = (cancelled_at IS NOT NULL))`.
 - **Exclusion constraint** — `BR-20`:
 
-```sql
-CREATE EXTENSION IF NOT EXISTS btree_gist;
-ALTER TABLE scheduling.showtimes ADD CONSTRAINT ex_showtimes_room_no_overlap
-  EXCLUDE USING gist (
-    room_id WITH =,
-    tstzrange(starts_at, ends_at + interval '15 minutes', '[)') WITH &&
-  ) WHERE (status <> 'Cancelled');
-```
+Tên `ex_showtimes_room_no_overlap`, cần extension `btree_gist` (`CREATE EXTENSION IF NOT EXISTS`),
+dùng index `gist`:
+
+| Thành phần | Giá trị |
+|---|---|
+| Kiểu | `EXCLUDE USING gist` |
+| Phần tử 1 | `room_id` so bằng (`=`) |
+| Phần tử 2 | `tstzrange(starts_at, ends_at + 15 phút, '[)')` — nửa mở, đệm 15 phút cộng vào cuối — so giao nhau (`&&`) |
+| Điều kiện (`WHERE`) | `status <> 'Cancelled'` |
 
 **Vì sao SQL tay:** EF Core không biểu diễn được exclusion constraint. **Vì sao ở DB, không ở ứng
 dụng:** hai lệnh tạo suất chạy đồng thời đều "kiểm tra không thấy chồng" rồi cùng chèn — chỉ ràng
@@ -585,19 +585,13 @@ gửi đúng chỗ, và bảng outbox không thành nơi lưu PII thứ hai.
 
 **Claim bằng lease, không giữ transaction trong lúc gọi ra ngoài:**
 
-```sql
-UPDATE payment.outbox_messages SET locked_until = now() + interval '30 seconds', attempts = attempts + 1
-WHERE id IN (
-  SELECT id FROM payment.outbox_messages
-  WHERE processed_at IS NULL AND dead_at IS NULL
-    AND available_at <= now() AND (locked_until IS NULL OR locked_until < now())
-  ORDER BY id
-  LIMIT 20
-  FOR UPDATE SKIP LOCKED)
-RETURNING id, type, payload, attempts;
--- commit ngay; gọi Stripe ngoài transaction; rồi:
-UPDATE payment.outbox_messages SET processed_at = now() WHERE id = @id;
-```
+| Bước | Lệnh | Khoá / điều kiện | Vì sao |
+|---|---|---|---|
+| 1 | `UPDATE payment.outbox_messages` đặt `locked_until = now() + 30 giây`, `attempts = attempts + 1`, cho các `id` thuộc subquery ở bước 2; `RETURNING id, type, payload, attempts` | — | Đánh dấu lease và trả về các dòng đã claim |
+| 2 | Subquery: `SELECT id` từ cùng bảng với `processed_at IS NULL`, `dead_at IS NULL`, `available_at <= now()`, và (`locked_until IS NULL` hoặc `locked_until < now()`); `ORDER BY id`; `LIMIT 20` | `FOR UPDATE SKIP LOCKED` | Worker khác bỏ qua dòng đang bị claim thay vì chờ |
+| 3 | `COMMIT` ngay | — | Không giữ transaction/connection trong lúc gọi ngoài |
+| 4 | Gọi Stripe **ngoài** transaction | — | — |
+| 5 | `UPDATE payment.outbox_messages` đặt `processed_at = now()` với `id = @id` | — | Đánh dấu xong; nếu lease hết hạn trước bước này thì dòng quay lại hàng đợi |
 
 **Vì sao SQL tay:** `FOR UPDATE SKIP LOCKED` và `UPDATE … WHERE id IN (subquery) RETURNING` không
 biểu diễn được bằng LINQ. **Vì sao lease, không giữ khoá:** giữ transaction mở trong lúc gọi Stripe

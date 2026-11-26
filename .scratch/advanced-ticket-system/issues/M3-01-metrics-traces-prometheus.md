@@ -15,10 +15,11 @@ request đi qua API → DB → Redis → outbox truy ra được bằng một `t
 ## Phạm vi
 **Trong:**
 - OpenTelemetry **trace**: span cho request ASP.NET Core, Npgsql, Redis (StackExchange.Redis); `traceId` trong
-  problem+json (B4(d)) và trong log JSON (M0-04) là **cùng một** id.
+  problem+json (B4(d)) và trong log JSON (M0-07) là **cùng một** id.
 - Correlation ID đi xuyên **background worker và outbox dispatcher**: việc outbox sinh ra sau commit mang
   được trace/correlation của request gây ra nó (lưu cùng message hoặc truyền qua payload — người học chọn,
   ghi lý do trong PR).
+- Metric và trace theo handler gắn vào **decorator handler** của M0-03 (đã tạo `Activity`) và nền observability M0-07 — không viết lại cơ chế bọc.
 - OpenTelemetry **metric** hạ tầng: ASP.NET Core, Npgsql (pool), `Microsoft.AspNetCore.RateLimiting`, runtime.
 - Metric **nghiệp vụ** (counter, tên do người học đặt theo một quy ước thống nhất, ghi trong PR): ghế bị từ chối
   `SEATS_UNAVAILABLE`, hold hết hạn bị lấy, webhook trùng, idempotency replay (`Idempotent-Replayed`),
@@ -40,7 +41,7 @@ request đi qua API → DB → Redis → outbox truy ra được bằng một `t
 ## Đọc trước
 - [`architecture.md`](../../../docs/design/architecture.md) — mục "Stack" (Observability) và D8 (outbox).
 - [`api-contract.md`](../../../docs/design/api-contract.md) — mục "Vận hành".
-- [`building-blocks.md`](../../../docs/design/building-blocks.md) — B4 (`traceId` ở mọi lỗi).
+- [`building-blocks.md`](../../../docs/design/building-blocks.md) — mục "B4 — Một lối ra lỗi" (`traceId` ở mọi lỗi), "B6 — Use case" (decorator), "B17 — Observability foundation".
 - [`concurrency.md`](../../../docs/design/concurrency.md) — #9 (hit ratio), #11 (counter cần đo), #12 (`ratelimit_redis_errors_total`).
 - [`data-model.md`](../../../docs/design/data-model.md) — bảng `payment.webhook_failures` (`payment_webhook_poison_total`) và "Outbox".
 - [`01-requirements.md`](../../../docs/prd/01-requirements.md) FR-30; [`04-business-rules.md`](../../../docs/prd/04-business-rules.md) BR-28.

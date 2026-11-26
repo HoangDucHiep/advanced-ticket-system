@@ -25,6 +25,7 @@ khi hết hạn. Hết hạn và huỷ là hai đường vào cùng một thao t
   cùng transaction; handler **kiểm lại** đơn còn `AwaitingPayment` và chưa quá hạn trước khi gửi (`BR-24`),
   nội dung chứa đúng `expires_at` đang dùng. Cổng gửi mail là abstraction, SMTP cho dev (Mailpit trong
   Compose là câu hỏi mở Q31 — chốt trong PR).
+- Test nằm ở project test của module (tạo từ template M0-08 nếu chưa có) và dùng `TicketSystem.Testing`.
 
 **Ngoài:**
 - Thanh toán đến muộn ⇒ hoàn tiền → M2-07. Hủy suất → M2-08.

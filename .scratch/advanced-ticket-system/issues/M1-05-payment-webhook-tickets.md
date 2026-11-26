@@ -28,6 +28,7 @@ Test E2E `J01_happy_path` là demo của milestone M1.
 - `StripeOptions` qua Options + `ValidateOnStart`; chỉ module `Payment` reference thư viện Stripe (ACL, R5). Test dùng Stripe test mode;
   chạy local dùng Stripe CLI để chuyển tiếp webhook tới `localhost`.
 - Migration `payment` (`payment_intents`, `payment_events`) và `ticketing` (`tickets`).
+- Test nằm ở project test của module (tạo từ template M0-08 nếu chưa có) và dùng `TicketSystem.Testing`.
 
 **Ngoài:**
 - Thanh toán đến muộn / đơn đã `Expired`/`Cancelled` ⇒ `RefundPending`, bảng `refunds`, gọi Stripe hoàn tiền, `charge.refunded`,

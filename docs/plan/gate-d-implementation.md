@@ -13,17 +13,27 @@ CI GitHub Actions, endpoint `/health`.
 
 Thứ tự trong bảng là thứ tự thực hiện. Ticket: `.scratch/advanced-ticket-system/issues/<mã>-<slug>.md`.
 
-### M0 — Nền móng
+### M0 — Nền móng: mọi setup trước khi chạm vào module nào
 
-**Demo:** request body sai ⇒ `400` problem+json có `traceId`; tìm được `traceId` đó trong log JSON;
-`/health/ready` đỏ khi tắt Redis; OpenAPI liệt kê endpoint.
+Khuôn chung cho cả 6 module ([`../design/building-blocks.md`](../design/building-blocks.md),
+ADR-0016…0018): xong M0 thì mỗi module chỉ còn viết nghiệp vụ, không phát minh hạ tầng.
+
+**Demo:** một **module mẫu chỉ có trong test** (aggregate + value object + handler + endpoint + migration)
+đi qua đủ khuôn — request sai ⇒ `400` problem+json có `traceId` tìm được trong log JSON; lỗi nghiệp vụ ⇒
+`409`; domain event được publish trong transaction và rollback cùng nó; endpoint cần vai trò trả `401` /
+`403` đúng; arch test xanh; CI xanh kèm format check và coverage.
 
 | Mã | Ticket | Mode | Blocked by | Bài toán |
 |---|---|---|---|---|
-| M0-01 | `Result`, `Error`, `ErrorType`, `PagedResponse` | `pair-tdd` | — | — |
-| M0-02 | Pipeline lỗi problem+json + `TimeProvider` | `pair-tdd` | M0-01 | — |
-| M0-03 | Arch test bề mặt `public` + OpenAPI | `pair-tdd` | M0-02 | — |
-| M0-04 | Log JSON, correlation ID, `/health/live` + `/health/ready` | `you-implement-i-review` | M0-02 | — |
+| M0-01 | Results: `Result`, `Result<T>`, `Error`, `ErrorType`, `PagedResponse<T>` | `pair-tdd` | — | — |
+| M0-02 | Domain primitives: `Entity`, `AggregateRoot` + domain event, `ValueObject`, typed id | `pair-tdd` | M0-01 | — |
+| M0-03 | Application primitives: handler interface, đăng ký theo quét assembly, decorator log/trace, event bus in-process | `pair-tdd` | M0-02 | — |
+| M0-04 | Persistence foundation: `ModuleDbContext` + quy ước snake_case / typed id, chiến lược migration, Dapper | `you-implement-i-review` | M0-02 | — |
+| M0-05 | Web foundation: pipeline lỗi problem+json, JSON options, `ApiControllerBase`, OpenAPI, `TimeProvider` | `pair-tdd` | M0-01 | — |
+| M0-06 | Auth foundation: xác thực JWT, policy vai trò, `ICurrentUser`, contract vai trò | `you-implement-i-review` | M0-03, M0-05 | — |
+| M0-07 | Observability foundation: log JSON, correlation ID, `/health/live` + `/health/ready` | `you-implement-i-review` | M0-05 | — |
+| M0-08 | Test foundation: `TicketSystem.Testing` (fixture, reset DB, auth, concurrency helper) + arch test lớp | `pair-tdd` | M0-04, M0-06, M0-07 | — |
+| M0-09 | Tooling & CI: analyzers, format check, báo cáo test + coverage, Mailpit, script, `backend/README.md` | `ai-implements` | M0-08 | — |
 
 ### M1 — Walking skeleton
 
@@ -32,7 +42,7 @@ người xem đăng ký → xem sơ đồ ghế → giữ 2 ghế → thanh toá
 
 | Mã | Ticket | Mode | Blocked by | Bài toán |
 |---|---|---|---|---|
-| M1-01 | Identity: đăng ký, đăng nhập, `/me`, JWT, vai trò đọc từ DB | `you-implement-i-review` | M0-03, M0-04 | — |
+| M1-01 | Identity: đăng ký, đăng nhập (phát JWT), `/me`, hiện thực contract vai trò, seed tài khoản | `you-implement-i-review` | M0-09 | — |
 | M1-02 | Scheduling: phim, phòng, suất, giá, mở bán, sinh ghế của suất, seed | `you-implement-i-review` | M1-01 | — |
 | M1-03 | Đọc công khai: phim, lịch chiếu, sơ đồ ghế (đọc DB), availability, chặn ghế | `you-implement-i-review` | M1-02 | — |
 | M1-04 | Giữ n ghế all-or-nothing | `pair-tdd` | M1-03 | #1 #2 |
@@ -87,7 +97,9 @@ thấy pool, lock contention, rate limit khi mở bán phim hot.
 - **Test concurrency viết cùng ticket tạo ra tính năng**; M2-11 chỉ kiểm toán.
 - **Cache sau baseline** (M3-02 → M3-03): không có số "trước" thì không có câu chuyện tối ưu.
 - **Metric trước load test** (M3-01 → M3-02): đo tải mà không nhìn được bên trong là đo mù.
-- Log + correlation ID ở M0 vì debug M1 cần nó.
+- **Toàn bộ setup ở M0, trước module đầu tiên**: base class domain, handler + event bus, quy ước
+  persistence, pipeline lỗi, auth, log, hạ tầng test, CI. Nếu để từng module tự dựng, module đầu tiên
+  thành nơi phát minh khuôn và 5 module sau chép theo cả những chỗ sai.
 
 ## Câu hỏi còn mở
 

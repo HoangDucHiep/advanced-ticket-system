@@ -41,6 +41,9 @@ Link tới đúng mục canonical (`concurrency.md#…`, `api-contract.md#…`, 
 - [ ] tiêu chí kiểm được (DoD chung ở `dev-workflow.md`)
 ```
 
+Ticket **không chứa code** (không khối C#, SQL, JSON…) — mô tả hành vi, link tới mục design; chữ ký
+và khung code chỉ xuất hiện trong brief AI in ra chat lúc làm ticket (`AGENTS.md`).
+
 Vai trò theo `Mode:` định nghĩa ở [`AGENTS.md`](../../AGENTS.md). Quy trình làm:
 [`dev-workflow.md`](dev-workflow.md).
 

@@ -10,7 +10,7 @@ Branch: m1-02-scheduling-write
 ## Mục tiêu
 Có dữ liệu để bán: quản trị viên tạo phim, quản lý rạp tạo phòng + ghế + suất + giá rồi mở bán. Tạo suất sinh
 luôn ghế của suất ở `Inventory` **trong cùng transaction** (ranh giới bị cắt #5) — lần đầu hai module chạm
-nhau, nên đây là chỗ dựng cơ chế event in-process. Kèm lệnh seed demo cho các ticket sau.
+nhau, bằng event bus in-process có sẵn từ M0-03. Kèm lệnh seed demo cho các ticket sau.
 
 ## Phạm vi
 **Trong** (endpoint ở [`api-contract.md`](../../../docs/design/api-contract.md) mục "Scheduling"):
@@ -20,10 +20,12 @@ nhau, nên đây là chỗ dựng cơ chế event in-process. Kèm lệnh seed d
   `POST .../open-sale`. Giá phải đủ **mọi** loại ghế có trong phòng; chủ sở hữu = chủ phòng (FR-32 ⇒ không phải chủ thì `404`).
 - Exclusion constraint chống chồng giờ kèm đệm 15 phút (BR-20) ⇒ `409 SHOWTIME_OVERLAP`.
 - Tạo suất ⇒ `Inventory` sinh một `Showtime seat` (`Available`) cho mỗi `Room seat`; xoá suất `NotOnSale` ⇒ xoá ghế đã sinh.
-  Đi qua event in-process `ShowtimeCreated` / `ShowtimeDeleted` định nghĩa ở `Scheduling.Contracts` (D4 #5) —
-  nên ticket này dựng luôn hạ tầng event in-process ở `Shared` (D6) vì đây là nơi đầu tiên cần.
-- Migration đầu của `Scheduling` phải khai báo `HasPostgresExtension("btree_gist")` — Testcontainers **không**
-  chạy init script của compose, nên thiếu dòng này thì test integration không tạo được exclusion constraint.
+  Aggregate `Showtime` raise domain event `ShowtimeCreated` / `ShowtimeDeleted` (định nghĩa ở `Scheduling.Contracts`,
+  D4 #5); handler lấy event ra và publish **trước commit** qua `IEventPublisher` (M0-03); `Inventory` có
+  `IEventHandler` sinh / xoá ghế trong cùng transaction. Ticket này **không** dựng bus.
+- Migrations theo quy ước M0-04; migration đầu của schema `scheduling` khai báo `btree_gist` bằng cơ chế đã có ở
+  M0-04 (Testcontainers không chạy init script) để exclusion constraint tạo được.
+- Test đặt ở project test của module (tạo từ template M0-08), dùng `TicketSystem.Testing`.
 - Lệnh seed dữ liệu demo: phim, phòng, suất qua cùng code path của use case (không INSERT tay), trong đó có
   **một suất nhỏ ~100 ghế** làm điểm tranh chấp cho test/demo M1-04.
 
@@ -37,7 +39,7 @@ nhau, nên đây là chỗ dựng cơ chế event in-process. Kèm lệnh seed d
   `rooms` / `room_seats`: sửa sơ đồ `INV-13`) và "Schema inventory" (`showtime_seats`).
 - [`architecture.md`](../../../docs/design/architecture.md) — mục "D4" (bảng "Áp vào năm ranh giới bị cắt", dòng #5) và "D6".
 - [`cross-context-contracts.md`](../../../docs/domain/cross-context-contracts.md) — mục "Hợp đồng: Scheduling → Inventory (R1)".
-- [`building-blocks.md`](../../../docs/design/building-blocks.md) — B6–B9, "Cấu trúc thư mục bên trong một module".
+- [`building-blocks.md`](../../../docs/design/building-blocks.md) — mục "B6 — Use case", "B7 — Ai mở và commit transaction", "B8 — Repository", "B9 — Domain primitives", "B13 — Domain event và bus in-process", "B14 — Persistence foundation", "Cấu trúc thư mục bên trong một module".
 - [`state-machines.md`](../../../docs/domain/state-machines.md) — máy `Showtime`.
 
 ## Test
@@ -61,6 +63,6 @@ Gợi ý — người học viết (Postgres thật).
 3. Giá nằm ở (suất, loại ghế), không ở phòng — nếu để ở phòng thì đổi giá gây hậu quả gì?
 
 ## Done khi
-- [ ] Test trên xanh; migration chạy từ DB trống trên Testcontainers (có `btree_gist` khai báo trong migration)
+- [ ] Test trên xanh; migration chạy từ DB trống trên Testcontainers (có `btree_gist` khai báo trong migration theo cơ chế M0-04)
 - [ ] Event `ShowtimeCreated` chạy **trước commit**; exception ở `Inventory` ⇒ rollback cả suất
 - [ ] Lệnh seed chạy được hai lần liên tiếp mà không nhân đôi dữ liệu, có hướng dẫn

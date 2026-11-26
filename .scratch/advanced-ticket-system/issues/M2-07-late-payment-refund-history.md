@@ -22,6 +22,7 @@ Tiền đã thu thì không bao giờ mất mà không có vé: thanh toán đ�
 - Lỗi không mong đợi khi xử lý webhook ⇒ rollback cả dòng sự kiện, `500`, ghi `payment.webhook_failures`
   ở transaction riêng; `attempts >= 5` ⇒ log `Critical` + metric `payment_webhook_poison_total`.
 - `GET /api/admin/bookings/{bookingId}/history`: ghép `booking_history` và `payment_events` thành timeline.
+- Test nằm ở project test của module (tạo từ template M0-08 nếu chưa có) và dùng `TicketSystem.Testing`.
 
 **Ngoài:**
 - Hủy suất yêu cầu hoàn đơn đã trả → M2-08 (dùng lại cơ chế hoàn tiền ở đây).

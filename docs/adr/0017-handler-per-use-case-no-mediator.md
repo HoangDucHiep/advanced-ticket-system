@@ -1,12 +1,16 @@
 ---
 id: 0017
 title: Mỗi use case một handler gọi thẳng, transaction tường minh, repository theo aggregate — không mediator
-status: accepted
+status: accepted — một phần bị thay bởi ADR-0018
 date: 2026-11-26
-Related: ADR-0008, ADR-0009, ADR-0011, ADR-0016
+Related: ADR-0008, ADR-0009, ADR-0011, ADR-0016, ADR-0018
 ---
 
 # Mỗi use case một handler gọi thẳng, transaction tường minh, repository theo aggregate — không mediator
+
+> **Bị thay một phần bởi [ADR-0018](0018-domain-and-application-primitives.md):** "không base Entity / AggregateRoot",
+> "không domain event trong aggregate", "không generic handler interface". Phần còn lại (không mediator,
+> transaction tường minh, repository theo aggregate, không generic repository / Specification) vẫn hiệu lực.
 
 Chi tiết: [`docs/design/building-blocks.md`](../design/building-blocks.md) B6–B8.
 

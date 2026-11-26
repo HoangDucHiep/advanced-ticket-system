@@ -37,14 +37,13 @@ hưởng**.
 
 ### Trường hợp một ghế
 
-```sql
-UPDATE inventory.showtime_seats
-SET status = 'Held', held_until = @until, hold_id = @hold_id
-WHERE showtime_id = @showtime_id
-  AND seat_id = @seat_id
-  AND status = 'Available'
-RETURNING seat_id;
-```
+Một câu `UPDATE` duy nhất trên `inventory.showtime_seats`:
+
+| Phần | Nội dung |
+|---|---|
+| `SET` | `status = 'Held'`, `held_until = @until`, `hold_id = @hold_id` |
+| `WHERE` | `showtime_id = @showtime_id` **và** `seat_id = @seat_id` **và** `status = 'Available'` |
+| `RETURNING` | `seat_id` |
 
 - Số dòng trả về là `1` → giữ ghế thành công.
 - Số dòng trả về là `0` → ghế không còn trống, trả `409`.
@@ -54,15 +53,14 @@ RETURNING seat_id;
 Các ghế được giữ trong **một transaction**, và ghế được khoá theo **thứ tự cố định** (theo
 `seat_id`) để tránh deadlock:
 
-```sql
--- Trong một transaction. Thứ tự seat_id tăng dần là bắt buộc.
-UPDATE inventory.showtime_seats
-SET status = 'Held', held_until = @until, hold_id = @hold_id
-WHERE showtime_id = @showtime_id
-  AND seat_id = ANY(@seat_ids)
-  AND status = 'Available'
-RETURNING seat_id;
-```
+Trong một transaction, một câu `UPDATE` trên `inventory.showtime_seats`. Thứ tự `seat_id` tăng
+dần là bắt buộc.
+
+| Phần | Nội dung |
+|---|---|
+| `SET` | `status = 'Held'`, `held_until = @until`, `hold_id = @hold_id` |
+| `WHERE` | `showtime_id = @showtime_id` **và** `seat_id` thuộc danh sách `@seat_ids` (`= ANY`) **và** `status = 'Available'` |
+| `RETURNING` | `seat_id` |
 
 - Số dòng trả về **bằng** số ghế yêu cầu → giữ thành công.
 - Số dòng trả về **ít hơn** → rollback toàn bộ transaction, giải phóng các ghế đã giữ

@@ -24,6 +24,7 @@ có câu chuyện "sau". Đừng thêm Redis ở đây.
   cộng lại = số ghế phòng; chỉ chủ suất / `Administrator`, khác ⇒ `404`.
 - `POST /api/manager/showtimes/{showtimeId}/seats/block` và `/unblock`: all-or-nothing (`Available ↔ Blocked`),
   ghế đang giữ / đã bán ⇒ `409 SEATS_NOT_BLOCKABLE`; mỗi lần đổi trạng thái tăng `version`.
+- Test nằm ở project test của module (tạo từ template M0-08 nếu chưa có) và dùng `TicketSystem.Testing`.
 
 **Ngoài:**
 - Cache Redis cho sơ đồ ghế và danh sách phim, single-flight, cập nhật theo ghế qua outbox (M3-03, bài toán #9 #10).

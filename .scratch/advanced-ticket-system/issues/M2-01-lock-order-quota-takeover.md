@@ -23,6 +23,7 @@ ghế `Held` đã quá hạn mà worker chưa dọn (người khác phải giữ
   `Available` ở các đường đọc của M1-03 (sơ đồ ghế, availability) nếu chưa làm.
 - Hook test chèn `pg_sleep` giữa hai lần khoá ghế và cờ `Concurrency:UnsafeVariant` cho hai biến thể
   `ClientOrderLocking`, `NoQuotaLock` (chỉ có trong build test).
+- Test nằm ở project test của module (tạo từ template M0-08 nếu chưa có) và dùng `TicketSystem.Testing`.
 
 **Ngoài:**
 - Dedupe `Idempotency-Key` và savepoint giữ kết quả lỗi → M2-02.
