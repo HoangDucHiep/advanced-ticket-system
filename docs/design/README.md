@@ -15,6 +15,8 @@ mà không có nguồn gốc là bịa đặt.
 | `data-model.md` | Schema, index, constraint | T11 |
 | `concurrency.md` | Mỗi bài toán: cơ chế + test chứng minh | T12 |
 | `api-contract.md` | Endpoint, error code, idempotency contract | T13 |
+| `building-blocks.md` | Khối nền dùng chung: Result, problem+json, handler, transaction, repository, domain tối thiểu (B1–B12) | T28 (thiết kế 2026-11-26) |
+| `coding-conventions.md` | Checklist viết và review code (C-01…C-32, smell) | T28 |
 
 ## Quy tắc
 
@@ -27,4 +29,5 @@ mà không có nguồn gốc là bịa đặt.
 ## Trạng thái
 
 Gate C **đã đóng** 2026-11-25 — bốn file đầy đủ. Đọc theo thứ tự: `architecture.md` → `data-model.md`
-→ `concurrency.md` → `api-contract.md`. Khi ticket Gate D mâu thuẫn với các file này, **design thắng**.
+→ `concurrency.md` → `api-contract.md`. Bổ sung 2026-11-26 (Gate D, trước T16): `building-blocks.md` +
+`coding-conventions.md` — khối nền mà bốn file trên ngầm giả định nhưng chưa thiết kế. Khi ticket Gate D mâu thuẫn với các file này, **design thắng**.

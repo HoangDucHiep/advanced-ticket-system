@@ -1045,3 +1045,26 @@ verify và commit phần tài liệu.
 **Còn mở**: CI xanh trên GitHub (sau khi push). `btree_gist` hiện bật bằng init script của compose —
 migration đầu tiên ở T17 phải khai báo `HasPostgresExtension("btree_gist")` vì Testcontainers không chạy
 script đó.
+
+---
+
+## 2026-11-26 — Thiết kế building blocks, chèn T28 trước T16
+
+**Bối cảnh**: người học dừng lại trước T16 và hỏi: chưa có Result pattern, repository, API envelope,
+exception handler… và docs / ticket cũng không nhắc. Kiểm lại thì đúng: `api-contract.md` chốt **định
+dạng** lỗi (problem+json), `architecture.md` D6 chỉ *nêu tên* `Result`, còn câu "mediator trong module"
+bị hoãn sang T15 rồi không ai trả lời.
+
+**Quyết định** (AI, theo hợp đồng spec): `docs/design/building-blocks.md` B1–B12, ADR-0016, ADR-0017,
+checklist `docs/design/coding-conventions.md`. Ticket mới T28 (`pair-tdd`) chạy trước T16.
+
+**Học được:**
+
+- **"Định dạng" và "cơ chế" là hai quyết định khác nhau.** Chốt shape JSON của lỗi chưa nói gì về việc
+  lỗi đi từ domain tới HTTP bằng đường nào.
+- **Tự động hoá transaction trông gọn nhưng sai ở đúng chỗ quan trọng nhất**: filter "commit khi
+  `Result.IsSuccess`" làm hỏng ADR-0011 (giữ ghế thất bại vẫn phải commit kết quả `409` vào bản ghi
+  idempotency). Ranh giới transaction phải nằm trong code mà reviewer đọc.
+- **Không phải "best practice" nào cũng hợp**: generic repository, success envelope, MediatR đều phổ
+  biến, nhưng mỗi cái đều có lý do cụ thể để không dùng ở đây (ghi ở phần "Không chọn").
+- Số ticket là ID, không phải thứ tự — chèn T28 thay vì đánh số lại T16–T27.

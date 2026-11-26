@@ -3,7 +3,7 @@
 Mode: you-implement-i-review
 Gate: D
 Layer: code
-Blocked by: 15
+Blocked by: 15, 28
 Traces to: FR-10, FR-29, FR-33
 Concurrency problem: #6
 
@@ -12,6 +12,16 @@ Concurrency problem: #6
 > Endpoint: `api-contract.md` mục Identity. Rotation: `concurrency.md` #6, ADR-0014 (không ân hạn). Vai
 > trò hiện hành đọc từ DB/cache theo `role_version`, **không** từ claim `role` của JWT (`BR-26`). Rate
 > limit Redis token bucket dùng chung nhiều instance (`concurrency.md` #12).
+>
+> **Dùng building blocks (2026-11-26, sau T28).** Đây là module đầu tiên áp khuôn của
+> `building-blocks.md` — các module sau sẽ copy cách làm ở đây, nên làm đúng khuôn quan trọng hơn làm nhanh:
+> cấu trúc thư mục `Domain/ Application/<UseCase>/ Infrastructure/ Api/` (mục "Cấu trúc thư mục");
+> mỗi endpoint một handler, handler tự `BeginAsync` / `CommitAsync` (B6, B7); `IUserRepository` +
+> `IRefreshTokenRepository` (B8) — repository dịch `23505` của `email` thành `UserErrors.EmailTaken` (B2);
+> `User` là aggregate `sealed` tạo bằng `User.Register(...)`, `Email` là value object (B9); lỗi là hằng
+> số trong `UserErrors` / `RefreshTokenErrors` với `code` đúng bảng Identity của `api-contract.md` (B1);
+> `JwtOptions` qua Options pattern + `ValidateOnStart` (B11); thời gian từ `TimeProvider` (B10).
+> Review đối chiếu `coding-conventions.md`, đặc biệt C-16, C-22, C-23, C-24.
 
 ## Vì sao có ticket này
 

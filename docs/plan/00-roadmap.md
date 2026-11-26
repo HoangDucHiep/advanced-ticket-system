@@ -128,7 +128,7 @@ Requirement nào không map được → hoặc bỏ khỏi requirements, hoặc
 | FR-33 | Vai trò `User` (`Identity` `INV-06`) | Chính sách vai trò `GateStaff` / `Administrator` | T16, T24 | đã có design |
 | FR-34 | `Showtime` `INV-02` | `404` cho suất chưa mở bán; giữ ghế đọc suất `FOR KEY SHARE` | T17 | đã có design |
 | FR-35 | `Gate assignment` `INV-08` | `gate_assignments` PK; kiểm trước khi xét vé ⇒ `403` | T24 | đã có design |
-| FR-36 | Bảng "transitions bị từ chối" của mọi máy trạng thái | `application/problem+json` với `code` + `action` | T13 | đã có design |
+| FR-36 | Bảng "transitions bị từ chối" của mọi máy trạng thái | `application/problem+json` với `code` + `action`; cơ chế `Result` → problem+json (ADR-0016) | T13, T28 | đã có design |
 | FR-37 | `Booking` `INV-08` — `Idempotency key` | Idempotency trong transaction + savepoint — #5, ADR-0011 | T19, T22 | đã có design |
 | FR-38 | `Payment intent` `INV-01` — unique `event.id` | `UNIQUE (stripe_event_id)` + điều kiện trạng thái — #7 | T19, T20, T22 | đã có design |
 | FR-39 | `Payment intent` `→ RefundPending → Refunded`; `Refund` (`INV-02`) | `RefundPending` + outbox + `Idempotency-Key = refunds.id` — #7 | T20, T21, T22 | đã có design |
@@ -175,12 +175,13 @@ Chi tiết từng ticket nằm ở `.scratch/advanced-ticket-system/issues/`.
 | T13 | API contract và idempotency contract (endpoint ghế) | `co-design` | T09, T12 | FR-11, FR-12, FR-13, FR-16, FR-17, FR-18, FR-23, FR-36 | **xong 2026-11-25** |
 | T14 | Bộ ADR | `co-design` | T10, T11, T12, T13 | — | **xong 2026-11-25** |
 
-### Gate D — Implementation (T15–T26)
+### Gate D — Implementation (T15–T28)
 
 | # | Ticket | Mode | Blocked by | Vấn đề concurrency |
 |---|---|---|---|---|
 | T15 | Skeleton + Docker Compose + CI | `ai-implements` | T14 | — | **xong 2026-11-26** |
-| T16 | Identity: register, login, JWT, refresh rotation | `you-implement-i-review` | T15 | #6 |
+| T28 | Building blocks: Result, problem+json, exception handler (chạy **trước** T16) | `pair-tdd` | T15 | — |
+| T16 | Identity: register, login, JWT, refresh rotation | `you-implement-i-review` | T15, T28 | #6 |
 | T17 | Phòng chiếu, sơ đồ ghế, lịch chiếu và cache | `you-implement-i-review` | T15 | #9 #10 |
 | T18 | Đặt vé: giữ n ghế all-or-nothing | `pair-tdd` | T15, T17 | #1 #2 #3 |
 | T19 | Idempotency middleware | `you-implement-i-review` | T18 | #5 |
@@ -197,7 +198,7 @@ Chi tiết từng ticket nằm ở `.scratch/advanced-ticket-system/issues/`.
 
 **Cắt scope khi trễ tiến độ:** T27 (frontend) đầu tiên — điểm CV nằm ở concurrency chứ không ở UI;
 khi chưa có frontend thì demo bằng OpenAPI. Sau đó T24 (check-in), rồi T25 (Grafana), rồi T23 (k6 mở rộng).
-Lõi là T15–T22 + T26.
+Lõi là T15–T22 + T26 + T28.
 
 ## Log quyết định
 
@@ -283,6 +284,7 @@ Ghi lại ở đây mỗi khi có quyết định nào ảnh hưởng tới toà
 | 2026-11-25 | **API**: problem+json có `code` + `action`; `404` cho tài nguyên người khác; `409` vs `422`; `Idempotency-Key` bắt buộc chỉ ở giữ ghế | `FR-10`, `FR-36`; endpoint khác tự nhiên idempotent | `docs/design/api-contract.md` |
 | 2026-11-25 | **Đóng Gate C, mở Gate D**; đồng bộ ticket T15–T26 với design | Exit checklist Gate C tick đủ | `docs/plan/gate-d-implementation.md` |
 | 2026-11-25 | **Bố cục repo `backend/` + `frontend/`**; thêm T27 frontend người xem (AI quyết định) | PRD có giao diện người xem (`NR-06`, `NR-14`) nhưng design chưa có chỗ cho nó; mỗi toolchain một thư mục gốc | `docs/design/architecture.md` D2 |
+| 2026-11-26 | **Building blocks** (AI quyết định; người học phát hiện thiếu): `Result` tự viết, mọi lỗi là problem+json qua một cơ chế, không success envelope; mỗi use case một handler, không mediator; transaction tường minh trong handler; repository theo aggregate chỉ phía ghi; `TimeProvider` thay `IClock`. Thêm T28 chạy trước T16 | Chỉ có *định dạng* lỗi (T13), chưa có *cơ chế*; "commit khi thành công" tự động sẽ sai với ADR-0011 | ADR-0016, ADR-0017, `docs/design/building-blocks.md`, `coding-conventions.md` |
 
 ## Câu hỏi còn mở
 

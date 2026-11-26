@@ -164,9 +164,9 @@ src/
       TicketSystem.Scheduling.Contracts/
       TicketSystem.Scheduling/
         Domain/          aggregate, value object, invariant
-        Application/     use case (một class một lệnh / truy vấn)
-        Infrastructure/  SchedulingDbContext, migrations, SQL tay
-        Api/             controller
+        Application/     use case: <UseCase>/ chứa Command + Handler (building-blocks.md B6)
+        Infrastructure/  SchedulingDbContext, migrations, repository, SQL tay
+        Api/             controller, Requests/, Responses/
         SchedulingModule.cs   AddSchedulingModule(...) — điểm đăng ký duy nhất
     Inventory/   (cùng khuôn)
     Booking/     (cùng khuôn)
@@ -229,7 +229,9 @@ Chọn theo use case, bằng hai câu hỏi và một ràng buộc:
 
 **Không chọn mediator giữa module** (MediatR hoặc tự viết): so với interface nó không thêm gì,
 lại che mất hướng phụ thuộc (vẫn phụ thuộc kiểu command, chỉ là không thấy trong `.csproj`).
-Dùng mediator *bên trong* một module là quyết định của tầng code (T15).
+Dùng mediator *bên trong* một module là quyết định của tầng code — **đã chốt 2026-11-26: cũng không**;
+mỗi use case một handler gọi thẳng ([ADR-0017](../adr/0017-handler-per-use-case-no-mediator.md),
+[`building-blocks.md`](building-blocks.md) B6).
 
 ### Áp vào năm ranh giới bị cắt
 
@@ -285,8 +287,11 @@ ghế lúc sinh ghế và không đọc lại `room_seats`.
 
 | Project | Chứa | Ai reference |
 |---|---|---|
-| `Shared.Abstractions` | `IUnitOfWork`, `IClock`, interface event in-process (`IInProcessEvent`, `IEventHandler<T>`, `IEventPublisher`), `IOutboxWriter`, kiểu `Result` / lỗi dùng chung | Mọi project |
-| `Shared.Infrastructure` | Hiện thực UoW trên Npgsql, event bus in-process, cấu hình bảng outbox dùng lại cho từng schema, outbox dispatcher | Project nội bộ của module + host. **Không** `.Contracts` nào reference |
+| `Shared.Abstractions` | `IUnitOfWork`, interface event in-process (`IInProcessEvent`, `IEventHandler<T>`, `IEventPublisher`), `IOutboxWriter`, `Result` / `Error` / `PagedResponse<T>` (ADR-0016) | Mọi project |
+| `Shared.Infrastructure` | Hiện thực UoW trên Npgsql, event bus in-process, cấu hình bảng outbox dùng lại cho từng schema, outbox dispatcher; `Web/` — map `Result` → problem+json, exception handler (ADR-0016; có `FrameworkReference` ASP.NET Core) | Project nội bộ của module + host. **Không** `.Contracts` nào reference |
+
+> **Sửa 2026-11-26:** bản đầu có `IClock` ở `Shared.Abstractions`. Thay bằng `System.TimeProvider`
+> built-in (`building-blocks.md` B10) — không cần interface tự viết.
 
 **Ba luật để `Shared` không thành "thùng rác":**
 

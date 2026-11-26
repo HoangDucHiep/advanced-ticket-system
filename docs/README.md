@@ -92,7 +92,8 @@ Hỗ trợ:
 - [x] Ma trận truy vết trong `docs/plan/00-roadmap.md` đầy đủ: mỗi `FR-nn` có ít nhất một ticket và một quyết định design
 
 > **Gate C đóng ngày 2026-11-25** → Gate D mở. Plan: [`plan/gate-d-implementation.md`](plan/gate-d-implementation.md).
-> Bắt đầu từ T15 (skeleton — `ai-implements`).
+> Bắt đầu từ T15 (skeleton — `ai-implements`, **xong 2026-11-26**). Tiếp theo: **T28 Building blocks** (`pair-tdd`,
+> `design/building-blocks.md`), rồi T16 Identity.
 
 ### Gate D — Code đủ để đưa lên CV
 

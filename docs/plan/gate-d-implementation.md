@@ -20,14 +20,18 @@ Gate D biến design thành **code chạy được và test chứng minh đượ
 3. [`../design/concurrency.md`](../design/concurrency.md) — bài toán của ticket (trường `Concurrency
    problem:`), **gồm test và dòng "đỏ nếu…"**.
 4. [`../design/api-contract.md`](../design/api-contract.md) — endpoint và mã lỗi.
-5. [`../../GLOSSARY.md`](../../GLOSSARY.md) — tên class, bảng, trạng thái.
+5. [`../design/building-blocks.md`](../design/building-blocks.md) — khuôn chung: Result, problem+json,
+   handler, transaction, repository (thêm 2026-11-26).
+6. [`../design/coding-conventions.md`](../design/coding-conventions.md) — checklist review (C-01…C-32).
+7. [`../../GLOSSARY.md`](../../GLOSSARY.md) — tên class, bảng, trạng thái.
 
 ## Thứ tự
 
 | Bước | Ticket | Mode | Ghi chú |
 |---|---|---|---|
-| 1 | T15 Skeleton + Compose + CI | `ai-implements` | UoW (ADR-0008), architecture test, `btree_gist` |
-| 2 | T16 Identity | `you-implement-i-review` | #6, #12 |
+| 1 | T15 Skeleton + Compose + CI | `ai-implements` | UoW (ADR-0008), architecture test, `btree_gist` — **xong 2026-11-26** |
+| 1b | T28 Building blocks | `pair-tdd` | Result, problem+json, exception handler (ADR-0016, ADR-0017) — chèn 2026-11-26 |
+| 2 | T16 Identity | `you-implement-i-review` | #6, #12 — module đầu tiên áp khuôn building blocks |
 | 3 | T17 Phòng, suất, sơ đồ ghế, cache | `you-implement-i-review` | #9, #10 |
 | 4 | T18 Giữ n ghế | `pair-tdd` | #1, #2, #3, #13, #14 — **lõi** |
 | 5 | T19 Idempotency | `you-implement-i-review` | #5 |
@@ -40,7 +44,7 @@ Gate D biến design thành **code chạy được và test chứng minh đượ
 | 12 | T26 README + CV | `co-design` | |
 | 13 | T27 Frontend người xem (`frontend/`) | `you-implement-i-review` | cắt **đầu tiên** nếu trễ |
 
-Lõi bắt buộc: T15–T22 + T26. Cắt khi trễ: T24 → T25 → mở rộng T23.
+Lõi bắt buộc: T15–T22 + T26 + T28. Cắt khi trễ: T24 → T25 → mở rộng T23.
 
 ## Câu hỏi còn mở trong gate này
 
