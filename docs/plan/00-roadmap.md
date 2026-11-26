@@ -22,7 +22,7 @@ quả là một repo public kể được câu chuyện: *bài toán nào, vì s
 
 | Milestone | Kết quả | Demo |
 |---|---|---|
-| **M0 — Nền móng** | Skeleton, CI, khuôn lỗi chung, log, health | Request sai ⇒ problem+json có `traceId` tìm được trong log |
+| **M0 — Nền móng** | Mọi setup trước module: base class domain, handler + event bus, persistence, pipeline lỗi, auth, log, hạ tầng test, CI | Module mẫu chỉ trong test đi qua đủ khuôn |
 | **M1 — Walking skeleton** | Đi hết J-01: đăng ký → xem ghế → giữ ghế → thanh toán → vé | Test E2E `J01_happy_path` |
 | **M2 — Đúng dưới tranh chấp** | 11 bài toán concurrency có test + phép thử âm tính | `dotnet test --filter Category=Concurrency` |
 | **M3 — Đo, tối ưu, đo lại** | Baseline k6, cache, rate limit, số trước / sau | `perf/report.md` + dashboard Grafana |

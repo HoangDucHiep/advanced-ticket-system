@@ -7,3 +7,5 @@ secrets.json
 .idea/
 Thumbs.db
 .DS_Store
+
+*handoff*.md
