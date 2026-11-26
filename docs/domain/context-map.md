@@ -1,26 +1,18 @@
-﻿# Context map
+# Context map
 
 Lớp 2 — Domain. Bản đồ các bounded context và quan hệ giữa chúng.
 
-Nguồn: ticket `.scratch/advanced-ticket-system/issues/06-context-map.md`.
-Thuật ngữ: [`ubiquitous-language.md`](ubiquitous-language.md).
+Thuật ngữ (kể cả thuật ngữ riêng của từng context): [`GLOSSARY.md`](../../GLOSSARY.md) — mỗi mục của
+glossary chia theo context.
 
-## Cách đọc
-
-Bốn điều cần nhớ khi đọc bản đồ này:
-
-1. **Bounded context ≠ transaction boundary.** Bounded context là ranh giới *ngôn ngữ*; transaction
-   boundary là ranh giới *atomicity*, chốt ở T07. Trong modular monolith hai thứ này **không trùng
-   nhau** — và bản đồ này ghi rõ chỗ nào chúng tách.
-2. **Tên tiếng Anh là tên chuẩn trong code.** Xem mục "Quy tắc đặt tên trong code" ở
-   [`ubiquitous-language.md`](ubiquitous-language.md).
-3. **Mỗi quan hệ có tên dạng quan hệ**, không phải mũi tên trần.
-4. **Quan hệ nào đi qua API, quan hệ nào ghi chung transaction** — phải phân biệt. Đây là thông
-   tin quan trọng nhất của bản đồ: nó quyết định cái gì sẽ **vỡ** nếu sau này tách service.
+Cách đọc: **bounded context ≠ ranh giới atomic.** Context là ranh giới *ngôn ngữ*; ranh giới atomic là
+ranh giới *nhất quán* ([`aggregates/README.md`](aggregates/README.md)). Trong modular monolith hai
+thứ không trùng nhau. Mỗi quan hệ ghi **dạng quan hệ**, ai gọi ai, và đi qua API hay ghi chung
+atomic — thông tin này quyết định cái gì sẽ **vỡ** nếu sau này tách service.
 
 ## Bối cảnh
 
-Hệ thống đặt vé xem phim. Sáu bounded context, dựa trên 7 journey ở T04.
+Hệ thống đặt vé xem phim. Sáu bounded context, dựa trên 7 user journey ([`../prd/03-user-journeys.md`](../prd/03-user-journeys.md)).
 
 | Context | Tên tiếng Anh | Trách nhiệm (một câu) |
 |---|---|---|
@@ -30,35 +22,6 @@ Hệ thống đặt vé xem phim. Sáu bounded context, dựa trên 7 journey �
 | **Thanh toán** | `Payment` | Quản lý tiền: yêu cầu thanh toán, kết quả thanh toán, hoàn tiền — và dịch sang Stripe. |
 | **Vé & check-in** | `Ticketing` | Quản lý vé (mã QR) và việc check-in tại cổng. |
 | **Danh tính & phân quyền** | `Identity & Access` | Quản lý người dùng và quyền của họ. |
-
-### Thuật ngữ riêng của từng context
-
-Từ nào mang **một nghĩa duy nhất** bên trong context đó, và mang nghĩa **khác** ở context khác.
-
-| Context | Thuật ngữ riêng | Nghĩa bên trong context này |
-|---|---|---|
-| `Scheduling` | `Movie` | Một tác phẩm được chiếu, có nhiều `Showtime` |
-| `Scheduling` | `Room` | Một phòng chiếu vật lý, có nhiều `Room seat` |
-| `Scheduling` | `Room seat` | Vị trí ngồi vật lý trong phòng — hàng, số, loại. Không có trạng thái |
-| `Scheduling` | `Seat type` | `Standard` / `Couple` / `VIP` — khai báo ở phòng |
-| `Scheduling` | `Showtime` | Một phim, một phòng, một khoảng giờ. Trạng thái `NotOnSale` / `OnSale` / `Cancelled` |
-| `Scheduling` | `Ticket price` | Giá của cặp (`Seat type`, `Showtime`) |
-| `Inventory` | `Showtime seat` | Một ghế của một suất chiếu — **đơn vị bán**, aggregate root (ADR-0005). Có trạng thái riêng |
-| `Inventory` | Thông tin giữ (`hold_id`, `held_until`) | "Ghế này đang được giữ bởi lần giữ nào, tới lúc nào" — nằm **trên** dòng ghế |
-| `Inventory` | `Available` / `Held` / `Sold` / `Blocked` | Bốn trạng thái của `Showtime seat` |
-| `Booking` | `Booking` | Một lần đặt của một người xem, thuộc đúng một suất chiếu, mang `expires_at` |
-| `Booking` | `Booking line` | Một ghế trong đơn, cùng giá đã chốt tại lúc giữ |
-| `Booking` | `AwaitingPayment` / `Paid` / `Expired` / `Cancelled` | Vòng đời của `Booking` |
-| `Payment` | `Payment intent` | Yêu cầu thanh toán cho một đơn |
-| `Payment` | `Refund` | Hoàn tiền — luôn là **hoàn toàn bộ** cho cả đơn (`FR-39`) |
-| `Payment` | `Payment event` | Thông báo kết quả thanh toán từ Stripe; xử lý đúng một lần (`FR-38`) |
-| `Ticketing` | `Ticket` | Mã QR gắn với **một** `Showtime seat`. Sinh ra khi đơn được thanh toán |
-| `Ticketing` | `Check-in` | Ghi nhận vé đã quét tại cổng. Mỗi vé **một lần** (`FR-07`) |
-| `Ticketing` | `Gate assignment` | **Nhân viên cổng** nào được phân công trực **suất chiếu** nào (`FR-35`, `FR-40`) |
-| `Identity & Access` | `Customer` | Người xem đã đăng nhập |
-| `Identity & Access` | `Theater manager` | Quản lý rạp — sở hữu lịch chiếu của mình |
-| `Identity & Access` | `Gate staff` | Nhân viên cổng — chỉ ghi nhận check-in |
-| `Identity & Access` | `Administrator` | Quản trị viên toàn hệ thống |
 
 ## Sơ đồ
 
@@ -85,7 +48,7 @@ graph LR
     Identity -->|"Customer/Supplier<br/>quyền truy cập"| Ticketing
 ```
 
-Cơ chế của từng quan hệ: [`cross-context-contracts.md`](cross-context-contracts.md) (T09).
+Hợp đồng của từng quan hệ: [`cross-context-contracts.md`](cross-context-contracts.md).
 
 > **Cách đọc mũi tên:** mũi tên đi theo **hướng dữ liệu chính** (từ bên cung cấp sang bên dùng).
 > R4 (`Booking ↔ Payment`) và R6 (`Booking → Ticketing`) là quan hệ **hai chiều về dữ liệu** — mỗi
@@ -95,14 +58,14 @@ Cơ chế của từng quan hệ: [`cross-context-contracts.md`](cross-context-c
 ## Quan hệ giữa các context
 
 Mỗi quan hệ ghi rõ: dạng quan hệ, ai gọi ai, hướng dữ liệu, và đi qua API hay ghi chung
-transaction.
+atomic.
 
 ### R1 — `Scheduling` → `Inventory`
 
 - **Dạng quan hệ:** `Customer/Supplier` — `Scheduling` là Supplier.
 - **Ai gọi ai:** `Inventory` đọc từ `Scheduling`.
 - **Dữ liệu đi theo hướng nào:** `Scheduling` → `Inventory`.
-- **Cơ chế:** **ghi chung transaction** (cùng database, cùng transaction khi **tạo suất chiếu**).
+- **Cơ chế:** **ghi chung atomic** khi **tạo suất chiếu**.
 
 **Dữ liệu đi qua:** sơ đồ ghế của phòng (`Room seat` + `Seat type`). **Không** có giá (giá đi qua
 R9) và **không** có danh sách ghế bị chặn (`Blocked` chỉ sống ở `Inventory`).
@@ -129,8 +92,8 @@ giữ / đã bán / bị chặn.
 
 - **Dạng quan hệ:** `Customer/Supplier` + `Anti-Corruption Layer` phía `Booking`.
 - **Ai gọi ai:** `Booking` đọc trạng thái ghế từ `Inventory`; lệnh "giữ ghế" ghi vào **cả hai**.
-- **Dữ liệu đi theo hướng nào:** hai chiều, trong **cùng một transaction**.
-- **Cơ chế:** **ghi chung transaction** — không gọi API.
+- **Dữ liệu đi theo hướng nào:** hai chiều, trong **cùng một lần ghi atomic**.
+- **Cơ chế:** **ghi chung atomic** — không gọi API.
 
 **Dữ liệu đi qua:**
 
@@ -143,15 +106,11 @@ giữ / đã bán / bị chặn.
 > giữ trên ghế. `Booking` không biết cấu trúc dòng ghế — nó chỉ biết "giữ những ghế này với tham
 > chiếu này tới lúc này" và "trả ghế của tham chiếu này".
 
-> **Quan trọng — bất biến bị cắt ngang ranh giới.** Lệnh "giữ ghế" phải làm **hai** việc cùng
-> lúc: đặt `Showtime seat` sang `Held` và tạo `Booking` ở `AwaitingPayment`. Nếu chỉ một phía ghi
-> được, hệ thống sai. Vì vậy:
->
-> - Ranh giới này **không** phải ranh giới transaction. Hai context ghi chung transaction.
-> - Tác vụ **giải phóng hết hạn** cũng cắt qua ranh giới: giải phóng ghế (`Inventory`) và
->   chuyển đơn sang `Expired` (`Booking`) phải xảy ra cùng lúc.
-> - Nếu sau này tách `Inventory` thành service riêng, **lệnh giữ ghế vỡ** — phải thiết kế lại
->   bằng saga/outbox. Đây là rủi ro lớn nhất của bản đồ này.
+> **Quan trọng — bất biến bị cắt ngang ranh giới** (#1 giữ ghế, #3 hết hạn/huỷ — xem
+> [`aggregates/README.md`](aggregates/README.md#ranh-giới-bị-cắt--năm-chỗ)). Lệnh "giữ ghế" làm **hai**
+> việc cùng lúc: `Showtime seat` sang `Held` và tạo `Booking` ở `AwaitingPayment`; hết hạn cũng vậy:
+> trả ghế và chuyển đơn sang `Expired`. Hai context ghi chung atomic. Tách `Inventory` thành service
+> riêng thì **lệnh giữ ghế vỡ** — rủi ro lớn nhất của bản đồ này.
 
 ### R4 — `Booking` → `Payment`
 
@@ -161,7 +120,7 @@ giữ / đã bán / bị chặn.
   báo kết quả thanh toán bằng event mà `Booking` nghe.
 - **Dữ liệu đi theo hướng nào:** `Booking` → `Payment` (hỏi) và `Payment` → `Booking` (thông báo
   kết quả thanh toán).
-- **Cơ chế:** **ghi chung transaction** khi ghi nhận kết quả thanh toán.
+- **Cơ chế:** **ghi chung atomic** khi ghi nhận kết quả thanh toán.
 
 **Dữ liệu đi qua:** `Payment intent` gắn với đơn, kết quả thanh toán, trạng thái hoàn tiền.
 
@@ -176,40 +135,31 @@ giữ / đã bán / bị chặn.
 - **Ai gọi ai:** `Payment` gọi Stripe. Stripe **không** gọi ngược vào nghiệp vụ của ta — nó chỉ
   gửi thông báo, và `Payment` là bên duy nhất tiếp nhận.
 - **Dữ liệu đi theo hướng nào:** hai chiều, nhưng chiều về là **thông báo bên ngoài**.
-- **Cơ chế:** gọi API bên ngoài + webhook.
+- **Cơ chế:** gọi API bên ngoài + nhận thông báo từ Stripe.
 
 **Dữ liệu đi qua:** `payment_intent` (mã định danh phía Stripe), số tiền, đơn vị tiền tệ, và
 các sự kiện thanh toán / hoàn tiền.
 
-> **Vì sao bắt buộc phải có lớp dịch.** Mô hình của Stripe lệch mạnh với mô hình của ta:
->
-> | Stripe nói | Ta nói |
-> |---|---|
-> | `payment_intent` | `Booking` |
-> | `amount`, `currency` | `Tổng tiền của đơn` |
-> | `payment_intent.succeeded` | `Paid` → cấp vé |
-> | `charge.refunded` (có thể partial) | `Refund` (luôn toàn bộ theo `FR-39`) |
-> | `requires_payment_method` | chưa có trạng thái tương đương — ta chỉ có "chờ thanh toán" |
->
-> Stripe không biết "vé" là gì, "ghế" là gì, "hết hạn" là gì. Không có lớp dịch, mô hình của
-> Stripe sẽ lấn át vào bên trong và ta sẽ có code kiểu
-> `if (paymentIntent.Status == "requires_confirmation")` rải khắp nơi.
+> **Vì sao bắt buộc phải có lớp dịch.** Mô hình của Stripe lệch mạnh với mô hình của ta (Stripe có
+> nhiều trạng thái trung gian và hoàn một phần; ta chỉ có "chờ thanh toán" và hoàn toàn bộ). Stripe
+> không biết "vé", "ghế", "hết hạn" là gì. Không có lớp dịch, mô hình Stripe lấn vào trong và ta sẽ
+> có code kiểu `if (paymentIntent.Status == "requires_confirmation")` rải khắp nơi. Bảng ánh xạ:
+> [`cross-context-contracts.md`](cross-context-contracts.md).
 
 ### R6 — `Booking` → `Ticketing`
 
 - **Dạng quan hệ:** `Customer/Supplier` — `Booking` là Supplier của "đơn đã thanh toán" (đầu vào cấp
   vé); `Ticketing` là nguồn sự thật về vé.
-- **Ai gọi ai:** `Booking` phát event `BookingPaid`; `Ticketing` nghe và cấp vé, cùng transaction.
+- **Ai gọi ai:** `Booking` phát event `BookingPaid`; `Ticketing` nghe và cấp vé, cùng lần ghi atomic.
 - **Dữ liệu đi theo hướng nào:** `Booking` → `Ticketing`. Không có chiều ngược: "đơn đã cấp vé" suy
-  ra từ `Paid` (Q26), danh sách vé do `Ticketing` phục vụ.
-- **Cơ chế:** **ghi chung transaction** khi cấp vé.
+  ra từ `Paid`, danh sách vé do `Ticketing` phục vụ.
+- **Cơ chế:** **ghi chung atomic** khi cấp vé.
 
 **Dữ liệu đi qua:** danh sách `Showtime seat` cần cấp vé.
 
-> **Quan trọng — bất biến bị cắt ngang ranh giới.** Cấp vé phải **atomic** với `Booking → Paid`.
-> Nếu cấp vé xong mà đơn chưa `Paid`, lần thông báo thanh toán đến lại sẽ cấp vé lần hai — vi phạm
-> `FR-38` và `SC-04`. Vì vậy ranh giới này là **ghi chung transaction**, không gọi API. (Không cần cờ
-> "đã cấp vé" riêng: `Paid` ⇔ đã có vé.)
+> **Quan trọng — bất biến bị cắt ngang ranh giới** (#2). Cấp vé phải **atomic** với `Booking → Paid`;
+> nếu không, lần thông báo thanh toán đến lại sẽ cấp vé lần hai — vi phạm `FR-38` và `SC-04`. Không
+> cần cờ "đã cấp vé" riêng: `Paid` ⇔ đã có vé.
 
 ### R7 — `Scheduling` → `Ticketing`
 
@@ -222,16 +172,14 @@ các sự kiện thanh toán / hoàn tiền.
 suất (để kiểm tra quyền phân công). Phân công nhân viên cổng (`FR-35`) **không** đi qua đây — nó là
 aggregate `Gate assignment` của `Ticketing`.
 
-### R9 — `Scheduling` → `Booking`, `Inventory` *(thêm 2026-11-25)*
+### R9 — `Scheduling` → `Booking`, `Inventory`
 
 - **Dạng quan hệ:** `Customer/Supplier` — `Scheduling` là Supplier.
 - **Ai gọi ai:** `Booking` và `Inventory` đọc từ `Scheduling`.
-- **Cơ chế:** **đọc**, có thể bên trong DB transaction của bên gọi.
+- **Cơ chế:** **đọc**, có thể bên trong lần ghi atomic của bên gọi.
 
 **Dữ liệu đi qua:** cho `Booking` — trạng thái, giờ bắt đầu, `Ticket price` theo loại ghế (để chốt
 giá lúc giữ). Cho `Inventory` — chủ sở hữu suất (kiểm tra quyền chặn ghế).
-
-> Bản T06 thiếu quan hệ này dù bảng "nguồn sự thật" đã ghi `Booking` đọc giá từ `Scheduling`.
 
 ### R8 — `Identity & Access` → các context khác
 
@@ -269,9 +217,9 @@ suy ra.
 | Người dùng và quyền | `Identity & Access` | tất cả |
 | Sự thật về tiền ở thế giới thật | **Stripe** | `Payment` |
 
-## Đối chiếu với điểm tranh chấp ở T04
+## Đối chiếu với điểm tranh chấp
 
-Bảng "bản đồ điểm tranh chấp" trong `docs/prd/03-user-journeys.md` là đầu vào cho T12. Mỗi
+Bảng "bản đồ điểm tranh chấp" trong [`../prd/03-user-journeys.md`](../prd/03-user-journeys.md). Mỗi
 điểm tranh chấp phải nằm trong một context, và phải ghi rõ: nó cắt ranh giới context nào hay
 không.
 
@@ -280,7 +228,7 @@ không.
 | Giữ 1 ghế | `Inventory` | **có** | Vẫn ghi cả `Inventory` + `Booking` (tạo đơn) — xem R3 |
 | Giữ n ghế một lúc | `Inventory` | **có** | All-or-nothing nhiều dòng, cắt qua `Inventory`/`Booking` |
 | Xác nhận lại lúc giữ | `Inventory` | không | Đọc lại trạng thái thật, không tin số đã hiển thị |
-| Tranh ngược thứ tự | `Inventory` | không | Không deadlock — thứ tự khoá là ở T12 |
+| Tranh ngược thứ tự | `Inventory` | không | Không deadlock — thứ tự lấy ghế cố định (`BR-22`) |
 | Cấp vé | `Ticketing` | **có** | Phải atomic với `Booking → Paid` — xem R6 |
 | Thanh toán đến lặp | `Payment` | không | Idempotency theo `event.id` |
 | Thanh toán muộn sau hết hạn | `Booking` + `Payment` | **có** | Không hồi sinh đơn, phải hoàn tiền |
@@ -288,40 +236,10 @@ không.
 | Hủy đơn | `Booking` + `Inventory` | **có** | Trả ghế về. Đơn chưa trả tiền nên **không** có hoàn tiền |
 | Hủy suất chiếu | `Scheduling` + `Booking` + `Inventory` + `Payment` | **có** | Huỷ đơn chờ, yêu cầu hoàn mọi đơn đã trả — đúng một lần mỗi đơn |
 | Quét lại vé | `Ticketing` | không | Một vé chỉ check-in một lần |
-| Xem sơ đồ ghế | `Inventory` (trạng thái) ghép bố cục + giá đọc từ `Scheduling` | không | Được phục vụ từ bộ đệm ngoài DB — `SC-11`; endpoint thuộc `Inventory` (architecture D9) |
+| Xem sơ đồ ghế | `Inventory` (trạng thái) ghép bố cục + giá đọc từ `Scheduling` | không | Phục vụ nhanh, chịu tải cao — `SC-11`; endpoint thuộc `Inventory` (architecture D9) |
 | Giao dịch lặp lại | `Booking` | không | Idempotency key theo yêu cầu |
 
-## Nhóm "ranh giới bị cắt" — cần lưu ý nhất
+## Ranh giới bị cắt
 
-> **Cập nhật 2026-11-25:** danh sách đầy đủ hiện có **năm** chỗ (T08 thêm hủy suất chiếu; review
-> thêm tạo suất chiếu) — bảng chuẩn ở [`state-machines.md`](state-machines.md#ranh-giới-bị-cắt--năm-chỗ).
-> Bảng dưới đây là ba chỗ gốc của T06, giữ lại để thấy lịch sử.
-
-Ba nơi một ranh giới context **bị cắt** bởi một bất biến (bản T06). Không nơi nào được "sửa" khi tách
-thành service — nó phải được thay bằng cơ chế khác (saga, outbox, compensating transaction).
-
-| # | Bất biến bị cắt | Cắt ở đâu | Hậu quả nếu tách service |
-|---|---|---|---|
-| 1 | "Giữ n ghế: đủ n hoặc không ghế nào" + "ghế `Held` luôn có thời điểm hết hạn" | R3 — lệnh giữ ghế ghi cả `Inventory` và `Booking` | Lệnh giữ ghế phải trở thành nhiều lượt gọi có điều phối |
-| 2 | "Cấp vé đúng một lần" | R6 — cấp vé phải atomic với đánh dấu "đơn đã cấp vé" | Phải có outbox + idempotent consumer |
-| 3 | "Hết hạn: giải phóng ghế + chuyển đơn sang `Expired` cùng lúc" | R3 — tác vụ nền giải phóng hết hạn | Phải có compensating: giải phóng ghế xong nhưng đơn chưa chuyển |
-
-Điểm 2 là nguy hiểm nhất: nó không chỉ "chậm hơn" mà **sinh ra lỗi sai** (cấp vé hai lần).
-
-Trong modular monolith hiện tại, cả ba đều xử lý trong **một transaction** — đúng. Nhưng khi
-T10 (architecture) và T12 (concurrency design) chốt, ba nơi này phải được ghi vào tài liệu
-design **nói rõ** bây giờ là một transaction, để sau này không ai "tối ưu" bằng cách tách
-service mà không đi theo.
-
-## Các điểm còn mở
-
-| # | Câu hỏi | Chốt ở |
-|---|---|---|
-| Q16 | ~~Check-in thuộc context nào; `Ticketing` đọc `Scheduling` qua API hay chung database?~~ **Đã đóng**: `Ticketing`; đọc qua interface (T09) | — |
-| Q18 | ~~Đặt `Seat hold` ở đâu?~~ **Đã đóng 2026-11-25**: không còn aggregate `Seat hold`; thông tin giữ nằm trên `Showtime seat` (ADR-0005) | — |
-| Q19 | ~~Ai giữ lịch sử trạng thái cho `FR-31`?~~ **Đã đóng**: mỗi context giữ lịch sử của mình; `FR-31` ghép `Booking` + `Payment event` | — |
-| Q20 | ~~Module tham gia chung DB transaction thế nào?~~ **Đã đóng ở T10**: mỗi module một `DbContext`, chung connection + transaction (ADR-0008) | — |
-
-## Trạng thái
-
-Bản làm việc, cập nhật sau review 2026-11-25. 6 context, 9 quan hệ R1–R9.
+Danh sách chuẩn (năm chỗ, kèm hậu quả nếu tách service):
+[`aggregates/README.md`](aggregates/README.md#ranh-giới-bị-cắt--năm-chỗ).

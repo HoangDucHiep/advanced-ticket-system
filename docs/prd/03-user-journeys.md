@@ -3,7 +3,6 @@
 Lớp 1 — PRD. File này nói **người dùng đi qua những bước nào**, và ở bước nào hệ thống phải
 ra tay.
 
-Nguồn: ticket `.scratch/advanced-ticket-system/issues/04-user-journeys-business-rules.md`.
 Bối cảnh: [`00-overview.md`](00-overview.md), [`01-requirements.md`](01-requirements.md),
 [`02-non-requirements.md`](02-non-requirements.md).
 
@@ -11,8 +10,9 @@ Bối cảnh: [`00-overview.md`](00-overview.md), [`01-requirements.md`](01-requ
 
 Mỗi bước ghi rõ **hệ thống phải làm gì** ở bước đó.
 
-Bước được đánh dấu bằng hai nhãn — đây là **bản đồ các điểm tranh chấp**, dùng lại ở T12
-(Lớp 3) để quyết định mỗi bài toán concurrency cần cơ chế gì:
+Bước được đánh dấu bằng hai nhãn để chỉ ra **điểm tranh chấp** — nơi nhiều người cùng chạm vào
+một thứ. Danh sách các bài toán tranh chấp và cơ chế xử lý nằm ở
+[`../design/concurrency.md`](../design/concurrency.md):
 
 | Nhãn | Nghĩa | Bài toán concurrency liên quan |
 |---|---|---|
@@ -263,73 +263,4 @@ Bước không có nhãn nào là bước chỉ **đọc**.
 
 ---
 
-## Bảng truy vết FR → journey
-
-Mỗi `FR-nn` ở [`01-requirements.md`](01-requirements.md) xuất hiện ở ít nhất một journey.
-
-| FR | Journey | Bước |
-|---|---|---|
-| FR-01 | J-02, J-03, J-04 | J-02.3, J-03.4, J-04.1 |
-| FR-02 | J-03 | J-03.4, J-03.6 |
-| FR-03 | J-03 | J-03.5 |
-| FR-04 | J-04 | J-04.2 |
-| FR-05 | J-02, J-04 | J-02.6, J-04.4 |
-| FR-06 | J-04 | J-04.5 |
-| FR-07 | J-05 | J-05.2, J-05.3 |
-| FR-08 | J-05 | J-05.1 (vé không hợp lệ) |
-| FR-09 | J-04 | J-04.3 |
-| FR-10 | J-02 | J-02.7 |
-| FR-11 | J-01 | J-01.1 |
-| FR-12 | J-01 | J-01.2 |
-| FR-13 | J-01, J-02, J-03 | J-01.3, J-02.1, J-03.3 |
-| FR-14 | J-02 | J-02.2 |
-| FR-15 | J-02, J-04 | J-02.3, J-04.1 |
-| FR-16 | J-02 | J-02.6 |
-| FR-17 | J-02 | J-02.7 |
-| FR-18 | J-04 | J-04.8 |
-| FR-19 | J-02 | J-02.8 |
-| FR-20 | J-02, J-06 | J-02.1, J-06.1, J-06.4 |
-| FR-21 | J-03, J-06 | J-03.1, J-06.2, J-06.3 |
-| FR-22 | J-03, J-06 | J-03.2, J-06.5 |
-| FR-23 | J-06 | J-06.7 |
-| FR-24 | J-04, J-05, J-06 | J-04.5, J-05.1, J-06.8 |
-| FR-25 | J-05 | J-05.1 |
-| FR-26 | — | **đã loại khỏi scope (NR-15)** |
-| FR-27 | J-05 | J-05.4 |
-| FR-28 | J-07 | J-07.3 |
-| FR-29 | J-07 | J-07.4 |
-| FR-30 | J-07 | J-07.1 |
-| FR-31 | J-07 | J-07.2, J-07.5 |
-| FR-32 | J-06 | J-06.9 |
-| FR-33 | J-05 | J-05.1 |
-| FR-34 | J-01, J-03 | J-01.1, J-03.2 |
-| FR-35 | J-05 | J-05.5 |
-| FR-36 | J-03, J-04 | J-03.7, J-04.1, J-04.4 |
-| FR-37 | J-04 | J-04.6 |
-| FR-38 | J-02, J-07 | J-02.5, J-07.5 |
-| FR-39 | J-04, J-06 | J-04.5, J-06.8 |
-| FR-40 | J-06 | J-06.6 |
-| FR-41 | J-04 | J-04.7 |
-
----
-
-## Bản đồ điểm tranh chấp
-
-Tổng hợp các bước đánh dấu, dùng làm đầu vào cho T12 (thiết kế concurrency).
-
-| Điểm tranh chấp | Journey.bước | Nhãn | Hệ thống phải bảo đảm |
-|---|---|---|---|
-| Giữ 1 ghế | J-02.2 | `[GHẾ]` | Ghế đã có người thì không ai giữ được nữa |
-| Giữ n ghế một lúc | J-02.2, J-03.4 | `[GHẾ]` | Giữ đủ n ghế, hoặc không giữ ghế nào |
-| Xác nhận lại lúc giữ | J-02.3 | `[GHẾ]` | Nói rõ ghế nào đã có người |
-| Tranh ngược thứ tự | J-03.5 | `[GHẾ]` | Không kẹt: không yêu cầu nào bị huỷ ngang vì kẹt, mỗi bên thắng hoặc thua với lý do nghiệp vụ |
-| Cấp vé | J-02.6 | `[GHẾ]`, `[TIỀN]` | Mỗi ghế một vé, không cấp hai lần |
-| Thanh toán đến lặp | J-02.4, J-02.5 | `[TIỀN]` | Chỉ xử lý một lần |
-| Thanh toán muộn sau hết hạn | J-04.5 | `[GHẾ]`, `[TIỀN]` | Không hồi sinh đơn, phải hoàn tiền |
-| Hết hạn giữ ghế | J-04.2 | `[GHẾ]` | Ghế trả về cho người khác, không mất ghế |
-| Huỷ đơn chờ thanh toán | J-04.8 | `[GHẾ]` | Ghế trả về ngay (đơn chưa trả tiền nên không có hoàn tiền) |
-| Hủy suất chiếu | J-06.8 | `[GHẾ]`, `[TIỀN]` | Đơn chờ bị huỷ, ghế trả về; mỗi đơn đã trả được hoàn đúng một lần |
-| Chặn ghế | J-06.4 | `[GHẾ]` | Không chặn được ghế đang giữ hoặc đã bán |
-| Quét lại vé | J-05.2, J-05.3 | `[GHẾ]` | Mỗi vé chỉ check-in một lần |
-| Xem sơ đồ ghế | J-01.3, J-03.3 | (chỉ đọc) | Phục vụ được lượng xem lớn khi mở bán hot |
-| Giao dịch lặp lại | J-04.6 | (không nhãn) | Một yêu cầu → một kết quả |
+FR nào xuất hiện ở journey nào: xem [`../plan/traceability.md`](../plan/traceability.md). Các điểm tranh chấp tổng hợp: xem [`../design/concurrency.md`](../design/concurrency.md).

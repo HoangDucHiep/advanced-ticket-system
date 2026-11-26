@@ -1,7 +1,6 @@
 # Concurrency design
 
-Lớp 3 — Design. Ticket: [`T12`](../../.scratch/advanced-ticket-system/issues/12-concurrency-design.md).
-Quyết định: AI (hợp đồng 2026-11-25 — `AGENTS.md`). Bảng và cột: [`data-model.md`](data-model.md).
+Lớp 3 — Design. Bảng và cột: [`data-model.md`](data-model.md).
 Module và transaction: [`architecture.md`](architecture.md), ADR-0008, ADR-0009.
 
 Đây là trái tim của dự án. Mỗi bài toán có: kịch bản, hậu quả nếu sai, **cơ chế tới mức viết được
@@ -32,22 +31,20 @@ SQL**, phương án bị loại, và **test chứng minh** — kèm dòng "test 
 bảo vệ — thêm một khoá ngoài không cứu được logic DB sai, chỉ thêm một hop mạng; (2) khoá có thời hạn
 không an toàn khi tiến trình bị dừng (GC pause) quá thời hạn mà không có fencing token — phân tích
 nổi tiếng của Martin Kleppmann. Redis ở đây chỉ dùng cho **tối ưu** (single-flight, rate limit), không
-bao giờ cho **tính đúng đắn**. Đóng Q06: **không cần distributed lock**.
+bao giờ cho **tính đúng đắn**. **Không cần distributed lock**.
 
-**Isolation:** toàn hệ thống `READ COMMITTED`. Đóng Q02: **không** dùng `SERIALIZABLE` ở đâu.
+**Isolation:** toàn hệ thống `READ COMMITTED`. **Không** dùng `SERIALIZABLE` ở đâu.
 
 ### Thứ tự khoá toàn cục
 
 Mọi transaction lấy khoá theo **cùng một** thứ tự (bỏ qua bước không cần):
 
-```
-1. scheduling.showtimes   (một dòng)
+1. `scheduling.showtimes` (một dòng)
 2. khoá quota (advisory, người xem × suất)
-3. booking.bookings       (tăng dần theo id nếu nhiều)
-4. inventory.showtime_seats (tăng dần theo id)
-5. payment.payment_intents
-6. ticketing.tickets / check_ins (chèn)
-```
+3. `booking.bookings` (tăng dần theo `id` nếu nhiều)
+4. `inventory.showtime_seats` (tăng dần theo `id`)
+5. `payment.payment_intents`
+6. `ticketing.tickets` / `check_ins` (chèn)
 
 | Luồng | Thứ tự thực tế |
 |---|---|
@@ -85,14 +82,13 @@ bảng này là lý do mỗi bài toán bên dưới không tự sinh deadlock v
 Ghế được khoá rồi đổi trạng thái **trong cùng transaction**, và lệnh đổi trạng thái mang điều kiện
 nguồn. Xem SQL đầy đủ ở #2. Với một ghế, cốt lõi là:
 
-```sql
-UPDATE inventory.showtime_seats
-SET status = 'Held', hold_id = @hold_id, held_until = @expires_at, version = version + 1
-WHERE id = @seat_id
-  AND (status = 'Available' OR (status = 'Held' AND held_until <= now()))
-RETURNING id;
--- 1 dòng ⇒ thắng; 0 dòng ⇒ 409 SEATS_UNAVAILABLE
-```
+| Phần | Nội dung |
+|---|---|
+| Bảng | `UPDATE inventory.showtime_seats` |
+| `SET` | `status = 'Held'`, `hold_id = @hold_id`, `held_until = @expires_at`, `version = version + 1` |
+| `WHERE` | `id = @seat_id` **và** (`status = 'Available'` **hoặc** (`status = 'Held'` **và** `held_until <= now()`)) |
+| `RETURNING` | `id` |
+| Kết quả | 1 dòng ⇒ thắng; 0 dòng ⇒ `409 SEATS_UNAVAILABLE` |
 
 `(status = 'Held' AND held_until <= now())`: ghế đã quá hạn giữ được lấy luôn, không chờ worker —
 xem #4 và ADR-0015.
@@ -123,53 +119,29 @@ côi" (`FR-02`, `SC-02`, `BR-02`).
 
 ### Cơ chế — luồng giữ ghế đầy đủ (một transaction)
 
-```sql
-BEGIN;  -- READ COMMITTED; UoW của request (ADR-0008)
+Đây là **thứ tự lệnh trong một transaction**, không phải một class. Mỗi module chạy phần SQL trên bảng của
+chính nó: lệnh trên `inventory.*` nằm trong `Inventory`, `Booking` gọi qua interface ở `Inventory.Contracts`
+(architecture D4, D5); tất cả dùng chung connection + transaction của Unit of Work (ADR-0008).
 
--- (0) Idempotency: chiếm key — xem #5
-INSERT INTO booking.idempotency_records (...) VALUES (...) ON CONFLICT DO NOTHING RETURNING 1;
-SAVEPOINT business;
+Tất cả trong một transaction `READ COMMITTED` (Unit of Work của request, ADR-0008). `[Module]` là
+module sở hữu bảng được chạm.
 
--- (1) Suất: đang bán, chưa bắt đầu; khoá KEY SHARE để hủy suất phải chờ (#14)   [Scheduling]
-SELECT status, starts_at FROM scheduling.showtimes WHERE id = @showtime_id FOR KEY SHARE;
-
--- (2) Loại ghế của các ghế được yêu cầu — KHÔNG khoá (seat_type bất biến)       [Inventory]
-SELECT id, seat_type, row_label || seat_number AS seat_label
-FROM inventory.showtime_seats WHERE showtime_id = @showtime_id AND id = ANY(@seat_ids);
--- thiếu id ⇒ 422 INVALID_SEATS; SUM(weight) > 6 ⇒ 422 BOOKING_TOO_LARGE              [Booking]
-
--- (3) Khoá quota rồi mới đếm — #13                                                [Booking]
-SELECT pg_advisory_xact_lock(hashtextextended(@customer_id::text || '/' || @showtime_id::text, 0));
-SELECT COALESCE(SUM(l.seat_weight), 0) FROM booking.bookings b
-JOIN booking.booking_lines l ON l.booking_id = b.id
-WHERE b.customer_id = @customer_id AND b.showtime_id = @showtime_id
-  AND (b.status = 'Paid' OR (b.status = 'AwaitingPayment' AND b.expires_at > now()));
--- hiện có + yêu cầu > 10 ⇒ 422 CUSTOMER_SEAT_LIMIT
-
--- (4) Khoá các ghế THEO THỨ TỰ id, đọc trạng thái — #3                            [Inventory]
-SELECT id, status, held_until FROM inventory.showtime_seats
-WHERE id = ANY(@seat_ids) ORDER BY id FOR UPDATE;
--- ghế nào không (Available hoặc Held quá hạn) ⇒ danh sách ghế đã có người
-
--- (5a) Có ghế không giữ được:
-ROLLBACK TO SAVEPOINT business;   -- nhả mọi thay đổi nghiệp vụ, giữ dòng idempotency
-UPDATE booking.idempotency_records SET response_status = 409, response_body = @body WHERE ...;
-COMMIT;  -- 409 SEATS_UNAVAILABLE + unavailableSeatIds
-
--- (5b) Tất cả giữ được:
-UPDATE inventory.showtime_seats
-SET status = 'Held', hold_id = @booking_id, held_until = @expires_at, version = version + 1
-WHERE id = ANY(@seat_ids) AND (status = 'Available' OR (status = 'Held' AND held_until <= now()))
-RETURNING id, status, held_until, version;     -- phải đúng n dòng (đã khoá ở (4) nên chắc chắn)
-INSERT INTO inventory.outbox_messages (type, payload, ...) VALUES ('SeatStatesChanged', ...);  -- #10
-INSERT INTO booking.bookings (...) VALUES (@booking_id, ..., 'AwaitingPayment', @expires_at, ...);
-INSERT INTO booking.booking_lines (...) VALUES ...;          -- giá đọc ở (1) qua R9
-INSERT INTO booking.booking_history (...) VALUES (NULL → 'AwaitingPayment');
-INSERT INTO booking.outbox_messages (type, available_at, ...)
-  VALUES ('ExpiryReminderDue', @expires_at - interval '5 minutes', ...);       -- FR-19
-UPDATE booking.idempotency_records SET response_status = 201, response_body = @body WHERE ...;
-COMMIT;
-```
+| Bước | Lệnh (mô tả) | Khoá / điều kiện | Vì sao |
+|---|---|---|---|
+| 0 | `BEGIN`. `INSERT` vào `booking.idempotency_records` với `ON CONFLICT DO NOTHING RETURNING 1`, rồi tạo `SAVEPOINT business` | Dòng idempotency do `INSERT` chiếm (xem #5) | Chiếm key trước mọi việc khác; savepoint để nhánh thất bại nhả thay đổi nghiệp vụ mà vẫn giữ dòng idempotency |
+| 1 `[Scheduling]` | `SELECT status, starts_at` từ `scheduling.showtimes` với `id = @showtime_id` | `FOR KEY SHARE` trên dòng suất | Kiểm suất đang bán, chưa bắt đầu; hủy suất (`FOR UPDATE`) phải chờ (#14) |
+| 2 `[Inventory]` | `SELECT id, seat_type` và nhãn ghế (`row_label` nối `seat_number`) từ `inventory.showtime_seats` với `showtime_id = @showtime_id` và `id` thuộc `@seat_ids` | **Không khoá** | `seat_type` bất biến nên không cần khoá |
+| 2 `[Booking]` | Kiểm kết quả bước 2: thiếu id ⇒ `422 INVALID_SEATS`; tổng `weight` > 6 ⇒ `422 BOOKING_TOO_LARGE` | — | Chặn yêu cầu sai trước khi khoá |
+| 3 `[Booking]` | Lấy khoá quota `pg_advisory_xact_lock` trên băm (`hashtextextended`, seed 0) của chuỗi `customer_id/showtime_id`; **rồi** `SELECT COALESCE(SUM(seat_weight), 0)` từ `booking.bookings` join `booking.booking_lines` với `customer_id` và `showtime_id` khớp, và (`status = 'Paid'` **hoặc** (`status = 'AwaitingPayment'` **và** `expires_at > now()`)). Hiện có + yêu cầu > 10 ⇒ `422 CUSTOMER_SEAT_LIMIT` | Advisory lock mức transaction, khoá **trước** khi đếm | Đếm sau khi khoá để yêu cầu song song của cùng người tuần tự hoá (#13) |
+| 4 `[Inventory]` | `SELECT id, status, held_until` từ `inventory.showtime_seats` với `id` thuộc `@seat_ids`, `ORDER BY id`. Ghế nào không (`Available` hoặc `Held` quá hạn) ⇒ lập danh sách ghế đã có người | `FOR UPDATE`, theo thứ tự `id` tăng dần | Khoá có thứ tự ⇒ không deadlock (#3) |
+| 5a | Nếu có ghế không giữ được: `ROLLBACK TO SAVEPOINT business`; `UPDATE booking.idempotency_records` đặt `response_status = 409` và `response_body = @body`; `COMMIT`. Kết quả `409 SEATS_UNAVAILABLE` kèm `unavailableSeatIds` | — | Nhả mọi thay đổi nghiệp vụ nhưng giữ dòng idempotency để lần gửi lại nhận cùng response |
+| 5b.1 | Nếu tất cả giữ được: `UPDATE inventory.showtime_seats` đặt `status = 'Held'`, `hold_id = @booking_id`, `held_until = @expires_at`, `version = version + 1`; `RETURNING id, status, held_until, version` | `WHERE id` thuộc `@seat_ids` **và** (`status = 'Available'` **hoặc** (`status = 'Held'` **và** `held_until <= now()`)); phải trả đúng n dòng | Ghế đã khoá ở bước 4 nên chắc chắn đủ n dòng |
+| 5b.2 | `INSERT` vào `inventory.outbox_messages`: loại `SeatStatesChanged` | cùng transaction | Cập nhật cache (#10) |
+| 5b.3 | `INSERT` vào `booking.bookings`: `@booking_id`, trạng thái `AwaitingPayment`, `expires_at = @expires_at` | — | Tạo đơn |
+| 5b.4 | `INSERT` vào `booking.booking_lines` | — | Giá đọc ở bước 1/2 qua R9 |
+| 5b.5 | `INSERT` vào `booking.booking_history`: chuyển `NULL → AwaitingPayment` | — | Lịch sử trạng thái |
+| 5b.6 | `INSERT` vào `booking.outbox_messages`: loại `ExpiryReminderDue`, `available_at = @expires_at - 5 phút` | — | Email nhắc (`FR-19`) |
+| 5b.7 | `UPDATE booking.idempotency_records` đặt `response_status = 201`, `response_body = @body`; `COMMIT` | — | Lưu response để phát lại |
 
 `@expires_at` = `now() + 15 phút` tính **một lần** ở ứng dụng từ đồng hồ DB (`SELECT now()` đầu
 transaction), dùng cho cả `held_until` và `bookings.expires_at` ⇒ hai bản luôn bằng nhau.
@@ -256,28 +228,16 @@ X mất tiền không có vé (`FR-04`, `FR-06`, `FR-39`, `SC-07`, `BR-04`, `BR-
 
 **Hết hạn theo thời gian** (ADR-0006) — ba lệnh, điều kiện loại trừ nhau:
 
-```sql
--- Webhook thành công (#7) — chỉ thắng khi CÒN hạn:
-UPDATE booking.bookings SET status = 'Paid', closed_at = now()
-WHERE id = @booking_id AND status = 'AwaitingPayment' AND expires_at > now()
-RETURNING id;            -- 0 dòng ⇒ nhánh hoàn tiền
+Ba lệnh, điều kiện loại trừ nhau:
 
--- Worker (lô, SKIP LOCKED để nhiều instance không giẫm nhau):
-SELECT id FROM booking.bookings
-WHERE status = 'AwaitingPayment' AND expires_at <= now()
-ORDER BY id LIMIT 100 FOR UPDATE SKIP LOCKED;
--- với mỗi id, cùng transaction:
-UPDATE booking.bookings SET status = 'Expired', closed_at = now()
-WHERE id = @id AND status = 'AwaitingPayment' AND expires_at <= now();
-UPDATE inventory.showtime_seats
-SET status = 'Available', hold_id = NULL, held_until = NULL, version = version + 1
-WHERE hold_id = @id AND status = 'Held'           -- chỉ ghế còn thuộc lần giữ này (INV-03)
-RETURNING id, version;                             -- + outbox SeatStatesChanged (#10)
--- Payment: intent Unpaid → Closed + outbox huỷ phía Stripe (nếu có intent)
--- history: AwaitingPayment → Expired
-
--- Người mua mới (#1/#2): lấy được ghế Held đã quá held_until mà không chờ worker.
-```
+| Lệnh | Mô tả | Khoá / điều kiện | Kết quả |
+|---|---|---|---|
+| Webhook thành công (#7) | `UPDATE booking.bookings` đặt `status = 'Paid'`, `closed_at = now()`; `RETURNING id` | `WHERE id = @booking_id` **và** `status = 'AwaitingPayment'` **và** `expires_at > now()` — chỉ thắng khi **còn** hạn | 0 dòng ⇒ nhánh hoàn tiền |
+| Worker hết hạn — chọn lô | `SELECT id` từ `booking.bookings` với `status = 'AwaitingPayment'` và `expires_at <= now()`, `ORDER BY id`, `LIMIT 100` | `FOR UPDATE SKIP LOCKED` (nhiều instance không giẫm nhau) | Lô id cần hết hạn |
+| Worker — với mỗi id, cùng transaction (1) | `UPDATE booking.bookings` đặt `status = 'Expired'`, `closed_at = now()` | `WHERE id = @id` **và** `status = 'AwaitingPayment'` **và** `expires_at <= now()` | Đơn thành `Expired` |
+| Worker — (2) | `UPDATE inventory.showtime_seats` đặt `status = 'Available'`, `hold_id = NULL`, `held_until = NULL`, `version = version + 1`; `RETURNING id, version` (kèm outbox `SeatStatesChanged`, #10) | `WHERE hold_id = @id` **và** `status = 'Held'` — chỉ ghế còn thuộc lần giữ này (`INV-03`) | Trả ghế |
+| Worker — (3) | `Payment`: intent `Unpaid → Closed` + outbox huỷ phía Stripe (nếu có intent); ghi history `AwaitingPayment → Expired` | cùng transaction | Đóng intent, ghi lịch sử |
+| Người mua mới (#1/#2) | Lấy được ghế `Held` đã quá `held_until` mà không chờ worker | điều kiện `held_until <= now()` trong lệnh giữ | — |
 
 Hệ quả, theo từng thứ tự đến:
 
@@ -289,7 +249,7 @@ Hệ quả, theo từng thứ tự đến:
 | Webhook của X đến sau khi Y đã giữ | X quá hạn ⇒ hoàn tiền. Lệnh `Held → Sold` của X (nếu có) lọc `hold_id = X` ⇒ không thể lấy ghế của Y |
 
 **Tiến trình chết giữa chừng:** đổi trạng thái đơn và trả ghế **cùng một transaction** ⇒ chết là
-rollback cả hai, lượt sau làm lại. Không có cửa sổ "đơn `Expired` mà ghế còn `Held`". Q25 đóng: lệnh
+rollback cả hai, lượt sau làm lại. Không có cửa sổ "đơn `Expired` mà ghế còn `Held`". Lệnh
 giữ **được** lấy ghế `Held` quá hạn (ADR-0015).
 
 Thứ tự khoá: worker khoá đơn (3) rồi ghế (4) — khớp thứ tự toàn cục. Người mua mới khoá ghế (4) và
@@ -362,7 +322,6 @@ chờn, retry tự động).
   người kia huỷ; gửi lại cùng key ⇒ vẫn `409` với body cũ.
 - `HoldSeats_SameKeyDifferentBody_422`.
 - **Đỏ nếu** bỏ `PRIMARY KEY (customer_id, idempotency_key)` (migration test xoá ràng buộc) ⇒ > 1 đơn.
-  Đây cũng là tiêu chí T19.
 
 ---
 
@@ -374,17 +333,11 @@ thời với cùng token.
 
 ### Cơ chế (ADR-0014)
 
-```sql
--- Rotation: chỉ MỘT request thắng nhờ điều kiện trong lệnh
-UPDATE identity.refresh_tokens
-SET revoked_at = now(), replaced_by = @new_id
-WHERE token_hash = @hash AND revoked_at IS NULL AND expires_at > now()
-RETURNING user_id, family_id;
--- 1 dòng ⇒ chèn token mới (cùng family_id), trả cặp token mới
--- 0 dòng ⇒ tra token: không tồn tại/hết hạn ⇒ 401; đã bị revoke ⇒ DÙNG LẠI:
-UPDATE identity.refresh_tokens SET revoked_at = now()
-WHERE family_id = @family_id AND revoked_at IS NULL;      -- revoke cả chuỗi ⇒ 401
-```
+| Bước | Lệnh (mô tả) | Điều kiện | Kết quả |
+|---|---|---|---|
+| 1 | `UPDATE identity.refresh_tokens` đặt `revoked_at = now()`, `replaced_by = @new_id`; `RETURNING user_id, family_id` | `WHERE token_hash = @hash` **và** `revoked_at IS NULL` **và** `expires_at > now()` — chỉ MỘT request thắng nhờ điều kiện trong lệnh | 1 dòng ⇒ chèn token mới (cùng `family_id`), trả cặp token mới |
+| 2 | Nếu 0 dòng: tra token | — | Không tồn tại / hết hạn ⇒ `401`; đã bị revoke ⇒ **dùng lại** ⇒ bước 3 |
+| 3 | `UPDATE identity.refresh_tokens` đặt `revoked_at = now()` | `WHERE family_id = @family_id` **và** `revoked_at IS NULL` | Revoke cả chuỗi ⇒ `401` |
 
 Hai request đồng thời cùng token: một thắng, request kia thấy token đã bị revoke ⇒ coi là dùng lại ⇒
 revoke cả chuỗi, kể cả token vừa cấp cho bên thắng. Đây là **chủ ý** (ADR-0014): server không phân
@@ -418,23 +371,15 @@ biệt được "client gửi đúp" với "kẻ trộm"; client phải tuần t
 
 **Nhận** (một transaction, ADR-0009 luồng #2):
 
-```sql
--- 1. Chữ ký Stripe-Signature hợp lệ (ngoài DB). Sai ⇒ 400.
--- 2. Chống lặp:
-INSERT INTO payment.payment_events (stripe_event_id, intent_id, type, amount, payload, received_at)
-VALUES (...) ON CONFLICT (stripe_event_id) DO NOTHING RETURNING id;
--- 0 dòng ⇒ đã xử lý ⇒ COMMIT, 200.
--- 3. succeeded: phát PaymentSucceeded (in-process) ⇒ Booking:
-UPDATE booking.bookings SET status='Paid', closed_at=now()
-WHERE id=@booking AND status='AwaitingPayment' AND expires_at > now() RETURNING id;
---   1 dòng: ghế Held→Sold theo hold_id (+version, outbox cache);
---           intent Unpaid→Captured (WHERE status='Unpaid');
---           BookingPaid ⇒ Ticketing chèn vé (UNIQUE showtime_seat_id); history.
---   0 dòng: intent → RefundPending (WHERE status IN ('Unpaid','Closed')),
---           INSERT refunds (UNIQUE intent_id), outbox RefundRequested.
--- 4. payment_failed: chỉ ghi sự kiện. charge.refunded: RefundPending → Refunded.
-COMMIT;  -- 200
-```
+| Bước | Lệnh (mô tả) | Khoá / điều kiện | Vì sao |
+|---|---|---|---|
+| 1 | Kiểm chữ ký `Stripe-Signature` (ngoài DB) | Sai ⇒ `400` | Chỉ nhận sự kiện thật từ Stripe |
+| 2 | `INSERT` vào `payment.payment_events` (`stripe_event_id`, `intent_id`, `type`, `amount`, `payload`, `received_at`) với `ON CONFLICT (stripe_event_id) DO NOTHING RETURNING id` | `UNIQUE (stripe_event_id)`; 0 dòng ⇒ đã xử lý ⇒ `COMMIT`, `200` | Chống lặp trong chính transaction nghiệp vụ |
+| 3 | Sự kiện `succeeded`: phát `PaymentSucceeded` (in-process) ⇒ `Booking`: `UPDATE booking.bookings` đặt `status = 'Paid'`, `closed_at = now()`; `RETURNING id` | `WHERE id = @booking` **và** `status = 'AwaitingPayment'` **và** `expires_at > now()` | Chỉ thắng khi còn hạn và chưa `Paid` |
+| 3a | Nếu 1 dòng: ghế `Held → Sold` theo `hold_id` (+`version`, outbox cache); intent `Unpaid → Captured` (`WHERE status = 'Unpaid'`); `BookingPaid` ⇒ `Ticketing` chèn vé (`UNIQUE showtime_seat_id`); ghi history | cùng transaction | Cấp vé đúng một lần |
+| 3b | Nếu 0 dòng: intent → `RefundPending` (`WHERE status IN ('Unpaid','Closed')`); `INSERT` vào `refunds` (`UNIQUE intent_id`); outbox `RefundRequested` | cùng transaction | Quá hạn hoặc đã xử lý ⇒ hoàn tiền, không vé |
+| 4 | `payment_failed`: chỉ ghi sự kiện. `charge.refunded`: `RefundPending → Refunded` | — | — |
+| 5 | `COMMIT`, trả `200` | — | — |
 
 Hai webhook cùng `event.id` đồng thời: `INSERT` thứ hai **chờ** unique index, thấy conflict sau khi
 thứ nhất commit ⇒ bỏ qua. Hai `event.id` **khác nhau** cùng nghĩa "thành công": lệnh `→ Paid` và
@@ -482,18 +427,15 @@ của ta (ký bằng webhook secret của ta — như Stripe gửi lại). Test 
 
 ### Cơ chế
 
-```sql
-INSERT INTO ticketing.check_ins (ticket_id, showtime_id, gate, scanned_by, checked_in_at)
-VALUES (...) ON CONFLICT (ticket_id) DO NOTHING RETURNING checked_in_at;
--- 1 dòng ⇒ 201 CheckedIn
--- 0 dòng ⇒ SELECT checked_in_at, gate FROM ticketing.check_ins WHERE ticket_id = @id
---         ⇒ 409 TICKET_ALREADY_CHECKED_IN kèm thời điểm + cổng GỐC
-```
+| Bước | Lệnh (mô tả) | Khoá / điều kiện | Kết quả |
+|---|---|---|---|
+| 1 | `INSERT` vào `ticketing.check_ins` (`ticket_id`, `showtime_id`, `gate`, `scanned_by`, `checked_in_at`) với `ON CONFLICT (ticket_id) DO NOTHING RETURNING checked_in_at` | `UNIQUE (ticket_id)` | 1 dòng ⇒ `201 CheckedIn` |
+| 2 | Nếu 0 dòng: `SELECT checked_in_at, gate` từ `ticketing.check_ins` với `ticket_id = @id` | — | `409 TICKET_ALREADY_CHECKED_IN` kèm thời điểm + cổng **GỐC** |
 
 Các kiểm tra trước đó (chữ ký, đúng suất, suất chưa hủy, phân công) là **đọc** — không cần khoá.
 Suất bị hủy **đúng lúc** đang quét: chấp nhận được — check-in ghi nhận trước thời điểm hủy commit.
 
-**Không dùng Redis `SETNX`** như kế hoạch ban đầu của T24 (ADR-0013): ràng buộc DB đã là bảo đảm;
+**Không dùng Redis `SETNX`** (ADR-0013): ràng buộc DB đã là bảo đảm;
 Redis chỉ thêm một chỗ có thể lệch (key Redis còn mà transaction DB rollback ⇒ vé hợp lệ bị báo "đã
 dùng"). Tải ở cổng là vài lượt/giây — không cần chặn sớm.
 
@@ -555,7 +497,7 @@ Khi đọc: ghế `Held` có `heldUntil <= now` hiển thị là `Available` (kh
   `GET /api/showtimes/{id}/seats` trên một instance ⇒ bộ đếm lệnh SQL có tag `seatmap.load` = **1**;
   100 response giống nhau.
 - **Đỏ nếu** tắt single-flight (`UnsafeVariant=NoSingleFlight`) ⇒ bộ đếm ≈ 100.
-- Đo: tỉ lệ hit cache ở T23 (metric `seatmap_cache_requests_total{result}`).
+- Đo: tỉ lệ hit cache ở bước load test (metric `seatmap_cache_requests_total{result}`).
 
 ---
 
@@ -572,17 +514,13 @@ liệu cũ **đè** lên trạng thái mới (ghế vừa bán hiện lại "tr�
 2. Dispatcher (sau commit; được "đánh thức" ngay khi commit trên cùng instance, và quét định kỳ 1s)
    chạy script Lua cho mỗi suất:
 
-```lua
--- KEYS[1] = seatmap:{showtimeId}; ARGV = seatId, status|heldUntil|version, ...
-if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end   -- chưa có cache: lần đọc sau tự dựng
-for i = 1, #ARGV, 2 do
-  local cur = redis.call('HGET', KEYS[1], 's:' .. ARGV[i])
-  if (not cur) or tonumber(string.match(cur, '[^|]+$')) < tonumber(string.match(ARGV[i+1], '[^|]+$')) then
-    redis.call('HSET', KEYS[1], 's:' .. ARGV[i], ARGV[i+1])
-  end
-end
-return 1
-```
+Script chạy nguyên tử trên Redis, cho mỗi suất:
+
+- **Đầu vào**: `KEYS[1]` = `seatmap:{showtimeId}`; `ARGV` là các cặp (`seatId`, giá trị `status|heldUntil|version`).
+- **Bước 1**: nếu key chưa tồn tại ⇒ trả `0` (chưa có cache: lần đọc sau tự dựng).
+- **Bước 2**: với mỗi cặp, đọc giá trị hiện tại của field `s:<seatId>` trong hash. `version` là phần sau dấu `|` cuối cùng.
+- **Bước 3**: nếu field chưa có, **hoặc** `version` hiện tại < `version` mới ⇒ ghi đè field bằng giá trị mới. Ngược lại giữ nguyên.
+- **Đầu ra**: `1` sau khi xử lý hết các cặp.
 
 3. Dựng lại cache từ DB (#9) dùng **cùng** quy tắc "chỉ ghi khi version mới hơn" ⇒ một lần dựng đọc
    snapshot cũ không thể đè bản cập nhật mới hơn đã ghi trước nó.
@@ -630,7 +568,7 @@ theo (`SC-10`, `FR-30`).
 - Endpoint đọc sơ đồ ghế được cache phục vụ (#9) nên gần như không cần connection.
 - `statement_timeout = 5s` cho role ứng dụng: không câu nào giữ connection vô hạn.
 
-Con số `30 / 100` là **khởi điểm**; T23 đo baseline rồi chỉnh — ghi số đo vào `perf/baseline.csv`.
+Con số `30 / 100` là **khởi điểm**; đo baseline ở bước load test rồi chỉnh — ghi số đo vào `perf/baseline.csv`.
 
 ### Phương án đã cân nhắc
 
@@ -642,7 +580,7 @@ Con số `30 / 100` là **khởi điểm**; T23 đo baseline rồi chỉnh — g
 
 ### Test chứng minh
 
-- **Load test** (k6, T23): kịch bản mở bán 500 req/s trong 60s vào một suất 100 ghế.
+- **Load test** (k6): kịch bản mở bán 500 req/s trong 60s vào một suất 100 ghế.
 - Khẳng định: **0** lỗi pool exhausted trong log; mọi response thuộc `{201, 409, 503}`; p99 < 2s; sau
   test, kiểm invariant #1 trên DB (không ghế nào có hai đơn).
 - Đo bằng **`dotnet-counters`** (không chỉ latency): `Npgsql` — `busy-connections`, `idle-connections`,
@@ -657,26 +595,26 @@ Con số `30 / 100` là **khởi điểm**; T23 đo baseline rồi chỉnh — g
 
 **Kịch bản**: 3 instance sau load balancer; hạn mức đăng nhập 10 lần/phút/IP.
 **Hậu quả nếu sai**: limiter trong bộ nhớ mỗi instance ⇒ thực tế 30 lần/phút — dò mật khẩu nhanh gấp
-3 (`T16`).
+3.
 
 ### Cơ chế
 
 Token bucket trên Redis, một script Lua nguyên tử cho mỗi lần kiểm:
 
-```lua
--- KEYS[1] = rl:{policy}:{subject}; ARGV = capacity, refill_per_ms, now_ms
-local b = redis.call('HMGET', KEYS[1], 'tokens', 'ts')
-local tokens = tonumber(b[1]) or tonumber(ARGV[1])
-local ts = tonumber(b[2]) or tonumber(ARGV[3])
-tokens = math.min(tonumber(ARGV[1]), tokens + (tonumber(ARGV[3]) - ts) * tonumber(ARGV[2]))
-local allowed = tokens >= 1
-if allowed then tokens = tokens - 1 end
-redis.call('HSET', KEYS[1], 'tokens', tokens, 'ts', ARGV[3])
-redis.call('PEXPIRE', KEYS[1], math.ceil(tonumber(ARGV[1]) / tonumber(ARGV[2])))
-return allowed and 1 or 0
-```
+Thuật toán (đầu vào: `KEYS[1]` = `rl:{policy}:{subject}`; `ARGV` = `capacity`, `refill_per_ms`):
 
-`now_ms` lấy từ `TIME` của Redis (không từ đồng hồ từng instance — đồng hồ lệch nhau).
+1. Lấy giờ hiện tại bằng Redis `TIME` **trong script**, đổi ra mili-giây.
+2. Đọc hash `tokens` và `ts`. Chưa có thì `tokens = capacity`, `ts = now`.
+3. Nạp lại: `tokens = min(capacity, tokens + (now - ts) × refill_per_ms)`.
+4. Cho phép nếu `tokens >= 1`; nếu cho phép thì trừ 1.
+5. Ghi lại `tokens` và `ts = now` vào hash.
+6. Đặt `PEXPIRE` = `ceil(capacity / refill_per_ms)` mili-giây.
+7. Trả `1` nếu cho phép, `0` nếu không.
+
+Thời gian lấy bằng `TIME` **ngay trong script**: một đồng hồ chung cho mọi instance (đồng hồ từng máy
+lệch nhau), và đọc giờ + cập nhật bucket nằm trong cùng một lần chạy nguyên tử. Không truyền giờ từ
+ứng dụng vào, và không gọi `TIME` riêng trước đó — hai lệnh tách rời thì không còn nguyên tử. Redis 7
+mặc định nhân bản script theo hiệu ứng nên `TIME` trong script là hợp lệ.
 
 | Policy | Subject | Hạn mức |
 |---|---|---|
@@ -713,10 +651,10 @@ bảo vệ, không phải tính đúng đắn; chặn toàn bộ đăng nhập v
 
 Bước (3) của #2:
 
-```sql
-SELECT pg_advisory_xact_lock(hashtextextended(@customer_id::text || '/' || @showtime_id::text, 0));
--- rồi mới đếm SUM(seat_weight) của đơn Paid + AwaitingPayment còn hạn
-```
+| Bước | Lệnh (mô tả) | Khoá / điều kiện | Vì sao |
+|---|---|---|---|
+| 1 | Lấy `pg_advisory_xact_lock` trên băm `hashtextextended` (seed 0) của chuỗi `customer_id/showtime_id` | Advisory lock mức transaction | Tuần tự hoá các yêu cầu của cùng người, cùng suất |
+| 2 | **Rồi mới** đếm `SUM(seat_weight)` của đơn `Paid` và `AwaitingPayment` còn hạn | — | Đếm sau khi khoá để thấy kết quả của yêu cầu trước |
 
 Khoá tự nhả khi transaction kết thúc (commit hay rollback). Trùng băm giữa hai cặp khác nhau chỉ làm
 hai cặp đó xếp chung hàng — chậm hơn chút, không sai. Khoá này chỉ tranh giữa các yêu cầu của **cùng
@@ -741,7 +679,7 @@ Chốt câu hỏi của ADR-0007: **advisory lock**, không phải dòng quota.
 
 ---
 
-## Bài toán #14 — Giữ ghế đua với hủy suất *(mới, phát hiện ở T10)*
+## Bài toán #14 — Giữ ghế đua với hủy suất
 
 **Kịch bản**: quản lý rạp hủy suất đúng lúc một người đang giữ ghế.
 **Hậu quả nếu sai**: lệnh giữ đọc `OnSale`, hủy suất commit và huỷ "mọi đơn đang chờ" (chưa thấy đơn
@@ -794,11 +732,11 @@ mà không hoàn.
 | 6 | Refresh reuse | DB | `UPDATE … WHERE revoked_at IS NULL` + revoke family | integration | — |
 | 7 | Webhook trùng / sai thứ tự / hoàn tiền | DB + Stripe | `UNIQUE event_id`, điều kiện trạng thái, outbox + `Idempotency-Key` | integration (Stripe test mode) | — |
 | 8 | Quét lại QR | DB | PK `ticket_id` + `ON CONFLICT` | integration | — |
-| 9 | Cache stampede | **Redis** + tiến trình | Single-flight hai tầng | integration | hit rate (T23) |
+| 9 | Cache stampede | **Redis** + tiến trình | Single-flight hai tầng | integration | hit rate |
 | 10 | Cache theo ghế | **Redis** | Ghi đè theo `version`, qua outbox | integration (2 host) | — |
 | 11 | Cạn pool | Ứng dụng | Admission control trước pool | **load (k6)** | **`dotnet-counters`** |
 | 12 | Rate limit nhiều instance | **Redis** | Token bucket Lua | integration (3 host) | — |
-| 13 | Quota 10 ghế | DB | Advisory lock (người, suất) | integration | p99 giữ ghế (T23) |
+| 13 | Quota 10 ghế | DB | Advisory lock (người, suất) | integration | p99 giữ ghế |
 | 14 | Giữ ghế ↔ hủy suất | DB | `FOR KEY SHARE` vs `FOR UPDATE` | integration | — |
 
 **Bài toán nào chỉ tồn tại vì domain model này:** #2, #3 (seat-based, n ghế — ADR-0003); #4 dạng "lấy
@@ -816,14 +754,3 @@ vé `BR-08`); #14 (hủy suất huỷ đơn chờ — ADR-0006). Với mô hình
 4. **#8** — PK ở DB thắng Redis `SETNX` vì nó là bảo đảm, còn Redis chỉ thêm khả năng lệch.
 5. **#10** — ghi đè theo `version` thắng xoá key vì không biến mỗi lần giữ ghế thành một lần miss, và
    thắng "version theo suất" vì không tạo hot row.
-
-## Câu hỏi đã đóng ở đây
-
-Q01 (cơ chế chống bán trùng — khoá theo thứ tự + điều kiện; số đo so sánh biến thể ở T23), Q02 (không
-`SERIALIZABLE`), Q06 (không distributed lock), Q08 (admission control ở middleware), Q11 (không dùng
-`teach`; phần giảng nằm ngay trong file này), Q25 (lấy ghế `Held` quá hạn — ADR-0015), khoá quota
-(advisory lock).
-
-## Trạng thái
-
-Bản đầy đủ, 2026-11-25. Số đo (pool, limiter, p99) bổ sung ở T23.

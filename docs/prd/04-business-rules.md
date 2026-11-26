@@ -1,9 +1,8 @@
-﻿# 04 — Business rules
+# 04 — Business rules
 
 Lớp 1 — PRD. File này nói các **luật nghiệp vụ** áp dụng xuyên suốt: giới hạn bao nhiêu vé
 một người, giữ ghế bao lâu, ai được ưu tiên khi ghế hết.
 
-Nguồn: ticket `.scratch/advanced-ticket-system/issues/04-user-journeys-business-rules.md`.
 Bối cảnh: [`00-overview.md`](00-overview.md), [`01-requirements.md`](01-requirements.md),
 [`02-non-requirements.md`](02-non-requirements.md),
 [`03-user-journeys.md`](03-user-journeys.md).
@@ -15,7 +14,7 @@ Mỗi luật mang một mã `BR-nn`, và có hai dòng bắt buộc:
 - **Ràng buộc** — cơ chế nghiệp vụ buộc phải giữ.
 - **Vi phạm thì** — điều xảy ra nếu bị vi phạm, và người dùng thấy gì.
 
-Một luật ở đây là **luật của nghiệp vụ**, không phải ràng buộc kỹ thu. "Ghế phải được khoá theo
+Một luật ở đây là **luật của nghiệp vụ**, không phải ràng buộc kỹ thuật. "Ghế phải được khoá theo
 thứ tự tăng dần để tránh deadlock" là Lớp 3 — nó là *cách hiện thực* luật `BR-22`, không phải
 một luật riêng.
 
@@ -156,9 +155,8 @@ Quản lý rạp có thể **chặn** một ghế không bán online (vệ sinh,
 - Vi phạm thì: ghế bị chặn mà vẫn bán được là ghế không tồn tại trong thực tế — khách đến
   nơi mà không có chỗ ngồi (ADR-0003).
 
-> **Ghi chú (2026-11-20):** trước đây BR-11 nói ghế bị chặn "không tính vào số ghế còn
-> trống mà người xem thấy" — câu đó đúng, nhưng nó để mở khả năng hiểu nhầm rằng ghế bị
-> chặn không tính vào tổng. Đã nói rõ: ghế bị chặn **vẫn tính vào tổng số ghế phòng**.
+> **Ghi chú:** ghế bị chặn không tính vào số ghế còn trống mà người xem thấy, nhưng **vẫn tính
+> vào tổng số ghế phòng**.
 
 ### BR-12 — Một đơn thuộc đúng một suất chiếu
 
@@ -248,10 +246,10 @@ Một phòng chiếu không thể có hai suất chiếu chồng nhau về thờ
 - Ràng buộc: hai suất chiếu của cùng một phòng phải tách nhau bởi **khoảng đệm 15 phút** để dọn
   dẹp: suất sau chỉ được bắt đầu từ giờ kết thúc của suất trước + 15 phút. Suất đã hủy không chiếm
   khung giờ.
-
-> **Ghi chú (2026-11-25):** chốt khoảng đệm 15 phút (đóng Q22). Lý do: đủ cho dọn phòng một rạp nhỏ,
-> và là hằng số toàn hệ thống — không cấu hình theo phòng để giữ ràng buộc đơn giản.
 - Vi phạm thì: khách của suất sau không vào được phòng đang có suất trước (FR-21).
+
+> **Vì sao 15 phút:** đủ cho dọn phòng một rạp nhỏ, và là hằng số toàn hệ thống — không cấu hình
+> theo phòng để giữ ràng buộc đơn giản.
 
 ### BR-21 — Huỷ đơn đang chờ thanh toán thì trả ghế ngay
 
@@ -377,44 +375,6 @@ danh mục. Quản trị viên được thao tác trên mọi phòng.
 - Vi phạm thì: một quản lý rạp xếp suất vào phòng của rạp khác và bán vé cho chỗ ngồi của người
   khác (FR-20, FR-21, FR-28).
 
-> **Ghi chú (2026-11-25):** thêm khi rà toàn bộ docs — trước đó "rạp" chỉ được hiểu ngầm qua chủ sở
-> hữu suất chiếu (`BR-16`), còn quyền trên phòng và phim thì không luật nào nói.
-
 ---
 
-## Bảng luật → FR → journey
-
-| BR | Nội dung | FR liên quan | Journey liên quan |
-|---|---|---|---|
-| BR-01 | Một ghế thuộc về đúng một người | FR-01, FR-15 | J-02, J-03, J-04 |
-| BR-02 | Giữ n ghế là all-or-nothing | FR-02 | J-03 |
-| BR-03 | Mỗi lần giữ ghế có thời hạn 15 phút | FR-04, FR-14 | J-02 |
-| BR-04 | Hết hạn thì đơn hết hạn, không hồi sinh | FR-06 | J-04 |
-| BR-05 | Tiền đã trả thì phải hoàn lại | FR-06, FR-24, FR-39 | J-04, J-06 |
-| BR-06 | Tối đa 6 ghế mỗi đơn | FR-09 | J-04 |
-| BR-07 | Ghế đôi tính là 2 ghế khi đếm giới hạn | FR-09 | J-04 |
-| BR-08 | Tối đa 10 ghế mỗi người mỗi suất, cộng dồn qua các đơn | FR-09 | J-04 |
-| BR-09 | Mỗi ghế sinh ra đúng một vé | FR-05, FR-08, FR-16 | J-02, J-05 |
-| BR-10 | Mỗi vé chỉ check-in một lần | FR-07, FR-25 | J-05 |
-| BR-11 | Ghế bị chặn không bán online | FR-20, FR-23 | J-06 |
-| BR-12 | Một đơn thuộc đúng một suất chiếu; giá tính theo từng ghế | FR-16, FR-21 | J-02, J-06 |
-| BR-13 | Chỉ đặt vé được suất chiếu đang bán | FR-22, FR-34 | J-03, J-06 |
-| BR-14 | Chỉ thao tác được trên đơn/vé của chính mình | FR-10 | J-02 |
-| BR-15 | Chỉ nhân viên cổng và quản trị viên check-in; theo suất được phân công | FR-33, FR-35, FR-40 | J-05, J-06 |
-| BR-16 | Quản lý rạp chỉ sửa/hủy lịch chiếu của mình | FR-28, FR-32 | J-06, J-07 |
-| BR-17 | Thanh toán đến lặp chỉ cấp vé một lần | FR-38 | J-02, J-07 |
-| BR-18 | Yêu cầu lặp chỉ tạo một đơn | FR-37 | J-04 |
-| BR-19 | Mọi lần từ chối đều kèm lý do và hành động tiếp | FR-36 | J-03, J-04 |
-| BR-20 | Không có hai suất chiếu chồng nhau ở một phòng | FR-21 | J-06 |
-| BR-21 | Huỷ đơn chờ thanh toán thì trả ghế ngay | FR-18 | J-04 |
-| BR-22 | Tranh ghế chồng nhau không được kẹt | FR-03 | J-03 |
-| BR-23 | Sơ đồ ghế phản ánh trạng thái tại thời điểm xem | FR-13, FR-15 | J-01, J-02 |
-| BR-24 | Chỉ nhắc hết hạn cho đơn còn hiệu lực | FR-19 | J-02 |
-| BR-25 | Mỗi lượt check-in được đếm vào suất chiếu | FR-27 | J-05 |
-| BR-26 | Chỉ quản trị viên quản lý người dùng và quyền | FR-29 | J-07 |
-| BR-27 | Lịch sử đơn đặt vé là bản ghi chỉ-đọc | FR-31 | J-07 |
-| BR-28 | Chỉ số vận hành phản ánh lưu lượng đang diễn ra | FR-30 | J-07 |
-| BR-29 | Chỉ hiện phim và suất chiếu đang mở bán | FR-11, FR-12 | J-01 |
-| BR-30 | Vé hiển thị kèm suất chiếu và ghế; vé của suất đã hủy ghi rõ | FR-17, FR-24 | J-02, J-06 |
-| BR-31 | Ngừng bán vé từ giờ bắt đầu chiếu | FR-41 | J-04 |
-| BR-32 | Phòng thuộc quản lý rạp tạo nó; phim thuộc danh mục chung | FR-20, FR-21, FR-28 | J-06, J-07 |
+Luật nào đáp ứng FR nào, xuất hiện ở journey nào: xem [`../plan/traceability.md`](../plan/traceability.md).

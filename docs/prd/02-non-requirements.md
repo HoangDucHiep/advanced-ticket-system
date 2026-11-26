@@ -2,7 +2,6 @@
 
 Lớp 1 — PRD. File này nói hệ thống **cố tình không làm gì**, và **vì sao**.
 
-Nguồn: ticket `.scratch/advanced-ticket-system/issues/03-non-requirements.md`.
 Bối cảnh: [`00-overview.md`](00-overview.md), [`01-requirements.md`](01-requirements.md).
 
 ## Cách đọc
@@ -12,7 +11,7 @@ Mỗi mục có:
 - **Lý do** — thuộc một trong ba loại, ghi rõ ngay đầu dòng:
   - `nghiệp vụ` — nằm ngoài mô hình nghiệp vụ đã chốt, hoặc không phục vụ mục tiêu học tập.
   - `thời gian` — làm được, nhưng tốn thời gian hơn giá trị học tập thu được trong 12 tuần.
-  - `kỹ thu / quy mô` — không làm được trong phạm vi một project học tập.
+  - `kỹ thuật / quy mô` — không làm được trong phạm vi một project học tập.
 - **Nếu sau này cần** — chi phí và thứ bị ảnh hưởng khi thêm vào.
 
 Danh sách này là **hợp đồng với chính mình**. Trước khi thêm bất kỳ tính năng nào, đối chiếu
@@ -25,15 +24,14 @@ vào danh sách này** kèm lý do — không lặng lẽ làm.
 
 ### NR-01 — Không có mô hình vé theo hạng, chỉ có ghế
 
-Hệ thống không có khái niệm hạng vé (`VIP hạng A`, `hạng B`...) với số lượng cấu phép riêng.
+Hệ thống không có khái niệm hạng vé (`VIP hạng A`, `hạng B`...) với số lượng cấp phép riêng.
 Đơn vị bán duy nhất là **từng ghế cụ thể** của một suất chiếu. Loại ghế (Standard / Couple /
 VIP) chỉ quyết định **giá**, không quyết định số lượng.
 
-- Lý do: `nghiệp vụ` — mô hình đếm số không biểu diễn được chỗ ngồi, và đã bị thay thế
-  bằng ADR-0003. Giữ song song hai mô hình tồn kho nghĩa là hai bộ invariant và hai bộ câu
+- Lý do: `nghiệp vụ` — mô hình đếm số không biểu diễn được chỗ ngồi, (xem ADR-0003). Giữ song song hai mô hình tồn kho nghĩa là hai bộ invariant và hai bộ câu
   tranh chấp cùng tồn tại, và người đọc không biết cái nào đang áp dụng.
 - Nếu sau này cần: thêm một khái niệm hạng vé sẽ phải chốt lại toàn bộ mô hình tồn kho,
-  và mọi cơ chế concurrency ở T12 phải thiết kế lại. Đây là thay đổi **không đảo ngược được**.
+  và mọi cơ chế concurrency phải thiết kế lại. Đây là thay đổi **không đảo ngược được**.
 
 ### NR-02 — Không bán sản phẩm kèm theo (combo bắp nước)
 
@@ -114,7 +112,7 @@ xem.
   năng dễ làm mà không tạo ra giá trị học tập nào cho dự án này.
 - Nếu sau này cần: một kho lưu đánh giá và một bộ thao tác ghi/đọc. Ước lượng 2–3 ngày.
 
-### NR-09 — Không có hồ sơ người dùng giày dặn, không có đề xuất phim
+### NR-09 — Không có hồ sơ người dùng dày dặn, không có đề xuất phim
 
 Hệ thống không lưu lịch sử xem, không lưu phim yêu thích, không gợi ý phim, không có phân
 khúc khách hàng.
@@ -134,7 +132,7 @@ Thông báo cho người xem chỉ đi qua email. Không có push notification, 
 
 ---
 
-## Nhóm 3 — Lý do kỹ thu / quy mô
+## Nhóm 3 — Lý do kỹ thuật / quy mô
 
 ### NR-11 — Không vận hành nhiều instance như hệ thống thật
 
@@ -146,21 +144,18 @@ toán #10 — instance khác thấy đúng trạng thái ghế; #12 — nhiều 
 được kiểm chứng bằng cách chạy **2–3 instance trong kịch bản kiểm thử và đo tải**. Đó là môi
 trường thử, không phải cách vận hành.
 
-- Lý do: `kỹ thu / quy mô` — vận hành nhiều instance kéo theo nhiều việc không phục vụ mục tiêu
+- Lý do: `kỹ thuật / quy mô` — vận hành nhiều instance kéo theo nhiều việc không phục vụ mục tiêu
   học (điều phối, triển khai, theo dõi từng instance). Nhưng nếu cấm hẳn nhiều instance thì hai bài
-  toán trong bảng 12 không bao giờ kiểm chứng được.
+  toán đó không bao giờ kiểm chứng được.
 - Nếu sau này cần: dựng cơ chế triển khai nhiều instance thật; các bài toán #9, #10, #12 đã có
   kiểm chứng nhiều instance nên không phải làm lại.
-
-> **Ghi chú (2026-11-25):** bản trước nói "một instance trong suốt dự án" — mâu thuẫn với bài
-> toán #10 và #12 trong roadmap, vốn cần nhiều instance mới có ý nghĩa.
 
 ### NR-12 — Không có realtime bằng websocket
 
 Sơ đồ ghế **không** tự cập nhật trong thời gian thực. Người xem phải tự làm mới trang để
 thấy ghế vừa có người.
 
-- Lý do: `kỹ thu / quy mô` — thêm một kênh giao tiếp hai chiều kéo theo vòng đời kết nối,
+- Lý do: `kỹ thuật / quy mô` — thêm một kênh giao tiếp hai chiều kéo theo vòng đời kết nối,
   quản lý trạng thái kết nối theo instance, và một lớp đồng bộ mà không bài toán tranh chấp
   nào cần đến.
 - Nếu sau này cần: một kênh thông báo thay đổi sơ đồ ghế, và bài toán mới: thông báo có
@@ -171,7 +166,7 @@ thấy ghế vừa có người.
 Toàn bộ nội dung hiển thị bằng một ngôn ngữ. Không có cơ chế đa ngữ, không có đa tiền tệ, và
 dữ liệu mẫu chỉ mô phỏng một chuỗi rạp.
 
-- Lý do: `kỹ thu / quy mô` — một rạp với vài phòng là đủ để sinh ra mọi tình huống tranh
+- Lý do: `kỹ thuật / quy mô` — một rạp với vài phòng là đủ để sinh ra mọi tình huống tranh
   chấp mà dự án cần chứng minh: phòng nhỏ, phòng lớn, suất giáp nhau, ghế nhiều loại.
 - Nếu sau này cần: bảng dịch, bảng tỷ giá, và luật giá theo từng thị trường.
 
@@ -196,7 +191,7 @@ Check-in **online** làm đầy đủ: xác minh vé hợp lệ, phát hiện v�
 thanh toán, ghi nhận số người đã vào. Nhưng khi thiết bị tại cổng **mất kết nối**, hệ thống
 **không** xác minh được vé tại chỗ.
 
-- Lý do: `kỹ thu / quy mô` — xác minh offline đúng nghĩa là mã vé phải tự mang chứng thông tin
+- Lý do: `kỹ thuật / quy mô` — xác minh offline đúng nghĩa là mã vé phải tự mang đủ thông tin
   và tự kiểm tra chữ ký không cần máy chủ, còn thao tác ghi nhận check-in phải được xếp hàng
   đợi để gửi lại khi có mạng — và phần đồng bộ đó là một dự án riêng, với bài toán riêng
   (cổng offline đồng bộ lại không được ghi nhận check-in lần hai). Bỏ nó giữ nguyên bài toán
@@ -204,22 +199,11 @@ thanh toán, ghi nhận số người đã vào. Nhưng khi thiết bị tại c
 - Nếu sau này cần: mã vé ký số để máy quét tự kiểm tra, một hàng đợi phía thiết bị, và cơ
   chế hợp nhất khi kết nối lại. Ước lượng 1–2 tuần.
 
-> **Hệ quả:** FR-26 bị loại khỏi phạm vi. Xem ghi chú bên dưới.
+> **Hệ quả:** `FR-26` (xác minh vé khi mất mạng) bị loại khỏi phạm vi; số hiệu được giữ lại, không dùng lại cho requirement khác.
 
 ---
 
-## Ghi chú về phạm vi đã cắt
-
-### FR-26 bị loại khỏi scope
-
-FR-26 ("xác minh vé khi mất mạng") không còn là requirement trong phạm vi dự án. Số hiệu
-`FR-26` được **giữ lại** để không phá vỡ truy vết với các tài liệu đã viết — nó không được
-dùng lại cho một requirement khác.
-
-Trong [`01-requirements.md`](01-requirements.md), FR-26 được đánh dấu là đã loại khỏi scope
-và không xuất hiện trong bảng đối chiếu success criteria.
-
-### Những thứ **KHÔNG** nằm trong danh sách này
+## Những thứ **KHÔNG** nằm trong danh sách này
 
 Danh sách trên loại bỏ những thứ. Để tránh hiểu nhầm, đây là những thứ **vẫn nằm trong phạm
 vi** và được làm thật:
@@ -230,7 +214,7 @@ vi** và được làm thật:
 - **Email thật**, **cổng thanh toán thật**, **mã QR thật** — không có phần nào trong dự án
   này được làm giả. Xem mục dưới.
 
-### Không có phần nào được làm giả
+## Không có phần nào được làm giả
 
 Dự án này **không giả lập** bất kỳ thành phần nào. Cụ thể:
 

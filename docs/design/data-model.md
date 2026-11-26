@@ -1,7 +1,6 @@
 # Data model
 
-Lớp 3 — Design. Ticket: [`T11`](../../.scratch/advanced-ticket-system/issues/11-data-model.md).
-Quyết định: AI (hợp đồng 2026-11-25 — `AGENTS.md`). Mỗi quyết định có lý do và phương án bị loại.
+Lớp 3 — Design. Mỗi quyết định có lý do và phương án bị loại.
 
 Nguồn: [`architecture.md`](architecture.md) (module, sở hữu bảng), [`../domain/aggregates/`](../domain/aggregates/)
 (`INV-nn`), [`../domain/state-machines.md`](../domain/state-machines.md), [`../prd/04-business-rules.md`](../prd/04-business-rules.md)
@@ -20,7 +19,7 @@ Nguồn: [`architecture.md`](architecture.md) (module, sở hữu bảng), [`../
 | Tiền | `bigint`, đơn vị **đồng** (VND) | VND không có phần lẻ (cũng là quy ước của Stripe). Không dùng `numeric`/`decimal`: không cần, và tránh lẫn với "cent" |
 | Thời gian | `timestamptz`, luôn UTC | |
 | `now()` | Trong Postgres là **thời điểm bắt đầu transaction** | Mọi so sánh `expires_at` / `held_until` trong một transaction dùng cùng một mốc ⇒ nhất quán. Transaction ngắn nên sai lệch không đáng kể |
-| Isolation | `READ COMMITTED` (mặc định) | Mọi bất biến được ép bằng điều kiện lệnh, khoá dòng, ràng buộc. Không cần `SERIALIZABLE` (đóng Q02 — xem `concurrency.md`) |
+| Isolation | `READ COMMITTED` (mặc định) | Mọi bất biến được ép bằng điều kiện lệnh, khoá dòng, ràng buộc. Không cần `SERIALIZABLE` (xem `concurrency.md`) |
 | Khoá ngoại | Chỉ **trong** một schema | Khoá ngoại xuyên schema = module A phụ thuộc bảng của module B; khi tách service sẽ vỡ. Tham chiếu chéo module là cột `uuid` không có FK, nhất quán do ranh giới bị cắt (một transaction) |
 | Append-only | Role ứng dụng **không** có quyền `UPDATE`, `DELETE` trên bảng lịch sử | Ép `INV-07` (Booking), `INV-03` (Identity) ở tầng DB, không phụ thuộc code |
 
@@ -86,12 +85,11 @@ Index: `UNIQUE` trên (tiền tố `room_id`) phục vụ "sơ đồ của phòn
 
 **Sửa sơ đồ (`INV-13`)** — lệnh sửa sơ đồ:
 
-```sql
-SELECT 1 FROM scheduling.rooms WHERE id = @room_id FOR UPDATE;
-SELECT EXISTS (SELECT 1 FROM scheduling.showtimes
-               WHERE room_id = @room_id AND status <> 'Cancelled' AND ends_at > now());
--- có ⇒ 409 ROOM_HAS_ACTIVE_SHOWTIMES; không ⇒ thay room_seats
-```
+| Bước | Lệnh | Khoá / điều kiện | Vì sao |
+|---|---|---|---|
+| 1 | `SELECT` dòng phòng `scheduling.rooms` theo `id = @room_id` | `FOR UPDATE` trên dòng phòng | Chặn tạo suất mới trên phòng này trong lúc sửa (xem bên dưới) |
+| 2 | Kiểm tra tồn tại (`EXISTS`) suất trong `scheduling.showtimes` với `room_id = @room_id`, `status <> 'Cancelled'` và `ends_at > now()` | — | Phát hiện suất còn hiệu lực |
+| 3 | Nếu có ở bước 2 ⇒ trả `409 ROOM_HAS_ACTIVE_SHOWTIMES`; nếu không ⇒ thay toàn bộ `room_seats` | cùng transaction với bước 1 | Giữ khoá phòng tới commit |
 
 `FOR UPDATE` trên dòng phòng **xung đột** với khoá `FOR KEY SHARE` mà Postgres tự lấy khi chèn một
 `showtimes` có FK tới phòng đó ⇒ không thể đồng thời "sửa sơ đồ" và "tạo suất" trên cùng phòng.
@@ -120,14 +118,15 @@ Constraint:
 - `CHECK ((status = 'Cancelled') = (cancelled_at IS NOT NULL))`.
 - **Exclusion constraint** — `BR-20`:
 
-```sql
-CREATE EXTENSION IF NOT EXISTS btree_gist;
-ALTER TABLE scheduling.showtimes ADD CONSTRAINT ex_showtimes_room_no_overlap
-  EXCLUDE USING gist (
-    room_id WITH =,
-    tstzrange(starts_at, ends_at + interval '15 minutes', '[)') WITH &&
-  ) WHERE (status <> 'Cancelled');
-```
+Tên `ex_showtimes_room_no_overlap`, cần extension `btree_gist` (`CREATE EXTENSION IF NOT EXISTS`),
+dùng index `gist`:
+
+| Thành phần | Giá trị |
+|---|---|
+| Kiểu | `EXCLUDE USING gist` |
+| Phần tử 1 | `room_id` so bằng (`=`) |
+| Phần tử 2 | `tstzrange(starts_at, ends_at + 15 phút, '[)')` — nửa mở, đệm 15 phút cộng vào cuối — so giao nhau (`&&`) |
+| Điều kiện (`WHERE`) | `status <> 'Cancelled'` |
 
 **Vì sao SQL tay:** EF Core không biểu diễn được exclusion constraint. **Vì sao ở DB, không ở ứng
 dụng:** hai lệnh tạo suất chạy đồng thời đều "kiểm tra không thấy chồng" rồi cùng chèn — chỉ ràng
@@ -157,7 +156,7 @@ Constraint: `PRIMARY KEY (showtime_id, seat_type)` — `INV-01`; `CHECK (amount 
 "Mỗi loại ghế **có trong phòng** đều có giá" kiểm ở lệnh tạo suất (cùng transaction) — ràng buộc
 xuyên hai bảng, không biểu diễn bằng `CHECK`.
 
-> **Chốt câu hỏi T11 #8 — giá lưu ở đâu:** theo **(suất, loại ghế)**, không phải "giá loại ghế của
+> **Giá lưu ở đâu:** theo **(suất, loại ghế)**, không phải "giá loại ghế của
 > phòng × hệ số". Nếu giá nằm ở phòng, đổi giá một loại ghế sẽ đổi giá mọi suất đang bán của phòng
 > đó. Giá đã chốt của đơn vẫn là bản sao ở `booking.booking_lines` (`Booking` `INV-02`).
 
@@ -197,7 +196,7 @@ Index:
 - **Không** index `status`: cột ghi nóng nhất hệ thống; mọi truy vấn theo trạng thái đều đã lọc
   theo `showtime_id` (≤ vài trăm dòng).
 
-> **Chốt câu hỏi T11 #7 — có cần bảng riêng không:** có. Mỗi ghế của suất là **một dòng** (ADR-0003,
+> **Có cần bảng riêng không:** có. Mỗi ghế của suất là **một dòng** (ADR-0003,
 > ADR-0005) — khoá dòng là đơn vị tranh chấp. Giữ "danh sách id ghế" trong dòng suất chiếu thì mọi
 > người tranh **một** dòng.
 >
@@ -209,7 +208,7 @@ Index:
 Tác động: mỗi lần giữ ghế cập nhật `hold_id` (cột có index) ⇒ **không** phải HOT update, mỗi lần ghi
 cập nhật 2 index (PK không đổi nên thực chất là index `hold_id` + heap). Giữ số index ở mức tối
 thiểu là vì vậy. Dòng của suất đã kết thúc không bao giờ ghi lại; nếu cần, partition theo tháng của
-suất là phương án sau T23 — chưa làm vì chưa có số đo.
+suất là phương án sau bước load test — chưa làm vì chưa có số đo.
 
 Câu SQL tay của bảng này (giữ n ghế, trả ghế, `→ Sold`, chặn ghế, sinh ghế) nằm ở
 [`concurrency.md`](concurrency.md) #1–#4. Ghi chú vì sao không dùng ORM ở mục "Câu SQL tay" cuối file.
@@ -493,10 +492,21 @@ Constraint: `PRIMARY KEY (showtime_id, staff_id)` — không phân công trùng.
 | `email` | `text` | không | Lưu dạng chữ thường |
 | `password_hash` | `text` | không | ASP.NET Core `PasswordHasher` (PBKDF2) — không plaintext |
 | `role` | `text` | không | `Customer` / `TheaterManager` / `GateStaff` / `Administrator` |
-| `role_version` | `int` | không | Tăng mỗi lần đổi vai trò — khoá cache vai trò |
+| `role_version` | `int` | không | Tăng mỗi lần đổi vai trò — version của cache vai trò (dưới) |
 | `created_at` | `timestamptz` | không | |
 
 Constraint: `UNIQUE (email)`; `CHECK (role IN (...))`; `CHECK (email = lower(email))`.
+
+**Cache vai trò** (`BR-26` — thu quyền có hiệu lực ngay, kể cả với JWT còn hạn):
+
+- Mỗi request đã xác thực đọc vai trò hiện hành theo `sub` từ Redis key `role:{userId}` = `role|role_version`.
+  Miss ⇒ đọc `identity.users`, ghi vào Redis (TTL 10 phút).
+- Đổi vai trò: transaction ghi `users` (tăng `role_version`) + `role_changes`; **sau commit** ghi đè key
+  bằng script "chỉ ghi khi `role_version` mới hơn" — cùng quy tắc với cache ghế (#10), nên một lần đọc
+  DB cũ chạy chậm không đè được vai trò mới.
+- Redis lỗi ⇒ đọc thẳng DB (chậm hơn, vẫn đúng). Không dùng `IMemoryCache` riêng mỗi instance: instance
+  khác sẽ giữ vai trò cũ tới hết TTL, trái `BR-26`.
+- Claim `role` trong JWT chỉ để client hiển thị; policy phân quyền **không** đọc nó.
 
 Tên giá trị vai trò trong code/DB bỏ dấu cách (`TheaterManager`, `GateStaff`) — là tên định danh của
 thuật ngữ `Theater manager`, `Gate staff` trong `GLOSSARY.md`.
@@ -547,7 +557,7 @@ Có ở `inventory`, `booking`, `payment` (architecture D8). Cùng một hình d
 | Cột | Kiểu | Null | Ghi chú |
 |---|---|---|---|
 | `id` | `bigint` identity | không | PK — thứ tự xử lý |
-| `type` | `text` | không | Ví dụ `RefundRequested`, `SeatStatesChanged`, `ExpiryReminderDue` |
+| `type` | `text` | không | Một trong các loại ở bảng dưới |
 | `payload` | `jsonb` | không | |
 | `available_at` | `timestamptz` | không | Hẹn giờ (email nhắc) và backoff khi thử lại |
 | `attempts` | `int` | không | |
@@ -559,21 +569,29 @@ Có ở `inventory`, `booking`, `payment` (architecture D8). Cùng một hình d
 Index: `(available_at, id) WHERE processed_at IS NULL AND dead_at IS NULL` — dispatcher chỉ quét
 việc còn lại.
 
+**Các loại message** — mỗi loại thuộc đúng một bảng (module ghi nó) và có một handler:
+
+| `type` | Bảng | Ghi khi | Handler làm gì |
+|---|---|---|---|
+| `SeatStatesChanged` | `inventory.outbox_messages` | Ghế đổi trạng thái (giữ, trả, bán, chặn) | Ghi đè từng ghế trong cache theo version (#10) |
+| `ExpiryReminderDue` | `booking.outbox_messages` | Giữ ghế thành công; `available_at = expires_at - 5 phút` | Đơn vẫn `AwaitingPayment` ⇒ gửi email nhắc (`FR-19`); không thì bỏ qua |
+| `RefundRequested` | `payment.outbox_messages` | Intent `→ RefundPending` | Gọi Stripe refund, `Idempotency-Key = refunds.id` (#7) |
+| `PaymentIntentCancelRequested` | `payment.outbox_messages` | Intent `Unpaid → Closed` khi đơn hết hạn / bị huỷ | Huỷ PaymentIntent phía Stripe, `Idempotency-Key = <intent id>:cancel`; best-effort (ADR-0006) |
+
+Payload chỉ chứa id (`booking_id`, `customer_id`, `intent_id`…), **không** chứa email hay dữ liệu cá
+nhân: handler `ExpiryReminderDue` lấy địa chỉ email lúc gửi qua interface của `IdentityAccess.Contracts`
+(cạnh phụ thuộc `* → IdentityAccess` được phép — architecture D9). Lý do: email đổi sau khi giữ ghế vẫn
+gửi đúng chỗ, và bảng outbox không thành nơi lưu PII thứ hai.
+
 **Claim bằng lease, không giữ transaction trong lúc gọi ra ngoài:**
 
-```sql
-UPDATE payment.outbox_messages SET locked_until = now() + interval '30 seconds', attempts = attempts + 1
-WHERE id IN (
-  SELECT id FROM payment.outbox_messages
-  WHERE processed_at IS NULL AND dead_at IS NULL
-    AND available_at <= now() AND (locked_until IS NULL OR locked_until < now())
-  ORDER BY id
-  LIMIT 20
-  FOR UPDATE SKIP LOCKED)
-RETURNING id, type, payload, attempts;
--- commit ngay; gọi Stripe ngoài transaction; rồi:
-UPDATE payment.outbox_messages SET processed_at = now() WHERE id = @id;
-```
+| Bước | Lệnh | Khoá / điều kiện | Vì sao |
+|---|---|---|---|
+| 1 | `UPDATE payment.outbox_messages` đặt `locked_until = now() + 30 giây`, `attempts = attempts + 1`, cho các `id` thuộc subquery ở bước 2; `RETURNING id, type, payload, attempts` | — | Đánh dấu lease và trả về các dòng đã claim |
+| 2 | Subquery: `SELECT id` từ cùng bảng với `processed_at IS NULL`, `dead_at IS NULL`, `available_at <= now()`, và (`locked_until IS NULL` hoặc `locked_until < now()`); `ORDER BY id`; `LIMIT 20` | `FOR UPDATE SKIP LOCKED` | Worker khác bỏ qua dòng đang bị claim thay vì chờ |
+| 3 | `COMMIT` ngay | — | Không giữ transaction/connection trong lúc gọi ngoài |
+| 4 | Gọi Stripe **ngoài** transaction | — | — |
+| 5 | `UPDATE payment.outbox_messages` đặt `processed_at = now()` với `id = @id` | — | Đánh dấu xong; nếu lease hết hạn trước bước này thì dòng quay lại hàng đợi |
 
 **Vì sao SQL tay:** `FOR UPDATE SKIP LOCKED` và `UPDATE … WHERE id IN (subquery) RETURNING` không
 biểu diễn được bằng LINQ. **Vì sao lease, không giữ khoá:** giữ transaction mở trong lúc gọi Stripe
@@ -629,7 +647,3 @@ Phần còn lại (tạo phim, phòng, suất, phân công, người dùng) dùn
 | `Gate assignment` `INV-08` | `PRIMARY KEY (showtime_id, staff_id)` | Kiểm phân công khi quét |
 | `User` `INV-03` | `REVOKE UPDATE, DELETE` ở `role_changes` | — |
 | `User` `INV-04` | Một cột `role` | — |
-
-## Trạng thái
-
-Bản đầy đủ, 2026-11-25. Tên cột là tên sẽ dùng trong migration (T15+).

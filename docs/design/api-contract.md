@@ -1,7 +1,6 @@
 # API contract
 
-Lớp 3 — Design. Ticket: [`T13`](../../.scratch/advanced-ticket-system/issues/13-api-contract.md).
-Quyết định: AI (hợp đồng 2026-11-25 — `AGENTS.md`). Cơ chế đằng sau: [`concurrency.md`](concurrency.md);
+Lớp 3 — Design. Cơ chế đằng sau: [`concurrency.md`](concurrency.md);
 bảng: [`data-model.md`](data-model.md); module sở hữu endpoint: [`architecture.md`](architecture.md) D9.
 
 ---
@@ -13,28 +12,27 @@ bảng: [`data-model.md`](data-model.md); module sở hữu endpoint: [`architec
 | Base path | `/api` | |
 | Định dạng | JSON, `camelCase`; thời gian ISO-8601 UTC (`2026-12-01T12:00:00Z`); tiền là số nguyên **đồng** (`"amount": 90000`) | VND không có phần lẻ |
 | Id | UUID dạng chuỗi | |
-| Xác thực | `Authorization: Bearer <access token>` (JWT, 15 phút) | `T16` |
+| Xác thực | `Authorization: Bearer <access token>` (JWT, 15 phút) | |
 | Vai trò | **Đọc từ `IdentityAccess`**, không tin `role` trong JWT (cache có `role_version`) | `BR-26` — thu quyền có hiệu lực ngay |
 | Tài nguyên của người khác | **`404`**, không `403` | `FR-10`: không rò rỉ việc tài nguyên tồn tại |
 | Nhóm đường dẫn | Công khai / người xem: `/api/...`; quản lý rạp: `/api/manager/...`; quản trị: `/api/admin/...`; cổng: `/api/check-in/...` | Đọc đường dẫn là biết cần vai trò gì; chính sách phân quyền gắn theo nhóm |
 | Phân trang | `?page=1&pageSize=20` (tối đa 100); response `{ items, page, pageSize, totalCount }` | Danh sách ở đây nhỏ (đơn của một người, người dùng cho quản trị) — offset đủ và dễ hiểu. Keyset pagination để dành khi có số đo cần nó |
 | Sắp xếp mặc định | Mới nhất trước (`createdAt` giảm dần); lịch chiếu: `startsAt` tăng dần | |
+| Thời gian giữ ghế | Cố định 15 phút (`BR-03`), không cấu hình theo suất | Quy tắc nghiệp vụ một giá trị; giá trị nằm trong cấu hình ứng dụng để test rút ngắn được |
 | Phiên bản API | Không đặt version trong đường dẫn | Một client, một repo; thêm `/v2` khi có thay đổi phá vỡ |
 
 ### Định dạng lỗi — `application/problem+json` (RFC 9457)
 
-```json
-{
-  "type": "https://errors.ticket.local/seats-unavailable",
-  "title": "Một số ghế đã có người",
-  "status": 409,
-  "code": "SEATS_UNAVAILABLE",
-  "detail": "Ghế D7 vừa được người khác giữ.",
-  "action": "Chọn ghế khác trên sơ đồ rồi thử lại.",
-  "traceId": "00-4bf9…",
-  "unavailableSeatIds": ["…"]
-}
-```
+| Trường | Kiểu | Ý nghĩa |
+|---|---|---|
+| `type` | string (URI) | Định danh loại lỗi, dạng `https://errors.ticket.local/<kebab-case của code>` (ví dụ `…/seats-unavailable`) |
+| `title` | string | Tiêu đề ngắn, người đọc được (ví dụ "Một số ghế đã có người") |
+| `status` | number | Mã HTTP (ví dụ `409`) |
+| `code` | string | Mã ổn định cho máy (ví dụ `SEATS_UNAVAILABLE`) |
+| `detail` | string | Giải thích cụ thể cho lần lỗi này (ví dụ "Ghế D7 vừa được người khác giữ.") |
+| `action` | string | Hành động tiếp theo cho người (ví dụ "Chọn ghế khác trên sơ đồ rồi thử lại.") |
+| `traceId` | string | Mã truy vết của request (dạng W3C trace, ví dụ `00-4bf9…`) |
+| `unavailableSeatIds` | array of uuid | Trường thêm, chỉ có với `SEATS_UNAVAILABLE`: các ghế đã có người |
 
 `code` là chuỗi ổn định cho máy; `action` là **hành động tiếp theo** cho người — mọi lỗi đều có
 (`FR-36`, `BR-19`). Trường thêm (ví dụ `unavailableSeatIds`) tuỳ `code`.
@@ -51,7 +49,7 @@ bảng: [`data-model.md`](data-model.md); module sở hữu endpoint: [`architec
 | `422` | Request hợp lệ về cú pháp nhưng **vi phạm luật nghiệp vụ** của chính nó: quá 6 ghế, vượt 10 ghế/suất, ghế không thuộc suất, giá âm, dùng lại `Idempotency-Key` với nội dung khác, vé không hợp lệ | Sửa nội dung yêu cầu; với `IDEMPOTENCY_KEY_REUSED`: sinh key **mới** |
 | `429` | Vượt rate limit (`login`, `refresh`, `hold`, `scan`) | Chờ `Retry-After` |
 | `503` | Quá tải — admission control từ chối (bài toán #11) | Chờ `Retry-After` rồi gửi lại **cùng** `Idempotency-Key` |
-| `500` | Lỗi không mong đợi | Retry với cùng `Idempotency-Key` (an toàn) |
+| `500` | Lỗi không mong đợi (`INTERNAL_ERROR`, không lộ chi tiết) | Retry với cùng `Idempotency-Key` (an toàn) |
 
 **Phân biệt `409` và `422`:** `409` = yêu cầu đúng, nhưng **thế giới** đã đổi (ghế vừa bị giữ). `422` =
 bản thân **yêu cầu** sai luật (7 ghế). Client xử lý khác nhau: `409` thì làm mới rồi chọn lại, `422`
@@ -106,7 +104,7 @@ các ghế đó trên sơ đồ và để người xem chọn lại. Không endp
 
 ---
 
-## Identity — `T16`
+## Identity
 
 ### `POST /api/auth/register`
 
@@ -169,7 +167,7 @@ Body `{ refreshToken }`. `200` — cặp token mới (rotation, bài toán #6).
 
 ---
 
-## Scheduling — `T17`
+## Scheduling
 
 ### `GET /api/movies` — `FR-11`
 
@@ -188,7 +186,7 @@ Body `{ refreshToken }`. `200` — cặp token mới (rotation, bài toán #6).
 ### `POST /api/admin/movies`, `PUT /api/admin/movies/{movieId}` — `FR-28`
 
 **Auth**: `Administrator`. Body `{ title, description, durationMinutes }`. `201` / `200`.
-`422 VALIDATION_FAILED` khi `durationMinutes <= 0`.
+`400 VALIDATION_FAILED` khi `durationMinutes <= 0` (sai hình dạng đầu vào, kiểm bằng `[Range]` — [`building-blocks.md`](building-blocks.md) B5).
 
 ### `POST /api/manager/rooms` — `FR-20`
 
@@ -258,7 +256,7 @@ Suất của người gọi, lọc `?from=&to=&status=`. Phân trang.
 
 ---
 
-## Inventory — `T17`, `T18`
+## Inventory
 
 ### `GET /api/showtimes/{showtimeId}/seats` — `FR-13`, `BR-23`, `SC-11`
 
@@ -266,17 +264,20 @@ Suất của người gọi, lọc `?from=&to=&status=`. Phân trang.
 
 `200`:
 
-```json
-{
-  "showtimeId": "…", "startsAt": "…",
-  "availableSeatCount": 87,
-  "seats": [
-    { "id": "…", "row": "D", "number": 7, "label": "D7", "seatType": "VIP", "price": 120000,
-      "status": "Held" }
-  ],
-  "asOf": "2026-12-01T11:59:58Z"
-}
-```
+| Trường | Kiểu | Ý nghĩa |
+|---|---|---|
+| `showtimeId` | uuid | Suất chiếu |
+| `startsAt` | timestamp (UTC) | Giờ bắt đầu suất |
+| `availableSeatCount` | number | Số ghế `Available` (ví dụ `87`) |
+| `seats` | array | Danh sách ghế (không gồm ghế `Blocked`) |
+| `seats[].id` | uuid | Id ghế |
+| `seats[].row` | string | Hàng (ví dụ `D`) |
+| `seats[].number` | number | Số ghế trong hàng (ví dụ `7`) |
+| `seats[].label` | string | Nhãn hiển thị (ví dụ `D7`) |
+| `seats[].seatType` | string | Loại ghế (ví dụ `VIP`) |
+| `seats[].price` | number | Giá, đơn vị tiền nhỏ nhất của VND (ví dụ `120000`) |
+| `seats[].status` | string | `Available` / `Held` / `Sold` |
+| `asOf` | timestamp (UTC) | Thời điểm dữ liệu cache có hiệu lực (ví dụ `2026-12-01T11:59:58Z`) |
 
 - `status` ∈ `Available` / `Held` / `Sold`. Ghế `Blocked` **không** có trong danh sách (`BR-11`). Ghế
   `Held` đã quá hạn hiển thị `Available` (bài toán #4).
@@ -304,7 +305,7 @@ roomSeatCount` (ghế `Held` quá hạn tính vào `available`).
 
 ---
 
-## Booking — `T18`, `T19`
+## Booking
 
 ### `POST /api/showtimes/{showtimeId}/bookings` — giữ ghế
 
@@ -322,14 +323,17 @@ hai bộ ghế (`FR-37`). **Rate limit**: `hold`. **Admission control**: có (#1
 
 `201`:
 
-```json
-{
-  "bookingId": "…", "status": "AwaitingPayment",
-  "expiresAt": "2026-12-01T12:15:00Z",
-  "lines": [{ "seatId": "…", "label": "D7", "seatType": "VIP", "price": 120000 }],
-  "totalAmount": 240000
-}
-```
+| Trường | Kiểu | Ý nghĩa |
+|---|---|---|
+| `bookingId` | uuid | Id đơn |
+| `status` | string | `AwaitingPayment` |
+| `expiresAt` | timestamp (UTC) | Hạn giữ ghế (ví dụ `2026-12-01T12:15:00Z`) |
+| `lines` | array | Các dòng của đơn |
+| `lines[].seatId` | uuid | Id ghế |
+| `lines[].label` | string | Nhãn ghế (ví dụ `D7`) |
+| `lines[].seatType` | string | Loại ghế (ví dụ `VIP`) |
+| `lines[].price` | number | Giá đã chốt (ví dụ `120000`) |
+| `totalAmount` | number | Tổng tiền (ví dụ `240000`) |
 
 | Status | `code` | Thêm | `action` |
 |---|---|---|---|
@@ -389,7 +393,7 @@ thanh toán (`payment_events`, qua `Payment.Contracts`) theo thời gian:
 
 ---
 
-## Payment — `T20`
+## Payment
 
 ### `POST /api/webhooks/stripe` — `FR-38`, `FR-39`
 
@@ -406,15 +410,16 @@ khác ⇒ `200` bỏ qua.
 
 ---
 
-## Ticketing — `T24`
+## Ticketing
 
 ### Định dạng mã QR
 
-```
-v1.<kid>.<payload>.<signature>
-payload   = base64url("<ticketId>|<showtimeId>|<seatLabel>|<issuedAtUnix>")
-signature = base64url(HMAC-SHA256(key[kid], "v1." + kid + "." + payload))
-```
+Chuỗi mã: `v1.<kid>.<payload>.<signature>`
+
+| Thành phần | Cách tính |
+|---|---|
+| `payload` | `base64url` của chuỗi nối bằng ký tự `\|`: `ticketId`, `showtimeId`, `seatLabel`, `issuedAtUnix` (theo thứ tự đó) |
+| `signature` | `base64url` của `HMAC-SHA256` với khoá `key[kid]`, trên chuỗi `"v1." + kid + "." + payload` |
 
 - `kid`: id khoá ký, để **xoay khoá** mà vé cũ vẫn quét được (giữ khoá cũ ở chế độ chỉ-xác-minh). Khoá
   trong cấu hình bí mật (user-secrets / biến môi trường), **không** trong DB.
@@ -473,49 +478,19 @@ Thứ tự kiểm: quyền (vai trò + phân công) → chữ ký → vé tồn 
 
 ---
 
-## Vận hành — `T25`
+## Vận hành
 
 | Endpoint | Auth | Dùng cho |
 |---|---|---|
 | `GET /health/live` | không | Tiến trình còn sống |
 | `GET /health/ready` | không | Postgres + Redis kết nối được |
 | `GET /metrics` | mạng nội bộ (không public qua reverse proxy) | Prometheus scrape; Grafana dashboard là nơi quản trị viên xem chỉ số (`FR-30`) |
+| `GET /openapi/v1.json` | không | Tài liệu OpenAPI sinh bằng `Microsoft.AspNetCore.OpenApi` (built-in); UI xem tài liệu chỉ bật ở môi trường Development. Mọi response lỗi khai báo `application/problem+json` |
+
+Mọi response có header `X-Correlation-Id`: lấy từ request nếu client gửi, không thì sinh mới; cùng giá trị
+nằm trong log của request đó (log JSON có cấu trúc — `architecture.md` mục Stack).
 
 ---
-
-## Truy vết FR → endpoint
-
-| FR | Endpoint |
-|---|---|
-| FR-01, FR-02, FR-03, FR-14, FR-15 | `POST /api/showtimes/{id}/bookings` |
-| FR-04 | Worker hết hạn (không endpoint) + `GET /api/showtimes/{id}/seats` thấy ghế trống lại |
-| FR-05, FR-16 | `POST /api/bookings/{id}/payment` + `POST /api/webhooks/stripe` + `GET /api/bookings/{id}/tickets` |
-| FR-06, FR-39 | `POST /api/webhooks/stripe` (nhánh hoàn tiền) + outbox |
-| FR-07, FR-08, FR-25, FR-33, FR-35 | `POST /api/check-in/scan` |
-| FR-09, FR-37, FR-41 | `POST /api/showtimes/{id}/bookings` |
-| FR-10 | `GET /api/bookings`, `GET /api/bookings/{id}`, `GET /api/tickets`, `…/cancel` (`404` cho người khác) |
-| FR-11 | `GET /api/movies` |
-| FR-12 | `GET /api/movies/{id}/showtimes` |
-| FR-13 | `GET /api/showtimes/{id}/seats` |
-| FR-17 | `GET /api/tickets`, `GET /api/bookings/{id}/tickets` |
-| FR-18 | `POST /api/bookings/{id}/cancel` |
-| FR-19 | Outbox `ExpiryReminderDue` → email (không endpoint) |
-| FR-20 | `POST/GET /api/manager/rooms`, `PUT …/seats`, `POST …/seats/block|unblock` |
-| FR-21 | `POST/PUT/DELETE /api/manager/showtimes` |
-| FR-22 | `POST …/open-sale` |
-| FR-23 | `GET /api/manager/showtimes/{id}/availability` |
-| FR-24 | `POST /api/manager/showtimes/{id}/cancel` |
-| FR-26 | — (loại khỏi scope, `NR-15`) |
-| FR-27 | `GET …/check-ins/count` |
-| FR-28 | `/api/admin/movies` + các endpoint `/api/manager/showtimes` với vai trò `Administrator` |
-| FR-29 | `GET /api/admin/users`, `PUT /api/admin/users/{id}/role` |
-| FR-30 | `/metrics` + Grafana |
-| FR-31 | `GET /api/admin/bookings/{id}/history` |
-| FR-32 | Kiểm chủ ở mọi `/api/manager/showtimes/{id}…` |
-| FR-34 | `404` cho suất chưa mở bán ở mọi endpoint công khai |
-| FR-36 | Định dạng lỗi `code` + `action` — toàn bộ API |
-| FR-38 | `POST /api/webhooks/stripe` |
-| FR-40 | `…/gate-assignments` |
 
 ## Truy vết user journey → endpoint
 
@@ -536,8 +511,3 @@ Thứ tự kiểm: quyền (vai trò + phân công) → chữ ký → vé tồn 
 | `GET /api/showtimes/{id}/seats` | Redis hash theo suất (#9, #10) | Cập nhật theo ghế qua outbox, ≈ < 1s |
 | `GET /api/movies`, `GET /api/movies/{id}/showtimes` | Redis, TTL 30s | Mở bán / hủy suất thấy sau ≤ 30s — chấp nhận được; giữ ghế vẫn kiểm trạng thái suất |
 | Còn lại | Không | |
-
-## Trạng thái
-
-Bản đầy đủ, 2026-11-25. Đóng Q04 (thời gian giữ cố định 15 phút — `BR-03`; không cấu hình theo suất:
-quy tắc nghiệp vụ một giá trị, giá trị nằm trong cấu hình ứng dụng để test rút ngắn được).

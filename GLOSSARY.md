@@ -3,13 +3,19 @@
 Hệ thống đặt vé xem phim theo ghế: người xem chọn ghế của một suất chiếu, giữ có thời hạn,
 thanh toán, rồi mang vé (mã QR) tới cổng để vào rạp.
 
-Một file cho cả repo (single-context về mặt triển khai), chia mục theo **bounded context**. Tên
-tiếng Anh là tên chuẩn trong code; tên tiếng Việt dùng để trao đổi. Từ trùng tên ở hai context
-được ghi kèm context trong ngoặc (hiện chỉ còn `Cancelled`).
+Một file cho cả repo (single-context về mặt triển khai), chia mục theo **bounded context**.
+Từ trùng tên ở hai context được ghi kèm context trong ngoặc (hiện chỉ còn `Cancelled`).
 
-Nguồn: [`docs/domain/ubiquitous-language.md`](docs/domain/ubiquitous-language.md) (bản làm việc),
-[`docs/domain/context-map.md`](docs/domain/context-map.md),
-[`docs/domain/state-machines.md`](docs/domain/state-machines.md). Chốt ở cuối Gate B (2026-11-25).
+## Quy tắc đặt tên
+
+- Tên tiếng Anh là **tên chuẩn trong code** — class, biến, bảng, trạng thái. Tên tiếng Việt chỉ dùng
+  để trao đổi trong tài liệu.
+- **Không** dùng tên tiếng Việt trong code, kể cả bản không dấu (`Ghe`, `DonDatVe`).
+- Mỗi thuật ngữ ở đây chỉ có **định nghĩa một dòng**. Vòng đời, chuyển trạng thái, trạng thái bị
+  từ chối: [`state-machines.md`](docs/domain/state-machines.md). Bản đồ context:
+  [`context-map.md`](docs/domain/context-map.md).
+- Khi một từ tiếng Anh trùng nghĩa với thuật ngữ khác, dùng tên trong glossary và ghi từ đó vào
+  `_Avoid_`.
 
 ## Scheduling — Lịch chiếu
 
@@ -50,7 +56,7 @@ Suất đã tạo, ghế đã có, người xem chưa thấy; quản lý rạp v
 Người xem thấy suất và giữ ghế được, cho tới giờ bắt đầu chiếu.
 
 **Cancelled (Showtime)** (Suất đã hủy):
-Suất bị quản lý rạp hoặc quản trị viên hủy; kéo theo hủy các đơn đang chờ và hoàn tiền các đơn đã trả.
+Suất bị quản lý rạp hoặc quản trị viên hủy.
 _Avoid_: nhầm với `Cancelled (Booking)` — khác đơn vị, khác hậu quả
 
 ## Inventory — Tồn kho ghế
@@ -60,7 +66,7 @@ Một ghế vật lý ở một suất chiếu cụ thể — đơn vị bán th
 _Avoid_: Seat (khi nói về suất chiếu), chỗ ngồi, Ticket
 
 **Seat hold** (Thông tin giữ):
-Thông tin trên một ghế suất chiếu đang giữ: thuộc lần giữ nào và giữ tới lúc nào. Không phải một thực thể riêng.
+Thông tin trên một ghế suất chiếu đang giữ (`hold_id`, `held_until`): thuộc lần giữ nào và giữ tới lúc nào. Không phải một thực thể riêng (ADR-0005).
 _Avoid_: reservation, HoldRecord, SeatHold (như tên thực thể)
 
 **Available** (Trống):
@@ -72,7 +78,7 @@ Ghế đang được giữ tạm cho một đơn, kèm thời điểm hết hạ
 _Avoid_: Reserved, Pending, Locked
 
 **Sold** (Đã bán):
-Ghế đã được thanh toán và đã có vé. Không bao giờ trở lại `Available`.
+Ghế đã được thanh toán và đã có vé.
 _Avoid_: Booked, Confirmed, Purchased
 
 **Blocked** (Bị chặn):
@@ -108,11 +114,11 @@ Tổng giá của từng ghế trong đơn.
 _Avoid_: TotalPrice, order total
 
 **Hold seats** (Giữ ghế):
-Hành động giữ tạm một nhóm ghế cho một người xem: đủ cả nhóm hoặc không ghế nào, hết hạn sau 15 phút.
+Hành động giữ tạm một nhóm ghế cho một người xem: đủ cả nhóm hoặc không ghế nào, hết hạn sau 15 phút. Kết quả: một `Booking` ở `AwaitingPayment` và thông tin giữ trên từng `Showtime seat`.
 _Avoid_: reserve, lock, cart, Hold
 
 **Pay** (Thanh toán):
-Hành động biến một đơn đang chờ thành đã trả tiền: ghế thành đã bán và vé được cấp cùng lúc.
+Hành động biến một đơn đang chờ thành đã trả tiền: đơn `Paid`, ghế `Sold` và `Ticket` được cấp cùng lúc.
 
 **Expires at** (Thời điểm hết hạn):
 Mốc 15 phút kể từ lúc giữ ghế; quá mốc này đơn không thể được thanh toán, dù đã kịp chuyển sang `Expired` hay chưa.
@@ -161,7 +167,7 @@ _Avoid_: partial refund
 _Avoid_: AwaitingPayment (của `Booking`), Pending, Failed
 
 **Closed** (Đã đóng):
-Đơn đã kết thúc (`Expired` / `Cancelled`) khi chưa thu tiền; nếu tiền vẫn về muộn thì phải hoàn.
+Đơn đã kết thúc (`Expired` / `Cancelled`) khi chưa thu tiền.
 _Avoid_: Cancelled, Voided
 
 **Captured** (Đã thu):
@@ -228,7 +234,51 @@ _Avoid_: admin, superadmin, root
 
 ## Từ không dùng ở bất kỳ context nào
 
-- `Order`, `Purchase`, `đơn hàng` — dùng `Booking`.
-- `tier`, `hạng vé`, `cap` — mô hình tier-based đã bị thay (ADR-0003); dùng `Seat type`.
-- `capacity`, `sức chứa` — một suất không có sức chứa cấu hình; dùng `Room seat count`.
-- `Seat` đứng một mình — luôn nói rõ `Room seat` hay `Showtime seat`.
+| Từ | Dùng thay | Vì sao |
+|---|---|---|
+| `Order`, `Purchase`, `đơn hàng`, `hóa đơn` | `Booking` | Không có hàng hoá, giao hàng, thuế |
+| `tier`, `hạng vé`, `hạng`, `cap`, `SeatClass` | `Seat type` | Mô hình tier-based đã bị thay (ADR-0003); `Seat type` chỉ mang giá |
+| `capacity`, `sức chứa`, `TotalSeats` | `Room seat count` | Một suất không có sức chứa cấu hình; số ghế là phép đếm |
+| `Seat` đứng một mình | `Room seat` / `Showtime seat` | Luôn nói rõ ghế của phòng hay của suất |
+| `Ticket` theo nghĩa chỗ ngồi | `Showtime seat` | `Ticket` là mã QR |
+| `Pending`, `Reserved` | trạng thái cụ thể | Mơ hồ giữa `Held` / `Blocked` / `AwaitingPayment` |
+| `transaction` (như khái niệm nghiệp vụ) | — | Là khái niệm kỹ thuật (Lớp 3) |
+
+## Cặp thuật ngữ dễ nhầm
+
+- **`Room seat` vs `Showtime seat`** — nguồn nhầm lớn nhất. `Room seat` thuộc phòng, tĩnh, dùng chung
+  mọi suất; `Showtime seat` thuộc một suất, có trạng thái riêng, là đơn vị bán. "Phòng có bao nhiêu
+  ghế?" đếm `Room seat`; "suất này còn ghế nào trống?" xem `Showtime seat`. Mua D7 ở suất 19h không
+  chặn người khác mua D7 ở suất 21h.
+- **`Available seat count` vs `Sellable seat count`** — ghế `Held` thuộc `Sellable` nhưng không thuộc
+  `Available`. `Sellable` (= `Available` + `Held` + `Sold`) gần như hằng số trong đợt bán nên không
+  cho người xem biết gì; người xem cần `Available`.
+- **`Expired` vs `Cancelled` (`Booking`)** — cùng trả ghế, cùng không có vé; khác nguyên nhân (quá
+  hạn vs người xem / suất bị hủy), và `Expired` **không hồi sinh** khi thông báo thanh toán đến muộn.
+- **`Seat hold` vs `Ticket`** — `Seat hold` là tiền chưa thu, `Ticket` là tiền đã thu. Giữ 4 ghế mà
+  không thanh toán có 0 vé.
+- **`Hold seats` (hành động) vs `Seat hold` (thông tin trên ghế)** — động từ vs danh từ; `Pay` là
+  hành động tương ứng của `Paid`.
+- **`AwaitingPayment` (`Booking`) vs `Unpaid` (`Payment intent`)** — hai trạng thái khác nhau của hai
+  aggregate (ADR-0010). `Pending` không dùng ở đâu cả.
+
+## Tra nhanh Việt → Anh
+
+| Việt | Anh | Việt | Anh |
+|---|---|---|---|
+| Ghế (của phòng) | `Room seat` | Chờ thanh toán | `AwaitingPayment` |
+| Ghế suất chiếu | `Showtime seat` | Hết hạn | `Expired` |
+| Vé | `Ticket` | Đã hủy | `Cancelled` |
+| Đơn đặt vé | `Booking` | Thanh toán thành công | `Paid` |
+| Trống / Đang giữ / Đã bán / Bị chặn | `Available` / `Held` / `Sold` / `Blocked` | Dòng đơn | `Booking line` |
+| Loại ghế | `Seat type` | Tổng tiền của đơn | `Booking total` |
+| Giá vé | `Ticket price` | Định danh yêu cầu | `Idempotency key` |
+| Suất chiếu | `Showtime` | Yêu cầu thanh toán | `Payment intent` |
+| Chưa mở bán / Đang bán | `NotOnSale` / `OnSale` | Thông báo thanh toán | `Payment event` |
+| Giữ ghế | `Hold seats` | Hoàn tiền | `Refund` |
+| Thông tin giữ | `Seat hold` | Phân công cổng | `Gate assignment` |
+| Thời điểm hết hạn | `Expires at` | Ghế đôi | `Couple seat type` |
+
+Đếm ghế: tổng số ghế phòng = `Room seat count`; số ghế còn trống = `Available seat count`; số ghế bán
+online = `Sellable seat count`. Vai trò: Người xem = `Customer`, Quản lý rạp = `Theater manager`,
+Nhân viên cổng = `Gate staff`, Quản trị viên = `Administrator`.

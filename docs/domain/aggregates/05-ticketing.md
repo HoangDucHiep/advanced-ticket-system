@@ -2,7 +2,7 @@
 
 Bounded context `Ticketing` (xem [`../context-map.md`](../context-map.md)).
 
-Thuật ngữ: [`../ubiquitous-language.md`](../ubiquitous-language.md).
+Thuật ngữ: [`GLOSSARY.md`](../../../GLOSSARY.md). Vòng đời: [`../state-machines.md`](../state-machines.md#state-machine-ticket).
 
 ## Trách nhiệm
 
@@ -23,7 +23,7 @@ này được phân công trực suất nào".
 
 | Thành phần | Bản chất | Vai trò |
 |---|---|---|
-| Mã vé (QR) | value object / định danh | Chuỗi ký HMAC; chữ ký được xác minh **tại server** lúc quét (check-in offline đã bị loại — `NR-15`) |
+| Mã vé (QR) | value object / định danh | Mã có chữ ký; chữ ký được xác minh **tại server** lúc quét (check-in offline đã bị loại — `NR-15`) |
 | Tham chiếu ghế (`Showtime seat id`) | tham chiếu | Vé gắn với **một** ghế |
 | Tham chiếu suất chiếu | tham chiếu | Vé thuộc **một** suất chiếu |
 | Tham chiếu đơn (`Booking id`) | tham chiếu | Vé đến từ đơn nào |
@@ -42,31 +42,29 @@ này được phân công trực suất nào".
 
 - **INV-01** — Mỗi vé gắn với **đúng một** ghế của **đúng một** suất chiếu, và mỗi ghế sinh
   ra **đúng một** vé.
-  - *Cơ chế bảo vệ*: ràng buộc **duy nhất** trên `(showtime_seat_id)` ở bảng vé — một ghế không
-    thể có hai vé. Và mỗi vé mang **một** tham chiếu suất chiếu, nên vé không thể thuộc hai suất.
-  - *Ai có thể vi phạm*: code cấp vé lại cho cùng một ghế (ví dụ webhook thanh toán đến lặp và
-    cấp vé lần hai). Ràng buộc duy nhất chặn ở tầng lưu trữ, bất kể logic ứng dụng có kiểm tra
-    hay không.
+  - *Cơ chế bảo vệ*: ràng buộc **duy nhất** theo ghế ở tầng lưu trữ — một ghế không thể có hai vé. Và
+    mỗi vé mang **một** tham chiếu suất chiếu, nên vé không thể thuộc hai suất.
+  - *Ai có thể vi phạm*: code cấp vé lại cho cùng một ghế (ví dụ thông báo thanh toán đến lặp và
+    cấp vé lần hai). Ràng buộc chặn bất kể logic ứng dụng có kiểm tra hay không.
   - *Traces to*: `BR-09`, `FR-05`, `FR-08`, `FR-16`.
 
 - **INV-02** — Vé **chỉ tồn tại sau khi** đơn đã thanh toán thành công. Trước đó, đơn không có
   vé nào.
-  - *Cơ chế bảo vệ*: cấp vé nằm trong **cùng DB transaction** với `Booking: AwaitingPayment → Paid`
+  - *Cơ chế bảo vệ*: cấp vé nằm trong **cùng lần ghi atomic** với `Booking: AwaitingPayment → Paid`
     (xem [`03-booking.md`](03-booking.md) `INV-04`). Không có đường nào tạo vé cho một đơn chưa
-    thanh toán — lệnh cấp vé chỉ được gọi từ đúng transaction đó.
+    thanh toán — lệnh cấp vé chỉ được gọi từ đúng lần ghi đó.
   - *Ai có thể vi phạm*: một endpoint cấp vé riêng, không nằm trong luồng thanh toán. Đây là
     lý do quyền tạo vé phải thuộc `Ticketing` **và** chỉ được gọi từ đúng một chỗ.
   - *Traces to*: `BR-09`, `BR-17`, `FR-05`, `FR-38`.
 
 - **INV-03** — Một vé chỉ ghi nhận check-in **một lần duy nhất**, trong suất chiếu của nó, ở một
   cổng.
-  - *Cơ chế bảo vệ*: **ràng buộc duy nhất** trên cột `ticket_id` ở bảng ghi nhận check-in. Hai
-    nhân viên cổng quét cùng một vé cùng lúc: một lượt thành công, lượt còn lại vi phạm ràng
-    buộc → bị từ chối. Cơ chế này chặn được cả trường hợp **hai tiến trình quét đồng thời**, mà
-    một kiểm tra "đã check-in chưa" trong bộ nhớ ứng dụng thì không.
-  - *Ai có thể vi phạm*: không ai, miễn là mọi lượt quét đều ghi vào bảng ghi nhận check-in
-    với ràng buộc duy nhất. Lỗi có thể nằm ở chỗ **bỏ qua** việc ghi bản ghi này khi lượt quét
-    thất bại — nhưng lượt quét thất bại thì không được ghi (xem `INV-05`).
+  - *Cơ chế bảo vệ*: **ràng buộc duy nhất** theo vé ở bản ghi check-in. Hai nhân viên cổng quét cùng
+    một vé cùng lúc: một lượt thành công, lượt còn lại bị từ chối. Chặn được cả **hai lượt quét đồng
+    thời**, mà kiểm tra "đã check-in chưa" trong ứng dụng thì không. Cơ chế:
+    [`../../design/concurrency.md`](../../design/concurrency.md) #8 (ADR-0013).
+  - *Ai có thể vi phạm*: không ai, miễn là mọi lượt quét thành công đều ghi bản ghi check-in (lượt quét
+    thất bại thì không được ghi — xem `INV-05`).
   - *Traces to*: `BR-10`, `FR-07`, `FR-25`.
 
 - **INV-04** — Mỗi lượt check-in thành công được **đếm** vào suất chiếu, và tổng số lượt ghi
@@ -92,7 +90,7 @@ này được phân công trực suất nào".
   - *Cơ chế bảo vệ*: `Ticket` mang các tham chiếu này như **dữ liệu bắt buộc** — không có
     vé mà thiếu suất chiếu hoặc thiếu ghế. Phần "chỉ chứa vé đã thanh toán" được bảo đảm bởi
     `INV-02`.
-  - *Ai có thể vi phạm*: code tạo vé với tham chiếu null — bị chặn bởi ràng buộc NOT NULL ở
+  - *Ai có thể vi phạm*: code tạo vé với tham chiếu null — bị chặn bởi ràng buộc bắt buộc ở
     tầng lưu trữ.
   - *Vé của suất đã hủy*: vẫn nằm trong danh sách (người xem đã trả tiền), nhưng hiển thị rõ "suất
     đã hủy — đã/đang hoàn tiền" và **không** dùng được để check-in. Trạng thái hủy đọc từ
@@ -108,23 +106,20 @@ này được phân công trực suất nào".
     chính là thứ mang tính bí mật, nên lộ mã là lộ vé.
   - *Traces to*: `BR-14`, `FR-10`, `FR-17`.
 
-### Transaction boundary
+### Ranh giới atomic
 
-Một transaction duy nhất cho **mỗi lượt quét vé**:
+Một lần ghi atomic cho **mỗi lượt quét vé**:
 
 1. Kiểm tra quyền người quét (vai trò + `Gate assignment`); vé tồn tại, đúng chữ ký, thuộc đúng
    suất đang quét, và suất **chưa bị hủy**;
 2. Ghi **một** dòng ghi nhận check-in (chứa thời điểm, cổng, người quét).
 
-Nếu dòng ghi nhận đó đã tồn tại → lượt quét bị **từ chối**, transaction rollback, và hệ thống
-trả lại thời điểm + cổng của lượt quét đầu tiên.
+Nếu bản ghi đó đã tồn tại → lượt quét bị **từ chối** và hệ thống trả lại thời điểm + cổng của lượt
+quét đầu tiên. Ranh giới atomic = **ranh giới aggregate**: một lượt quét = một lần ghi.
 
-Ranh giới transaction = **ranh giới aggregate**. Một lượt quét = một transaction.
-
-> **Bất biến bị cắt ngang ranh giới.** "Đơn đã thanh toán" (`Booking`) và "đã cấp vé"
-> (`Ticketing`) phải xảy ra cùng lúc — đó là ranh giới **R6**. Trong modular monolith, hai bên
-> **dùng chung một transaction**. Nếu tách thành service, phải có outbox + consumer idempotent,
-> và nếu làm sai thì **cấp vé hai lần** — vi phạm `BR-17`.
+> **Bất biến bị cắt ngang ranh giới** #2: "đơn đã thanh toán" (`Booking`) và "đã cấp vé" (`Ticketing`)
+> xảy ra cùng lúc (R6) — xem [`README.md`](README.md#ranh-giới-bị-cắt--năm-chỗ). Làm sai thì **cấp vé
+> hai lần**, vi phạm `BR-17`.
 
 ---
 
@@ -138,9 +133,7 @@ chiếu**.
 
 > **Vì sao ở `Ticketing`, không ở `Scheduling`.** Phân công cổng chỉ được dùng cho đúng một việc:
 > kiểm tra quyền check-in (`FR-35`). Đặt nó cạnh nơi dùng giúp lệnh check-in không phải gọi sang
-> context khác để kiểm tra quyền. Trước 2026-11-25, tài liệu đặt nó ở hai nơi khác nhau và dùng
-> hai nghĩa khác nhau ("suất ↔ cổng" và "nhân viên ↔ suất") — nay chốt một nghĩa: **nhân viên ↔
-> suất**. "Cổng" trong bản ghi check-in là **nơi quét** (nhãn thiết bị/vị trí), không phải đối
+> context khác để kiểm tra quyền. Nghĩa của nó là **nhân viên ↔ suất**. "Cổng" trong bản ghi check-in là **nơi quét** (nhãn thiết bị/vị trí), không phải đối
 > tượng được phân công.
 
 ### Invariants
@@ -148,7 +141,7 @@ chiếu**.
 - **INV-08** — Nhân viên cổng chỉ ghi nhận check-in được vé thuộc suất chiếu họ được phân công;
   quản trị viên được check-in mọi suất.
   - *Cơ chế bảo vệ*: lệnh check-in kiểm tra tồn tại `Gate assignment (showtime, người quét)`. Ràng
-    buộc duy nhất trên `(showtime_id, staff_id)` để không phân công trùng.
+    buộc duy nhất theo (suất, nhân viên) để không phân công trùng.
   - *Ai có thể vi phạm*: chỉ kiểm tra vai trò mà bỏ qua phân công.
   - *Traces to*: `BR-15`, `FR-35`, `FR-40`.
 
@@ -160,17 +153,16 @@ chiếu**.
 
 ---
 
-## Không có invariant nào ở đây không bảo vệ được bằng một transaction đơn lẻ
+## Invariant không bảo vệ được bằng một aggregate
 
 Mọi invariant của `Ticketing` đều thuộc phạm vi một aggregate (`Ticket` hoặc `Gate assignment`)
 hoặc là hệ quả trực tiếp của nó. Điểm đáng chú ý: `BR-10` — "mỗi vé chỉ check-in một lần" — nghe thì
-cần một transaction **xuyên nhiều** vé, nhưng thực ra **không**: nó là invariant về **một
-vé**, và hai lượt quét đồng thời là hai transaction cùng tranh **một dòng**. Ràng buộc duy nhất
+cần một lần ghi atomic **xuyên nhiều** vé, nhưng thực ra **không**: nó là invariant về **một
+vé**, và hai lượt quét đồng thời là hai lệnh cùng tranh **một dòng**. Ràng buộc duy nhất
 là đủ.
 
-Đây là điểm đáng học: **một invariant trông như "toàn cục" có thể hoá thành "cục bộ"** nếu ta
-đặt ranh giới aggregate đúng chỗ. Ngược lại, `BR-08` (10 ghế mỗi người mỗi suất) trông như
-cục bộ nhưng hoá thành toàn cục — vì nó đếm theo **người** qua **nhiều đơn**.
+Một invariant trông "toàn cục" có thể hoá "cục bộ" nếu đặt ranh giới aggregate đúng chỗ; ngược lại `BR-08`
+trông cục bộ nhưng hoá toàn cục — xem [`README.md`](README.md#invariant-không-bảo-vệ-được-bằng-một-aggregate).
 
 ---
 

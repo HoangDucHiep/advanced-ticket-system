@@ -2,7 +2,6 @@
 
 Lớp 1 — PRD. File này nói **hệ thống phải làm gì**. Nó không nói *làm bằng cách nào*.
 
-Nguồn: ticket `.scratch/advanced-ticket-system/issues/02-requirements.md`.
 Bối cảnh: [`00-overview.md`](00-overview.md).
 
 ## Cách đọc
@@ -65,9 +64,9 @@ yêu cầu tranh cùng ghế phải có kết quả, dù thứ tự ai thắng l
   hệ thống huỷ ngang vì kẹt, và mỗi yêu cầu hoặc thành công, hoặc bị từ chối với lý do "ghế đã có
   người".
 
-> **Ghi chú (2026-11-25):** kiểm chứng cũ chỉ đòi "cả hai đều có phản hồi". Nơi lưu dữ liệu tự phát
-> hiện tình trạng kẹt và huỷ một bên — nên kiểm chứng cũ **vẫn đạt** kể cả khi hệ thống không hề
-> phòng tránh kẹt. Kiểm chứng phải fail nếu bỏ cơ chế.
+> **Vì sao kiểm chứng đòi "không bị huỷ ngang":** nếu chỉ đòi "cả hai đều có phản hồi" thì kiểm
+> chứng vẫn đạt khi hệ thống không hề phòng tránh kẹt — nơi lưu dữ liệu tự phát hiện kẹt và huỷ
+> một bên. Kiểm chứng phải fail nếu bỏ cơ chế.
 
 ### FR-04 — Mọi lần giữ ghế đều có thời hạn và được tự giải phóng
 
@@ -127,7 +126,7 @@ Hệ thống không được ghi nhận check-in cho một vé thuộc đơn đ�
   dựng cho một ghế của đơn chưa thanh toán) → bị từ chối là "vé không hợp lệ", không có bản ghi
   check-in.
 
-> **Ghi chú (2026-11-25):** vé chỉ tồn tại sau khi đơn đã thanh toán (`FR-05`), nên "vé của đơn chưa
+> **Ghi chú:** vé chỉ tồn tại sau khi đơn đã thanh toán (`FR-05`), nên "vé của đơn chưa
 > thanh toán" không thể được cấp ra. FR-08 được kiểm chứng bằng việc **không** có mã nào ngoài vé đã
 > cấp qua được bước quét.
 
@@ -158,9 +157,6 @@ không thể xem, tải mã QR, hay huỷ đơn của người khác.
 - Actor: Người xem
 - Job: Xem và dùng vé đã mua
 - Kiểm chứng: yêu cầu đơn của người khác bị từ chối, không rò rỉ thông tin.
-
-> **Ghi chú:** yêu cầu "người xem chỉ xem được vé của chính mình" trong nhóm phân quyền là
-> **cùng một hành vi** với FR-10, chỉ khác góc nhìn. Đã gộp — không nhân bản.
 
 ---
 
@@ -306,16 +302,12 @@ giữ**, số ghế **đã bán**, và số ghế **bị chặn** (vệ sinh, d�
 - Kiểm chứng: **bốn** con số cộng lại bằng tổng số ghế của phòng; số ghế còn trống khớp
   với trạng thái tồn kho.
 
-> **Ghi chú (2026-11-20):** trước đây FR-23 chỉ có ba con số và nói "ba con số cộng lại bằng
-> tổng số ghế" — mâu thuẫn với `BR-11`, vì ghế bị chặn vẫn tính vào tổng số ghế của phòng
-> nhưng không thuộc ba nhóm "trống / giữ / bán". Đã sửa thành bốn con số.
+> **Vì sao bốn con số:** ghế bị chặn (`BR-11`) vẫn tính vào tổng số ghế của phòng nhưng không
+> thuộc ba nhóm "trống / giữ / bán"; chỉ có ba con số thì tổng không khớp.
 >
 > **Khác với con số người xem thấy:** người xem chỉ thấy **số ghế còn trống** (`FR-13`), trên một
-> sơ đồ không có ghế bị chặn.
->
-> **Ghi chú (2026-11-25):** bản trước nói người xem thấy "trống + giữ + bán". Con số đó gần như
-> không đổi trong suốt đợt bán (ghế chỉ chuyển qua lại giữa ba nhóm), nên không cho người xem biết
-> gì. Đã sửa.
+> sơ đồ không có ghế bị chặn. Không cho họ xem "trống + giữ + bán" vì tổng đó gần như không đổi
+> trong suốt đợt bán (ghế chỉ chuyển qua lại giữa ba nhóm) nên không cho biết gì.
 
 ### FR-24 — Hủy suất chiếu và hoàn tiền người đã mua
 
@@ -329,10 +321,6 @@ nếu tiền của những đơn đó vẫn về sau khi huỷ, tiền đó đư
 - Kiểm chứng: sau khi hủy, mỗi đơn đã trả tiền có đúng một lần hoàn tiền; không đơn nào của suất
   còn ở trạng thái chờ thanh toán; quét vé của suất đã hủy không ghi nhận check-in được; một thông
   báo thanh toán thành công đến sau khi hủy không cấp vé mà dẫn tới hoàn tiền.
-
-> **Thứ tự thực hiện:** yêu cầu này đầy đủ, nhưng **thực hiện ở Gate D, sau T22**. Việc
-> hoàn tiền phải an toàn khi hệ thống gián đoạn giữa chừng là cùng dạng bài toán lặp lại
-> đã học ở FR-38 và FR-39 — nên làm sau khi nền tảng đã vững.
 
 ---
 
@@ -353,33 +341,7 @@ về quyền, không phải một kết quả của vé.
 - Kiểm chứng: mỗi trong 5 tình huống trả về đúng kết quả tương ứng, phân biệt được với
   nhau.
 
-### FR-26 — Xác minh vé khi mất mạng
-
-> **ĐÃ LOẠI KHỎI PHẠM VI (2026-11-20).** Xác minh vé khi thiết bị cổng mất kết nối là một
-> dự án riêng (mã vé phải tự kiểm tra chữ ký, thao tác ghi nhận check-in phải xếp hàng đợi
-> để gửi lại khi có mạng, và phải hợp nhất mà không ghi nhận check-in lần hai). Số hiệu
-> `FR-26` được **giữ lại** để không phá vỡ truy vết, nhưng không còn là requirement trong
-> phạm vi dự án. Lý do loại bỏ: xem `NR-15` trong [`02-non-requirements.md`](02-non-requirements.md).
-> FR này không xuất hiện trong bảng đối chiếu success criteria bên dưới.
-
-Khi thiết bị tại cổng không có kết nối, nhân viên vẫn xác minh được vé có hợp lệ hay không
-bằng cách kiểm tra tại chỗ.
-
-- Actor: Nhân viên cổng
-- Job: Làm được khi mất mạng
-- Đáp ứng: SC-05
-- Kiểm chứng: thiết bị ngắt kết nối → vẫn xác minh được vé hợp lệ, và báo rõ vé đã dùng
-  chưa kiểm tra được hay chưa.
-
-### FR-27 — Ghi nhận số người đã vào
-
-Hệ thống ghi nhận mỗi lần check-in thành công, và quản lý rạp xem được tổng số lượt đã
-check-in của suất chiếu.
-
-- Actor: Nhân viên cổng
-- Job: Ghi nhận số người đã vào
-- Đáp ứng: SC-05
-- Kiểm chứng: sau N lần check-in thành công, tổng số lượt ghi nhận bằng N.
+### FR-26 — đã loại khỏi phạm vi, xem NR-15
 
 ---
 
@@ -390,8 +352,8 @@ check-in của suất chiếu.
 Quản trị viên quản lý **danh mục phim** (tạo, sửa phim — quản lý rạp chỉ chọn phim từ danh mục), và
 xem, sửa, hủy được lịch chiếu của bất kỳ quản lý rạp nào.
 
-> **Ghi chú (2026-11-25):** bản trước có "ẩn" phim. Không có trạng thái "ẩn": một phim chỉ hiện khi có
-> suất đang bán (`BR-29`), nên muốn phim không hiện thì không mở bán / hủy suất của nó.
+> **Ghi chú:** không có trạng thái "ẩn" phim: một phim chỉ hiện khi có suất đang bán (`BR-29`),
+> nên muốn phim không hiện thì không mở bán / hủy suất của nó.
 
 - Actor: Quản trị viên
 - Job: Quản lý toàn bộ rạp
@@ -467,8 +429,7 @@ trạng thái đang bán.
 - Job: Đặt vé
 - Kiểm chứng: yêu cầu giữ ghế gửi sau giờ bắt đầu chiếu bị từ chối với lý do "suất đã bắt đầu".
 
-> **Ghi chú (2026-11-25):** thêm sau review — trước đó không có luật nào chặn bán vé cho suất đã
-> chiếu xong.
+> **Ghi chú:** không có yêu cầu này thì không gì chặn bán vé cho suất đã chiếu xong.
 
 ### FR-35 — Nhân viên cổng chỉ quét được vé của suất chiếu được phân công
 
@@ -490,8 +451,7 @@ Chỉ người có vai trò nhân viên cổng mới được phân công.
 - Kiểm chứng: sau khi phân công, nhân viên đó check-in được vé của suất; trước khi phân công hoặc
   sau khi gỡ thì không. Quản lý rạp không phân công được cho suất của rạp khác.
 
-> **Ghi chú (2026-11-25):** thêm sau review — `FR-35` cần phân công tồn tại nhưng trước đó không có
-> requirement nào để **tạo** phân công.
+> **Ghi chú:** `FR-35` cần phân công tồn tại, nên phải có một requirement để **tạo** phân công.
 
 ---
 
@@ -535,8 +495,7 @@ xử lý một lần. Vé không bị cấp hai lần, và trạng thái đơn k
 - Kiểm chứng: gửi cùng một thông báo 3 lần → đúng 1 lần cấp vé, đúng 1 lần thay đổi
   trạng thái, lịch sử đơn cho thấy 1 lần thay đổi trạng thái.
 
-> **Ghi chú (2026-11-25):** bản trước ghi actor là "Quản trị viên (vai trò duy nhất được phép xử lý
-> thông báo này)". Không ai xử lý thông báo này bằng tay — hệ thống tự xử lý. Quản trị viên chỉ
+> **Ghi chú:** không ai xử lý thông báo này bằng tay — hệ thống tự xử lý. Quản trị viên chỉ
 > **xem lại** các thông báo đã nhận qua `FR-31`.
 
 > **Ghi chú:** yêu cầu này nằm ở Lớp 1 vì nó là **hành vi quan sát được** ("vé chỉ được
@@ -558,84 +517,3 @@ số tiền đã trả, và mỗi khoản tiền đã trừ được hoàn **đ�
 - Kiểm chứng: thông báo thanh toán thành công đến sau khi đơn hết hạn → không có vé nào
   được cấp, ghế trả về, và người xem nhận lại đúng số tiền đã trả; xử lý lại cùng thông báo
   đó không hoàn thêm lần nữa.
-
----
-
-## Bảng truy vết
-
-Mỗi requirement → actor → job → success criteria.
-
-| FR | Tên | Actor | Job | SC |
-|---|---|---|---|---|
-| FR-01 | Một ghế không thuộc về hai người | Người xem | Đặt được vé khi mở bán phim hot | SC-01 |
-| FR-02 | Đặt n ghế: giữ đủ hoặc không giữ gì | Người xem | Đặt vé | SC-02 |
-| FR-03 | Không kẹt khi tranh ghế chồng nhau | Người xem | Đặt vé | SC-03 |
-| FR-04 | Giữ ghế có thời hạn, tự giải phóng | Người xem | Đặt vé | SC-07 |
-| FR-05 | Vé chỉ cấp khi đã thanh toán | Người xem | Đặt vé | SC-04 |
-| FR-06 | Đơn hết hạn không hồi sinh | Người xem | Hiểu vì sao không đặt được | SC-04, SC-07 |
-| FR-07 | Vé chỉ check-in một lần | Nhân viên cổng | Chặn vé không hợp lệ | SC-05 |
-| FR-08 | Vé chưa trả tiền không check-in được | Nhân viên cổng | Chặn vé không hợp lệ | SC-05 |
-| FR-09 | Không vượt giới hạn ghế (6/đơn, 10/người/suất) | Người xem | Đặt vé | — |
-| FR-10 | Không thao tác đơn/vé của người khác | Người xem | Xem và dùng vé đã mua | — |
-| FR-11 | Xem danh sách phim đang chiếu | Người xem | Tìm phim và lịch chiếu | — |
-| FR-12 | Xem lịch chiếu của một phim | Người xem | Tìm phim và lịch chiếu | — |
-| FR-13 | Xem sơ đồ ghế của suất chiếu | Người xem | Chọn ghế | SC-11 |
-| FR-14 | Giữ ghế có thời hạn + đếm ngược | Người xem | Đặt vé | — |
-| FR-15 | Xác nhận lại ghế lúc giữ | Người xem | Hiểu vì sao không đặt được | — |
-| FR-16 | Thanh toán và nhận vé | Người xem | Đặt vé | SC-04 |
-| FR-17 | Xem vé đã mua và lấy mã | Người xem | Xem và dùng vé đã mua | — |
-| FR-18 | Huỷ đơn chờ thanh toán, trả lại ghế | Người xem | Đặt vé | SC-07 |
-| FR-19 | Thông báo sắp hết thời gian giữ ghế | Người xem | Đặt vé | — |
-| FR-20 | Quản lý phòng và sơ đồ ghế | Quản lý rạp | Quản lý phòng và sơ đồ ghế | — |
-| FR-21 | Lên lịch chiếu và đặt giá vé | Quản lý rạp | Lên lịch chiếu | — |
-| FR-22 | Mở bán vé cho suất chiếu | Quản lý rạp | Mở bán vé | — |
-| FR-23 | Xem tình trạng bán (4 con số) | Quản lý rạp | Theo dõi tình trạng bán | — |
-| FR-24 | Hủy suất chiếu, huỷ đơn chờ, hoàn tiền đơn đã trả | Quản lý rạp | Lên lịch chiếu | SC-04 |
-| FR-25 | Quét mã vé cho kết quả xác định | Nhân viên cổng | Quét và xác minh vé | SC-05 |
-| FR-26 | ~~Xác minh vé khi mất mạng~~ | Nhân viên cổng | Làm được khi mất mạng | **đã loại khỏi scope (NR-15)** |
-| FR-27 | Ghi nhận số người đã vào | Nhân viên cổng | Ghi nhận số người đã vào | SC-05 |
-| FR-28 | Quản lý danh mục phim và lịch chiếu của mọi rạp | Quản trị viên | Quản lý toàn bộ rạp | — |
-| FR-29 | Quản lý người dùng và quyền | Quản trị viên | Quản lý người dùng và quyền | — |
-| FR-30 | Giám sát sức khỏe hệ thống | Quản trị viên | Giám sát vận hành | SC-08..SC-11 |
-| FR-31 | Truy vết lịch sử giao dịch | Quản trị viên | Truy vết giao dịch | — |
-| FR-32 | Chỉ chủ lịch chiếu được sửa/hủy | Quản lý rạp | Lên lịch chiếu | — |
-| FR-33 | Chỉ nhân viên cổng ghi nhận check-in | Nhân viên cổng | Quét và xác minh vé | SC-05 |
-| FR-34 | Suất chiếu chưa mở bán không thấy, không đặt | Người xem | Tìm phim và lịch chiếu | — |
-| FR-35 | Nhân viên cổng chỉ quét vé được phân công | Nhân viên cổng | Quét và xác minh vé | SC-05 |
-| FR-36 | Từ chối luôn kèm lý do và hành động tiếp | Tất cả | Hiểu vì sao không đặt được | — |
-| FR-37 | Yêu cầu đặt vé lặp chỉ tạo một đơn | Người xem | Đặt vé | SC-06 |
-| FR-38 | Thông báo thanh toán lặp chỉ cấp vé một lần | Người xem | Đặt vé | SC-04 |
-| FR-39 | Tiền đã trả mà không có vé thì hoàn lại | Người xem | Hiểu vì sao không đặt được | SC-04 |
-| FR-40 | Phân công nhân viên cổng cho suất chiếu | Quản lý rạp | Mở bán vé | SC-05 |
-| FR-41 | Không đặt được vé cho suất đã bắt đầu | Người xem | Đặt vé | — |
-
-## Đối chiếu success criteria
-
-Mỗi SC ở `00-overview.md` có ít nhất một FR đáp ứng.
-
-| SC | Nội dung | FR đáp ứng |
-|---|---|---|
-| SC-01 | Một ghế không bao giờ được bán cho hai người | FR-01 |
-| SC-02 | Đặt N ghế: giữ đủ N hoặc không giữ ghế nào | FR-02 |
-| SC-03 | Không bao giờ xảy ra kẹt khi tranh ghế chồng nhau | FR-03 |
-| SC-04 | Mỗi lần thanh toán chỉ cấp một bộ vé | FR-05, FR-06, FR-16, FR-24, FR-38, FR-39 |
-| SC-05 | Mỗi vé chỉ check-in một lần | FR-07, FR-08, FR-25, FR-27, FR-33, FR-35, FR-40 |
-| SC-06 | Không tạo hai đơn cho cùng một yêu cầu | FR-37 |
-| SC-07 | Không mất ghế nào khi hết thời gian giữ | FR-04, FR-06, FR-18 |
-| SC-08 | Đọc: p99 đạt mục tiêu | FR-11, FR-12, FR-30 |
-| SC-09 | Ghi dưới tải mở bán phim hot: p99 đạt mục tiêu | FR-14, FR-16, FR-21, FR-30 |
-| SC-10 | Mở bán phim hot không sập, không ghế nào bán hai lần | FR-01, FR-30 |
-| SC-11 | Phần lớn lưu lượng xem sơ đồ ghế không đọc tới nơi lưu trữ gốc | FR-13, FR-30 |
-| SC-12 | Mọi tuyên bố đều có test hoặc số đo | Mọi FR đều có dòng Kiểm chứng |
-
-> SC-08 đến SC-11 là **tiêu chí phi chức năng**: chúng không sinh ra thêm FR hành vi riêng,
-> mà được kiểm chứng bằng cách đo trên các hành vi đã có (đọc lịch chiếu, ghi đơn, theo dõi
-> vận hành).
-
-## Ghi chú
-
-- FR nào cần cơ chế kỹ thu thuộc **Lớp 3**. Ví dụ FR-02 sẽ được ánh xạ tới một quyết định
-  thiết kế cụ thể ở `docs/design/concurrency.md` — nhưng ở Lớp 1, người đọc chỉ cần biết
-  hệ thống **không bao giờ** giữ được một phần.
-- FR-24 được đánh dấu thực hiện sau T22 vì hoàn tiền là một bài toán lặp lại phức tạp; nó
-  vẫn là requirement đầy đủ, không phải non-requirement.

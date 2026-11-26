@@ -1,106 +1,78 @@
-# Hợp đồng làm việc — Advanced Ticket System
+# Advanced Ticket System — hướng dẫn cho AI
 
-Đây là project **học tập** dùng để xây CV. Người học (bạn) là người viết production code.
+Project **học tập** để xây CV: backend đặt vé xem phim theo ghế (ASP.NET Core .NET 10, modular monolith,
+Postgres, Redis, Stripe). Trọng tâm: concurrency, tính đúng đắn, idempotency, hiệu năng đo được.
 
-> **Đổi hợp đồng (2026-11-25, theo yêu cầu người học):** ở các lớp **spec** (PRD, domain, design,
-> ADR), **AI tự quyết mọi quyết định** và viết tài liệu sao cho đọc là hiểu: mỗi quyết định ghi
-> "vì sao chọn / vì sao không chọn". Người học đọc spec đã hoàn thiện rồi implement theo. Ở lớp
-> **code**, người học vẫn là người viết production code; AI review và viết test đỏ theo `Mode:`.
-> Các ticket spec mode `co-design` / `explain` từ nay hiểu là: AI quyết, ghi nguồn gốc quyết định
-> trung thực ("AI quyết định"), giảng trong tài liệu.
+## Hợp đồng
 
-## Thứ tự đọc
+- **Spec** (PRD, domain, design, ADR): **AI quyết định**. Mỗi quyết định ghi *vì sao chọn* và *vì sao
+  không chọn* — tài liệu là giáo trình. Spec đã đóng (Gate A–C); khi phát hiện thiếu hoặc mâu thuẫn, AI
+  sửa thẳng vào file canonical, quyết định khó đảo ngược thì tạo ADR mới.
+- **Code**: **người học viết production code.** AI làm theo `Mode:` của ticket.
 
-Đọc theo thứ tự này, dừng lại ở từng gate. Không đọc trước, không viết trước.
-
-1. `docs/README.md` — index + trạng thái gate hiện tại.
-2. `docs/plan/00-roadmap.md` — plan tổng + ma trận truy vết.
-3. Tài liệu của lớp đang mở (xem bảng dưới).
-4. Ticket cụ thể trong `.scratch/advanced-ticket-system/issues/`.
-
-| Lớp | Thư mục | Nội dung | Mở khi |
-|---|---|---|---|
-| 1 — PRD | `docs/prd/` | vấn đề, actors, requirements, non-requirements, user journeys, business rules | ngay từ đầu |
-| 2 — Domain | `docs/domain/` | ubiquitous language, context map, aggregates, state machines, cross-context contracts | Gate A đóng |
-| 3 — Design | `docs/design/` | architecture, data model, concurrency, api contract | Gate B đóng |
-| 4 — Code | `.scratch/advanced-ticket-system/issues/` | ticket triển khai | Gate C đóng |
-
-## Gate
-
-Bốn gate nối tiếp. Mỗi gate có exit checklist trong `docs/README.md`.
-
-- **Gate A** — PRD đủ để làm ra domain model.
-- **Gate B** — Domain đủ để làm ra kiến trúc.
-- **Gate C** — Design đủ để viết code.
-- **Gate D** — Code đủ để đưa lên CV.
-
-Quy tắc: **ticket của lớp N+1 không được mở khi exit checklist của lớp N chưa tick đủ.**
-Khi bị chặn bởi gate, hãy nói rõ gate nào đang chặn và cần làm gì để mở — đừng tự nhảy.
-
-## Vai trò theo `Mode:` của ticket
-
-Mỗi ticket có trường `Mode:`. Nó quyết định AI làm gì và bạn làm gì.
-
-| Mode | AI làm | Bạn làm |
+| Mode | AI làm | Người học làm |
 |---|---|---|
-| `explain` | Giảng trong tài liệu, kèm câu hỏi tự kiểm tra | Đọc |
-| `co-design` | **Tự quyết** và viết tài liệu, mỗi quyết định có lý do + phương án bị loại | Đọc, hỏi lại chỗ chưa hiểu |
-| `you-implement-i-review` | Review code bạn viết | Viết code + test |
-| `pair-tdd` | Viết test đỏ | Viết code cho xanh |
-| `ai-implements` | Làm phần boilerplate/infra | Review |
+| `you-implement-i-review` | In hướng dẫn từng bước, review | Viết code + test |
+| `pair-tdd` | Viết test đỏ, in hướng dẫn, review | Viết code cho xanh |
+| `ai-implements` | Viết boilerplate / hạ tầng | Review |
+| `co-design` | Hỏi, ghi lại, phản biện (chỉ dùng cho README / CV) | Viết nội dung |
 
-Ở bốn mode đầu, AI **không viết production code** trừ khi ticket ghi rõ cho phép.
+Trừ `ai-implements`, AI **không viết thân production code**: chỉ đưa chữ ký, khung, giải thích từng chỗ
+cần viết. Hướng dẫn luôn có 📍 thư mục + lệnh terminal, 📄 đường dẫn file đầy đủ, và lý do.
 
-## Quyết định phải có lý do
+## Làm một ticket
 
-Từ 2026-11-25 AI quyết ở các lớp spec (xem đầu file). Thay cho "không tự bịa":
+Quy trình đầy đủ (branch, PR, review, Definition of Done, đóng ticket):
+[`docs/agents/dev-workflow.md`](docs/agents/dev-workflow.md). Tóm tắt luật cứng:
 
-- Mỗi quyết định ghi **vì sao chọn** và **vì sao không chọn** phương án khác — tài liệu là giáo trình.
-- Ghi trung thực nguồn gốc: quyết định của người học hay của AI.
-- Chỉ ghi `(chưa xác định)` khi thật sự cần **số đo** chưa có (ví dụ ngưỡng hiệu năng trước T23).
-- Khi phát hiện hai từ cùng nghĩa, chọn một từ chuẩn và ghi những từ nên tránh vào `GLOSSARY.md`.
-- Quyết định khó đảo ngược thì **tạo ADR** ngay.
+- Ticket ở `.scratch/advanced-ticket-system/issues/<mã>-<slug>.md`; thứ tự ở
+  [`docs/plan/gate-d-implementation.md`](docs/plan/gate-d-implementation.md). Không mở ticket khi
+  `Blocked by:` chưa xong.
+- **Ticket mâu thuẫn với `docs/design/` ⇒ design thắng**; sửa ticket, báo người học.
+- AI **không push, không merge**. AI chỉ commit khi người học yêu cầu hoặc khi đóng ticket (docs).
 
-## Tài liệu phải trung thực
+## Đọc gì ở đâu
 
-- Requirement đánh số `FR-nn` và được trích dẫn từ ticket qua trường `Traces to:`.
-- Mọi claim về hiệu năng hoặc tính đúng đắn phải có test hoặc số đo đi kèm. Câu "xử lý concurrency" không có giá trị; câu "test này fail nếu bỏ `FOR UPDATE`" thì có.
-- Đo baseline **trước** khi tối ưu. Tối ưu xong mới đo thì không có gì để so.
-
-## Plan
-
-- `docs/plan/00-roadmap.md` — plan tổng, luôn tồn tại, cập nhật dần.
-- `docs/plan/gate-<X>-<tên>.md` — plan chi tiết của giai đoạn, **tạo đúng lúc bắt đầu giai đoạn đó**. Viết trước sẽ biến lại thành một đặc tả phẳng vô nghĩa.
-
-## Ngôn ngữ
-
-Tài liệu viết bằng **tiếng Việt**. Thuật ngữ kỹ thu giữ nguyên tiếng Anh (`aggregate`, `invariant`, `idempotency`).
-Chuyển sang tiếng Anh ở tầng polish CV (ticket T26) nếu cần.
-
-## Issue tracker
-
-Issues nằm ở `.scratch/advanced-ticket-system/issues/`, mỗi ticket một file.
-Convention chi tiết: `docs/agents/issue-tracker.md`.
-
-## Skill nào dùng ở đâu
-
-| Skill | Dùng khi |
+| Cần | File (canonical) |
 |---|---|
-| `/work-ticket` | Bắt đầu một ticket. Đây là flow chính. |
-| `/grill-with-docs` | Cần làm rõ một quyết định thiết kế — tạo ADR + glossary cập nhật |
-| `/domain-modeling` | Đang làm Lớp 2, cần chốt thuật ngữ |
-| `/tdd` | Đang ở mode `pair-tdd` |
-| `/code-review` | Review code bạn viết, hoặc review diff sau khi xong một nhóm ticket |
-| `/research` | Cần tra tài liệu chính thức (Stripe, Postgres, ASP.NET Core) |
-| `/prototype` | Câu hỏi thiết kế cần một thứ cụ thể để nhìn, không trả lời được trên giấy |
+| Tổng quan, trạng thái gate | [`docs/README.md`](docs/README.md) |
+| Thuật ngữ, tên trong code (tiếng Anh) | [`GLOSSARY.md`](GLOSSARY.md) |
+| Module, phụ thuộc, stack | [`docs/design/architecture.md`](docs/design/architecture.md) |
+| Bảng, constraint | [`docs/design/data-model.md`](docs/design/data-model.md) |
+| 14 bài toán concurrency, SQL, test "đỏ nếu…" | [`docs/design/concurrency.md`](docs/design/concurrency.md) |
+| Endpoint, mã lỗi | [`docs/design/api-contract.md`](docs/design/api-contract.md) |
+| Khuôn code: Result, handler, transaction, repository | [`docs/design/building-blocks.md`](docs/design/building-blocks.md) |
+| Checklist review C-01…C-32 | [`docs/design/coding-conventions.md`](docs/design/coding-conventions.md) |
+| Quyết định khó đảo ngược | [`docs/adr/README.md`](docs/adr/README.md) |
+| FR ↔ domain ↔ design ↔ ticket | [`docs/plan/traceability.md`](docs/plan/traceability.md) |
 
-**Không dùng** `/implement` và `/implement-spec` ở project này — chúng được thiết kế để AI tự viết code và tự điều phối subagent, trái với hợp đồng trên.
+## Luật
 
-**Không dùng** `/to-spec` và `/to-tickets` để tạo đặc tả phẳng. Pipeline chính của project là
-`docs/prd → docs/domain → docs/design → .scratch/.../issues/`. Hai skill đó vẫn dùng được cho
-việc nhỏ bên trong một gate.
+- **Trung thực.** Claim về tính đúng đắn / hiệu năng phải có test hoặc số đo. "Xử lý concurrency" vô
+  nghĩa; "test này đỏ nếu bỏ `FOR UPDATE`" mới có giá trị. Test chưa từng thấy đỏ thì chưa chứng minh gì.
+- **Đo trước khi tối ưu.** Không có baseline thì không có tối ưu.
+- **Mỗi sự thật một nơi.** Không chép nội dung design vào ticket hay chỗ khác — link tới mục canonical.
+  Không ghi lịch sử ("sửa ngày…", gạch ngang) vào docs; lịch sử nằm ở git và ADR.
+- **Không có code trong docs và ticket.** Không khối code C#, SQL, Lua, JSON, HTTP hay pseudo-code — code
+  chỉ sống trong code và test, nơi nó được biên dịch và kiểm chứng. Docs mô tả ý định, luật, lý do,
+  phương án bị loại bằng chữ và bảng (bảng bước, bảng trường, bảng thành viên). Được phép: sơ đồ
+  `mermaid`, cây thư mục, template Markdown của docs, và *tên* trong backtick (type, bảng, mã lỗi,
+  `FOR UPDATE`). Hướng dẫn in ra chat cho người học thì được có lệnh terminal và chữ ký.
+- **Từ vựng.** Dùng đúng tên trong `GLOSSARY.md`; code dùng tên tiếng Anh. Thấy hai từ cùng nghĩa ⇒ chọn
+  một, ghi từ còn lại vào mục "tránh".
+- **Bí mật.** Không commit `.env`, `secrets.json`, connection string, khoá Stripe/JWT.
+- **Ngôn ngữ.** Tài liệu tiếng Việt, thuật ngữ kỹ thuật giữ tiếng Anh. Code, commit message tiếng Anh.
 
-## Domain docs
+## Skill
 
-Đọc `docs/agents/domain.md` để biết quy ước đọc glossary và ADR. `GLOSSARY.md` được tạo ở
-cuối Gate B — không có thì cứ tiếp tục, đừng dừng lại.
+| Skill | Khi |
+|---|---|
+| `/work-ticket` | Bắt đầu một ticket |
+| `/tdd` | Ticket `pair-tdd` — vòng test đỏ |
+| `/code-review` | Review branch so với `main`; đối chiếu `coding-conventions.md` + `building-blocks.md` |
+| `/research` | Tra tài liệu chính thức (ASP.NET Core, Npgsql, Stripe, Redis) |
+| `/prototype` | Câu hỏi thiết kế cần thứ chạy được để trả lời |
+| `/grill-with-docs` | Cần chốt lại một quyết định thiết kế ⇒ ADR + GLOSSARY |
+
+Skill trong `.agents/skills/` là bộ dùng chung, có thể chứa luật khác (ví dụ "chỉ ghi lời người học",
+"đề xuất ADR, đừng tự tạo"). **Khi mâu thuẫn, file này và `dev-workflow.md` thắng.**
