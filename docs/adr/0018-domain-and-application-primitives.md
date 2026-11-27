@@ -1,13 +1,16 @@
 ---
 id: 0018
 title: Domain primitives có base class; handler hiện thực interface chung; domain event gom trong aggregate, publish tường minh
-status: accepted
+status: accepted — một phần bị thay bởi ADR-0019
 date: 2026-11-26
 Related: ADR-0008, ADR-0009, ADR-0011, ADR-0016, ADR-0017
 Supersedes: một phần ADR-0017 (xem "Phần nào của ADR-0017 bị thay")
 ---
 
 # Domain primitives có base class; handler hiện thực interface chung; domain event gom trong aggregate, publish tường minh
+
+> Luật "event cho module khác là `IDomainEvent` đặt ở `.Contracts`" đã bị thay bởi
+> [ADR-0019](0019-integration-events-separate-from-domain-events.md) (integration event tách riêng).
 
 Chi tiết: [`docs/design/building-blocks.md`](../design/building-blocks.md) B6, B9, B13.
 

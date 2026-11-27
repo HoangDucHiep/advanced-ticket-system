@@ -1,4 +1,4 @@
-﻿# Bài học
+# Bài học
 
 Những điều đã học được trong project, gom theo **chủ đề** (không theo ngày). Chỉ giữ khái niệm,
 nguyên nhân thật của chỗ vấp và các phép thử âm tính cụ thể. Mục mới thêm ở cuối theo template
@@ -202,3 +202,13 @@ Câu hỏi chưa có đáp án: [`open-questions.md`](open-questions.md).
 **Còn mở**:
 - Vì sao `ValueObject` chỉ là record marker, không cần `GetEqualityComponents()`.
 - Vì sao `Entity.Equals` phải tự so `GetType()` dù `record` tự so kiểu.
+
+## 2026-11-27 — M0-03 Application primitives
+**Làm gì**: Viết `ICommand` / `IQuery`, `ICommandHandler` / `IQueryHandler`, `ICurrentUser`, `IOutboxWriter` ở `Shared.Abstractions/Application/`; `IIntegrationEvent`, `IEventPublisher`, `IEventHandler<T>` ở `Shared.Abstractions/Events/`; quét đăng ký `AddApplicationHandlers`, decorator log + trace, bus in-process ở `Shared.Infrastructure`. Spec tách integration event khỏi domain event (ADR-0019).
+**Vì sao làm thế này**: Domain event là chuyện nội bộ của aggregate; event cho module khác là hợp đồng phẳng ở `.Contracts`, do module phát dịch ra và làm giàu được (ví dụ ghế của phòng cho `ShowtimeCreated`). Bus chạy đồng bộ trong transaction nên handler lỗi ở module nhận làm rollback cả module phát — giữ atomic cho năm ranh giới bị cắt. Decorator chỉ quan sát, không mở transaction (B7).
+**Phương án khác và vì sao không**: Một loại event cho cả hai (domain bị trói vào hợp đồng, không làm giàu được payload); integration event luôn qua outbox (mất atomic); MediatR (license, che luồng gọi).
+**Test chứng minh, đỏ khi nào**: Bus nuốt exception ⇒ `Failing_event_handler_rolls_back_whole_use_case` và `Failing_integration_handler_rolls_back_publisher` đỏ (chạy lại trên code cuối); dispatch theo kiểu khai báo ⇒ `EventBus_dispatches_by_runtime_type` đỏ; bỏ decorator ⇒ mọi `HandlerDecoratorTests` đỏ; đăng ký Singleton ⇒ `Handlers_and_bus_are_scoped` đỏ; quét cả lớp abstract ⇒ `Scan_ignores_non_handlers_and_abstracts` đỏ.
+**Vấp ở đâu**: Placeholder trong message template là **tên trường** của structured log — `{HandlerName}` ở log bắt đầu và `{Handler}` ở log kết thúc là hai trường khác nhau, truy vấn theo `Handler` bỏ sót log bắt đầu (2 test đỏ). Visual Studio tự chèn `<Compile Include>` vào `.csproj` SDK-style ⇒ `NETSDK1022` duplicate item.
+**Còn mở**:
+- Vì sao domain event không được đặt ở `.Contracts`, và lớp dịch thuộc module nào.
+- Bus đồng bộ trong transaction so với publish sau commit: được gì, mất gì.

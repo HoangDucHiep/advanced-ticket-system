@@ -70,6 +70,8 @@ Luật đã được compiler / analyzer / arch test kiểm thì **không** lặ
 | HTTP request / response | `<Action>Request`, `<Noun>Response` | `RegisterRequest`, `UserResponse` |
 | Lỗi | `<Aggregate>Errors.<Tên>` | `UserErrors.EmailTaken` |
 | Repository | `I<Aggregate>Repository` | `IUserRepository` |
+| Domain event | `<Noun><PastVerb>DomainEvent`, ở `Domain/` | `ShowtimeCreatedDomainEvent` |
+| Integration event | `<Noun><PastVerb>IntegrationEvent`, ở `<Module>.Contracts` | `ShowtimeCreatedIntegrationEvent` |
 | SQL tay | tên theo việc | `SeatHoldSql` |
 | Options | `<Nhóm>Options` + `SectionName` | `JwtOptions` |
 
@@ -101,6 +103,8 @@ nghĩa (`Booking`, không `Order`; `Showtime`, không `Screening`).
 | C-39 | Controller kế thừa `ApiControllerBase`; không tự map `Result` sang status bằng `if` rải rác | Một nơi map `Result → HTTP` (B15) |
 | C-40 | Không tự cấu hình JSON, tên bảng / cột, converter id ở module — dùng cấu hình nền (B14, B15) | Một quy ước cho mọi module |
 | C-41 | Mỗi module có project test `tests/Modules/TicketSystem.<Module>.Tests/`; dùng fixture / helper từ `TicketSystem.Testing`, không sao chép | Hạ tầng test một chỗ (B18) |
+| C-42 | Domain event chỉ ở `Domain/`, không đi qua `.Contracts`; event cho module khác là integration event ở `.Contracts`, do handler domain event của chính module phát tạo ra | Domain không bị trói vào hợp đồng công khai (B13, ADR-0019) |
+| C-43 | Integration event chỉ chứa kiểu phẳng (`Guid`, số, chuỗi, `DateTimeOffset`, record DTO); thay đổi chỉ được **thêm** trường | Hợp đồng ổn định giữa module (B13) |
 
 ## 9. Smell — dừng lại khi thấy
 
