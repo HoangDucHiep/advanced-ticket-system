@@ -1,4 +1,5 @@
 using TicketSystem.Shared.Abstractions.Domain;
+using TicketSystem.Shared.Abstractions.Results;
 
 namespace TicketSystem.Shared.Tests.Domain;
 
@@ -27,4 +28,41 @@ internal sealed class OtherSampleEntity : Entity<SampleId>
         : base(id)
     {
     }
+}
+
+internal sealed record SampleHappened(int Sequence, DateTimeOffset OccurredAt) : IDomainEvent;
+
+internal sealed class SampleAggregate : AggregateRoot<SampleId>
+{
+    public SampleAggregate(SampleId id)
+        : base(id)
+    {
+    }
+
+    public void DoSomething(int sequence, DateTimeOffset now) =>
+        RaiseDomainEvent(new SampleHappened(sequence, now));
+}
+
+internal sealed record SampleMoney : ValueObject
+{
+    private static readonly Error Negative = new()
+    {
+        Code = "SAMPLE_MONEY_NEGATIVE",
+        Title = "Amount must not be negative",
+        Action = "Use a positive amount",
+        Type = ErrorType.Validation,
+    };
+
+    private SampleMoney(long amount, string currency)
+    {
+        Amount = amount;
+        Currency = currency;
+    }
+
+    public long Amount { get; }
+
+    public string Currency { get; }
+
+    public static Result<SampleMoney> Create(long amount, string currency) =>
+        amount < 0 ? Negative : new SampleMoney(amount, currency);
 }
