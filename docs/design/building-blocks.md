@@ -31,7 +31,7 @@ backtick là thuật ngữ, không phải code.
 | B10 | `TimeProvider` (built-in), không có `IClock` tự viết | DI ở host |
 | B11 | Options pattern + `ValidateOnStart` cho mọi cấu hình | module / host |
 | B12 | Bản đồ: code dùng chung nằm ở project nào, không tạo project thứ ba | `Shared.*` |
-| B13 | Domain event + bus in-process: aggregate gom event, handler publish tường minh trước commit | `Shared.Abstractions`, `Shared.Infrastructure` |
+| B13 | Domain event (gom trong aggregate, nội bộ module) tách khỏi integration event (hợp đồng ở `.Contracts`, do module phát dịch ra); một bus in-process giao trong transaction; outbox cho việc sau commit | `Shared.Abstractions/Domain/`, `Shared.Abstractions/Events/` |
 | B14 | Persistence foundation: `ModuleDbContext`, quy ước EF, migration, Dapper type handler | `Shared.Infrastructure/Persistence/` |
 | B15 | Web foundation: JSON options, `ApiControllerBase`, OpenAPI | `Shared.Infrastructure/Web/` + host |
 | B16 | Auth foundation: JWT bearer, policy vai trò, `ICurrentUser`, contract vai trò | `Shared.Infrastructure/Web/` + `IdentityAccess.Contracts` |
@@ -357,7 +357,7 @@ base class áp cho aggregate được nạp thành object.
 | `Entity<TId>` | Mang `Id` | Bằng nhau theo `Id` (cùng kiểu + cùng Id), không theo thuộc tính; không setter public |
 | `AggregateRoot<TId>` : `Entity<TId>` | Gom **domain event** phát sinh khi đổi trạng thái (danh sách nội bộ); cho handler lấy ra bằng `DequeueDomainEvents` (lấy và xoá) | Là ràng buộc generic của repository: chỉ aggregate root mới có repository. `sealed` ở lớp cụ thể |
 | `ValueObject` | `abstract record` làm marker: bất biến, bằng nhau theo giá trị (do `record` cho sẵn) | Không setter (init-only / positional); tạo qua factory `Create` trả `Result<T>`; arch test kiểm "không setter" |
-| `IDomainEvent` | Marker cho event, có `OccurredAt` | Event dùng cho module khác ⇒ type ở `<Module>.Contracts`; event chỉ trong module ⇒ ở `Domain/` |
+| `IDomainEvent` | Marker cho event aggregate raise, có `OccurredAt` | Chỉ nằm ở `Domain/` của module, **không bao giờ** đi qua `.Contracts`; event cho module khác là integration event (B13, ADR-0019) |
 | `IEntityId` + typed id | Mỗi aggregate có id kiểu riêng (`UserId`, `BookingId`...) là struct bất biến bọc một `Guid` | Tạo mới bằng UUIDv7 (`Guid.CreateVersion7()`); EF converter tự động theo quy ước (B14); Dapper có type handler |
 | `IEntityId<TSelf>` + `EntityId` | `IEntityId<TSelf>` (kế thừa `IEntityId`) bắt typed id khai báo factory tĩnh `From(Guid)`; lớp tĩnh `EntityId` có `New<TId>()` là **chỗ duy nhất** gọi `Guid.CreateVersion7()` | `Entity<TId>` ràng buộc `TId : struct, IEntityId<TId>`; constructor của `Entity` từ chối id rỗng (`Guid.Empty`, tức `default`) bằng `ArgumentException` |
 
@@ -431,8 +431,9 @@ Luật D6 ([`architecture.md`](architecture.md)): hai project `Shared`, không c
 | Thành phần | Project | Vì sao |
 |---|---|---|
 | `Result`, `Result<T>`, `Error`, `ErrorType`, `PagedResponse<T>` (B1, B3) | `Shared.Abstractions/Results/` | Không phụ thuộc gì; domain và `.Contracts` dùng được |
-| `Entity<TId>`, `AggregateRoot<TId>`, `ValueObject`, `IDomainEvent`, `IEntityId` (B9) | `Shared.Abstractions/Domain/` | Domain và `.Contracts` (event) cần; thuần kiểu, không hạ tầng |
-| `ICommand` / `IQuery`, handler interface, `IEventPublisher`, `IEventHandler<T>`, `ICurrentUser`, `IOutboxWriter`, `IUnitOfWork` (B6, B13) | `Shared.Abstractions/Application/` | Hợp đồng kỹ thuật mọi module dùng |
+| `Entity<TId>`, `AggregateRoot<TId>`, `ValueObject`, `IDomainEvent`, `IEntityId` (B9) | `Shared.Abstractions/Domain/` | Domain của mọi module cần; thuần kiểu, không hạ tầng |
+| `IIntegrationEvent`, `IEventPublisher`, `IEventHandler<TEvent>` (B13) | `Shared.Abstractions/Events/` | `.Contracts` cần `IIntegrationEvent`; module phát và nhận cần bus |
+| `ICommand` / `IQuery`, handler interface, `ICurrentUser`, `IOutboxWriter`, `IUnitOfWork` (B6, B13) | `Shared.Abstractions/Application/` | Hợp đồng kỹ thuật mọi module dùng |
 | Hiện thực bus in-process, decorator, quét đăng ký, UoW Npgsql, `ModuleDbContext`, type handler Dapper, cấu hình bảng outbox (B6, B13, B14) | `Shared.Infrastructure/` | Project nội bộ của module + host reference; không `.Contracts` nào reference |
 | `ToProblem`, `GlobalExceptionHandler`, `AddApiErrorHandling` / `UseApiErrorHandling`, JSON options, `ApiControllerBase`, cấu hình OpenAPI, plumbing JWT (B4, B15, B16) | `Shared.Infrastructure/Web/` (có `<FrameworkReference Include="Microsoft.AspNetCore.App" />`) | Controller nằm trong module (D2) nên module phải gọi được `ApiControllerBase`, `ToProblem` |
 | Serilog, correlation ID, health check (B17) | `Shared.Infrastructure/Observability/` + host | Cấu hình dùng một lần ở host, helper dùng chung |
@@ -449,44 +450,63 @@ Arch test hiện có (`Rule2_Shared_Abstractions_has_no_infrastructure_dependenc
 
 ---
 
-## B13 — Domain event và bus in-process
+## B13 — Domain event, integration event và bus in-process
 
-**Quyết định.** Hai nửa tách nhau: **gom** event nằm trong aggregate, **publish** là việc tường minh của handler.
+**Quyết định** (ADR-0018, ADR-0019). Hai loại event, một bus:
+
+| | Domain event | Integration event |
+|---|---|---|
+| Marker | `IDomainEvent` (`Shared.Abstractions/Domain/`) | `IIntegrationEvent` (`Shared.Abstractions/Events/`), có `EventId` + `OccurredAt` |
+| Nằm ở | `Domain/` của module, `internal` | `<Module>.Contracts`, `public` — là **hợp đồng** giữa module |
+| Ai tạo | Aggregate raise khi đổi trạng thái | Handler domain event **của chính module phát** — lớp dịch, làm giàu nếu cần (đọc thêm dữ liệu trong module) |
+| Ai nghe | Chính module đó | Module khác |
+| Dữ liệu | Kiểu domain (value object, typed id nội bộ) | Phẳng: `Guid`, số, chuỗi, `DateTimeOffset`, record DTO lồng; không kiểu của `Domain/` |
+| Đổi được không | Tự do — nội bộ | Chỉ **thêm** trường; đổi / xoá trường = đổi hợp đồng ⇒ sửa `cross-context-contracts.md` trước |
+| Giao | In-process, trong transaction | **In-tx** qua `IEventPublisher` (năm ranh giới bị cắt — D4) **hoặc** sau commit qua `IOutboxWriter` (việc phụ — D8) |
+
+Luồng một use case có event (ví dụ tạo suất — D4 #5):
 
 | Bước | Ai | Việc |
 |---|---|---|
-| 1 | Domain | Method đổi trạng thái của `AggregateRoot` thêm `IDomainEvent` vào danh sách nội bộ (vd tạo suất ⇒ `ShowtimeCreated`) |
-| 2 | Handler | Sau khi domain thành công và repository đã lưu, gọi `DequeueDomainEvents` để lấy và xoá event |
-| 3 | Handler | Gọi `IEventPublisher` cho từng event, **trước** `CommitAsync`, trong cùng transaction (B7 bước 5) |
-| 4 | Bus in-process | Chạy mọi `IEventHandler<TEvent>` đã đăng ký, **đồng bộ**, trong cùng transaction |
-| 5 | Lỗi | Handler của event ném exception ⇒ lan lên handler gọi ⇒ không commit ⇒ rollback toàn bộ |
+| 1 | Domain | Method của `AggregateRoot` thêm domain event vào danh sách nội bộ (suất được tạo) |
+| 2 | Use-case handler | Sau khi domain thành công và repository đã lưu, `DequeueDomainEvents` lấy và xoá event |
+| 3 | Use-case handler | `IEventPublisher` publish từng domain event, **trước** `CommitAsync` (B7 bước 5) |
+| 4 | Handler domain event (cùng module) | Dịch sang integration event: đọc ghế của phòng, dựng payload phẳng, publish in-tx — hoặc ghi outbox nếu việc đó không cần atomic |
+| 5 | Handler integration event (module khác) | Phản ứng trong cùng transaction (sinh ghế của suất); **không** gọi `CommitAsync` |
+| 6 | Lỗi | Bất kỳ handler nào ném exception ⇒ lan lên use-case handler ⇒ không commit ⇒ rollback toàn bộ |
 
 | Thành phần | Trách nhiệm | Luật |
 |---|---|---|
-| `IEventPublisher` | Publish một event tới mọi handler | Đồng bộ; không fire-and-forget |
-| `IEventHandler<TEvent>` | Phản ứng với event của module khác (D4 — "event in-process") hoặc của chính module | Handler của module nhận **không** gọi `CommitAsync` (transaction thuộc handler phát) |
-| `IOutboxWriter` | Ghi message outbox của module trong transaction hiện tại (D8) | Interface ở `Shared.Abstractions`; hiện thực + dispatcher ở ticket outbox. Dùng cho việc **sau commit**, không phải một phần của bất biến |
+| `IEventPublisher` | Publish một event (domain hoặc integration) tới mọi handler đã đăng ký cho đúng kiểu runtime của nó | Đồng bộ, theo thứ tự đăng ký; không fire-and-forget; không có handler ⇒ không làm gì |
+| `IEventHandler<TEvent>` | Phản ứng với một kiểu event | Không mở / commit transaction (transaction thuộc use-case handler); đăng ký bằng quét assembly như handler use case (B6) |
+| `IOutboxWriter` | Ghi một message outbox của module trong transaction hiện tại (D8) | Interface ở `Shared.Abstractions/Application/`; hiện thực + dispatcher ở ticket outbox. Dùng cho việc **sau commit**, không phải một phần của bất biến |
 
-Event cho module khác nằm ở `<Module>.Contracts` (D4 / D9); event nội bộ nằm ở `Domain/`.
+Đặt tên trong code: `<Noun><PastVerb>DomainEvent`, `<Noun><PastVerb>IntegrationEvent` (C-42). Tài liệu domain
+dùng tên khái niệm (`ShowtimeCreated`, `BookingPaid`, `PaymentSucceeded`) để chỉ **integration event**.
 
 **Vì sao chọn:**
 
-- **Thời điểm publish tường minh**: ranh giới transaction và lúc phản ứng chéo module (có thể làm rollback)
-  nhìn thấy được trong code handler — cùng triết lý với B7.
-- **Event gom trong aggregate**: aggregate là nơi biết chuyện gì vừa xảy ra; handler không phải "nhớ" tự tạo
-  event đúng loại sau mỗi thao tác.
-- **Đồng bộ trong transaction** là điều D4 / ADR-0009 yêu cầu cho năm ranh giới bị cắt (vd `ShowtimeCreated` ⇒
-  sinh ghế phải atomic với tạo suất).
+- **Hợp đồng ổn định, domain tự do.** Đổi nội bộ aggregate không chạm module khác; module khác chỉ thấy payload
+  phẳng, đúng D9 luật 2 (`.Contracts` chỉ reference `Shared.Abstractions`).
+- **Có chỗ làm giàu payload**: `Inventory` cần ghế của phòng, `Showtime` không giữ ghế — lớp dịch đọc thêm.
+- **Thời điểm publish tường minh** (cùng triết lý B7): aggregate chỉ *gom*, use-case handler *quyết định lúc
+  publish*, trong transaction.
+- **Một bus cho cả hai loại**: giao trong transaction là cùng một cơ chế; khác nhau ở type và nơi đặt, không ở
+  đường đi — ít code hạ tầng hơn.
+- **Đồng bộ trong transaction** là điều D4 / ADR-0009 yêu cầu cho năm ranh giới bị cắt.
 
 **Không chọn:**
 
-- *Dispatch tự động trong `SaveChanges` interceptor*: giấu thời điểm publish; handler event có thể chạy khi
-  repository chưa sẵn sàng; khó thấy ở review concurrency.
-- *Event chỉ do handler tạo, aggregate không biết*: dễ quên, hai nơi cùng biết "chuyện gì xảy ra".
-- *Publish sau commit*: mất atomicity của năm ranh giới (dùng outbox cho việc không cần atomic — D8).
-- *Bus ngoài process (broker)*: không cần cho modular monolith; thêm hạ tầng và mất transaction chung.
+- *Một loại event cho cả hai* (ADR-0018 ban đầu): domain bị trói vào hợp đồng công khai, không làm giàu được
+  payload — xem ADR-0019.
+- *Integration event luôn qua outbox*: mất atomic của năm ranh giới bị cắt.
+- *Dispatch tự động trong `SaveChanges` interceptor*: giấu thời điểm publish; khó thấy ở review concurrency.
+- *Use-case handler tự tạo integration event, bỏ domain event*: hai nơi cùng phải biết "chuyện gì xảy ra";
+  quên phát là lỗi im lặng.
+- *Bus ngoài process (broker) / bảng inbox*: bên nhận cùng process, cùng transaction ⇒ không trùng, không cần.
 
-**Xem lại khi:** tách một module ra service (D10) — event in-process của module đó đổi thành outbox + consumer.
+**Xem lại khi:** tách một module ra service (D10) — integration event của nó chuyển sang outbox + broker + inbox;
+domain event không đổi.
 
 ---
 
@@ -594,7 +614,7 @@ chỉ phụ thuộc ngoài chậm).
 |---|---|---|
 | Project `tests/TicketSystem.Testing` | Dùng chung: fixture Postgres + Redis (Testcontainers) qua collection fixture; reset dữ liệu giữa test bằng Respawn; `ApiFactory` (`WebApplicationFactory`) cấp connection string từ container + `FakeTimeProvider`; helper tạo access token theo vai trò; helper concurrency (chạy N request qua rào đồng bộ, lặp N vòng, gom kết quả); cờ `Concurrency:UnsafeVariant` (xem "Hạ tầng test concurrency" ở [`concurrency.md`](concurrency.md)) | Container dựng một lần, dữ liệu reset mỗi test |
 | Project test mỗi module | `tests/Modules/TicketSystem.<Module>.Tests/`: unit domain + integration của module | Tạo khi module bắt đầu, theo template có sẵn; thấy `internal` qua `InternalsVisibleTo` |
-| Arch test mở rộng | Kiểm: `Domain/` không phụ thuộc EF Core / ASP.NET Core / Npgsql / Dapper; chỉ `<Module>Module` + controller là `public`; value object không có setter; repository chỉ cho `AggregateRoot` | Nằm cùng `TicketSystem.ArchitectureTests` |
+| Arch test mở rộng | Kiểm: `Domain/` không phụ thuộc EF Core / ASP.NET Core / Npgsql / Dapper; chỉ `<Module>Module` + controller là `public`; value object không có setter; repository chỉ cho `AggregateRoot`; `IDomainEvent` không nằm trong `.Contracts`; `IIntegrationEvent` chỉ nằm trong `.Contracts` và không chứa kiểu của `Domain/` | Nằm cùng `TicketSystem.ArchitectureTests` |
 
 **Vì sao chọn:**
 

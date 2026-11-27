@@ -24,4 +24,5 @@ giữ lại để làm lịch sử (status ghi `superseded by ADR-xxxx`). Quyế
 | [0015](0015-take-over-expired-holds.md) | Lệnh giữ ghế được lấy ghế `Held` đã quá hạn | accepted | — |
 | [0016](0016-result-and-problem-details.md) | Lỗi nghiệp vụ là `Result`; mọi lỗi ra ngoài là problem+json | accepted | — |
 | [0017](0017-handler-per-use-case-no-mediator.md) | Mỗi use case một handler, transaction tường minh, không mediator | accepted — một phần bị thay | một phần bị thay bởi ADR-0018 |
-| [0018](0018-domain-and-application-primitives.md) | Domain primitives có base class; handler hiện thực interface chung; event gom trong aggregate, publish tường minh | accepted | thay một phần ADR-0017 |
+| [0018](0018-domain-and-application-primitives.md) | Domain primitives có base class; handler hiện thực interface chung; event gom trong aggregate, publish tường minh | accepted — một phần bị thay | thay một phần ADR-0017; một phần bị thay bởi ADR-0019 |
+| [0019](0019-integration-events-separate-from-domain-events.md) | Integration event tách khỏi domain event; module phát dịch domain event sang integration event | accepted | thay một phần ADR-0018 |

@@ -20,9 +20,11 @@ nhau, bằng event bus in-process có sẵn từ M0-03. Kèm lệnh seed demo ch
   `POST .../open-sale`. Giá phải đủ **mọi** loại ghế có trong phòng; chủ sở hữu = chủ phòng (FR-32 ⇒ không phải chủ thì `404`).
 - Exclusion constraint chống chồng giờ kèm đệm 15 phút (BR-20) ⇒ `409 SHOWTIME_OVERLAP`.
 - Tạo suất ⇒ `Inventory` sinh một `Showtime seat` (`Available`) cho mỗi `Room seat`; xoá suất `NotOnSale` ⇒ xoá ghế đã sinh.
-  Aggregate `Showtime` raise domain event `ShowtimeCreated` / `ShowtimeDeleted` (định nghĩa ở `Scheduling.Contracts`,
-  D4 #5); handler lấy event ra và publish **trước commit** qua `IEventPublisher` (M0-03); `Inventory` có
-  `IEventHandler` sinh / xoá ghế trong cùng transaction. Ticket này **không** dựng bus.
+  Aggregate `Showtime` raise **domain event** (`ShowtimeCreatedDomainEvent` / `ShowtimeDeletedDomainEvent`, ở `Domain/`);
+  use-case handler publish trước commit qua `IEventPublisher` (M0-03); handler domain event trong `Scheduling` dịch sang
+  **integration event** `ShowtimeCreatedIntegrationEvent` / `ShowtimeDeletedIntegrationEvent` ở `Scheduling.Contracts`, làm giàu
+  bằng ghế của phòng + loại ghế (D4 #5, ADR-0019); `Inventory` có `IEventHandler` sinh / xoá ghế trong cùng transaction.
+  Ticket này **không** dựng bus.
 - Migrations theo quy ước M0-04; migration đầu của schema `scheduling` khai báo `btree_gist` bằng cơ chế đã có ở
   M0-04 (Testcontainers không chạy init script) để exclusion constraint tạo được.
 - Test đặt ở project test của module (tạo từ template M0-08), dùng `TicketSystem.Testing`.

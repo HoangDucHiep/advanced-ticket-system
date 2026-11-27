@@ -21,7 +21,8 @@ Mọi ticket sau viết test integration và concurrency bằng một bộ công
   dẫn dùng, kèm `InternalsVisibleTo`.
 - Arch test mở rộng (cùng `TicketSystem.ArchitectureTests`): `Domain/` không phụ thuộc EF Core / ASP.NET Core /
   Npgsql / Dapper; chỉ `<Module>Module` + controller là `public`; value object không có setter; repository chỉ
-  cho `AggregateRoot`.
+  cho `AggregateRoot`; `IDomainEvent` không nằm trong `.Contracts`; `IIntegrationEvent` chỉ nằm trong `.Contracts`,
+  không chứa kiểu của `Domain/` (ADR-0019).
 - **Module mẫu chỉ trong test**: aggregate + value object + handler + endpoint + migration.
 
 **Ngoài:**
@@ -50,9 +51,11 @@ AI viết các test này trước. Nhóm 1 kiểm hạ tầng test; nhóm 2 là 
 | `Only_module_and_controllers_are_public` | Mỗi assembly `TicketSystem.<Module>` (không `.Contracts`) chỉ lộ `<Module>Module` + controller | Thêm một `public class` handler |
 | `Value_objects_have_no_setters` | Mọi kiểu kế thừa `ValueObject` không có setter public | Có setter |
 | `Repositories_only_for_aggregate_roots` | Repository chỉ tham số hoá bằng `AggregateRoot<TId>` | Repository cho entity con |
+| `Domain_events_stay_inside_module` | Không kiểu `IDomainEvent` nào nằm trong assembly `.Contracts` | Domain event bị dùng làm hợp đồng |
+| `Integration_events_live_in_contracts_and_are_flat` | Mọi `IIntegrationEvent` nằm trong `.Contracts`; property không có kiểu từ assembly nội bộ của module | Hợp đồng lộ kiểu domain |
 | `Demo_invalid_request_returns_400_with_traceid_in_log` | Request sai ⇒ `400` problem+json, `traceId` tìm được trong log | Một mắt xích của M0-05 / M0-07 bị gãy |
 | `Demo_business_error_returns_409` | Handler module mẫu trả lỗi `Conflict` ⇒ `409` | Map sai |
-| `Demo_domain_event_published_in_transaction` | Aggregate raise event, handler publish trước commit; handler event lỗi ⇒ rollback | Event chạy sau commit / không rollback |
+| `Demo_domain_event_published_in_transaction` | Aggregate raise domain event, handler publish trước commit; lớp dịch phát integration event, module mẫu thứ hai nhận trong cùng transaction; handler lỗi ⇒ rollback cả hai | Event chạy sau commit / không rollback |
 | `Demo_role_policy_401_403` | Endpoint cần vai trò: không token ⇒ `401`; sai vai trò ⇒ `403` | Policy / contract chưa nối |
 
 Câu hỏi thiết kế cho người học: arch test cần nạp assembly đã build — nạp bằng cách nào mà không tự tạo phụ

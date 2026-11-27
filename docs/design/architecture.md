@@ -250,7 +250,8 @@ lại che mất hướng phụ thuộc (vẫn phụ thuộc kiểu command, ch�
 Dùng mediator *bên trong* một module — **cũng không**; mỗi use case một handler hiện thực interface,
 controller gọi thẳng ([ADR-0017](../adr/0017-handler-per-use-case-no-mediator.md),
 [ADR-0018](../adr/0018-domain-and-application-primitives.md), [`building-blocks.md`](building-blocks.md) B6).
-Event in-process do handler publish tường minh trước commit (B13).
+Event giữa module là **integration event** (`IIntegrationEvent`, type ở `.Contracts` của bên phát), do bên phát
+dịch từ domain event của mình; publish tường minh trước commit (B13, ADR-0019).
 
 ### Áp vào năm ranh giới bị cắt
 
@@ -302,7 +303,7 @@ ghế lúc sinh ghế và không đọc lại `room_seats`.
 
 | Project | Chứa | Ai reference |
 |---|---|---|
-| `Shared.Abstractions` | `Results/`: `Result` / `Error` / `ErrorType` / `PagedResponse<T>` (ADR-0016). `Domain/`: `Entity<TId>`, `AggregateRoot<TId>`, `ValueObject`, `IDomainEvent`, `IEntityId` (ADR-0018). `Application/`: `ICommand` / `IQuery`, `ICommandHandler` / `IQueryHandler`, `IEventPublisher`, `IEventHandler<T>`, `ICurrentUser`, `IOutboxWriter`, `IUnitOfWork` | Mọi project |
+| `Shared.Abstractions` | `Results/`: `Result` / `Error` / `ErrorType` / `PagedResponse<T>` (ADR-0016). `Domain/`: `Entity<TId>`, `AggregateRoot<TId>`, `ValueObject`, `IDomainEvent`, `IEntityId` (ADR-0018). `Events/`: `IIntegrationEvent`, `IEventPublisher`, `IEventHandler<T>` (ADR-0019). `Application/`: `ICommand` / `IQuery`, `ICommandHandler` / `IQueryHandler`, `ICurrentUser`, `IOutboxWriter`, `IUnitOfWork` | Mọi project |
 | `Shared.Infrastructure` | `Persistence/`: hiện thực UoW trên Npgsql, `ModuleDbContext` + quy ước EF, type handler Dapper, cấu hình bảng outbox dùng lại cho từng schema. Bus event in-process, decorator log / trace, quét đăng ký handler, outbox dispatcher. `Web/`: map `Result` → problem+json, exception handler, JSON options, `ApiControllerBase`, OpenAPI, plumbing JWT / policy (ADR-0016; có `FrameworkReference` ASP.NET Core). `Observability/`: Serilog, correlation ID, health | Project nội bộ của module + host. **Không** `.Contracts` nào reference |
 
 Thời gian dùng `System.TimeProvider` built-in, không có interface tự viết ([`building-blocks.md`](building-blocks.md) B10).
