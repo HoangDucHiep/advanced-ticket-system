@@ -192,3 +192,13 @@ Câu hỏi chưa có đáp án: [`open-questions.md`](open-questions.md).
 **Test chứng minh, đỏ khi nào**: `Failure_value_access_throws` đỏ đúng trên bản đầu `_value ?? throw`, vì với `Result<int>` thì `default` là `0` nên `Value` không ném mà trả `0`, người gọi tưởng thành công. Sửa bằng cách kiểm `IsFailure` thay vì kiểm `null`, và dùng `[AllowNull]` thay `!`. Các test còn lại đã chạy phép thử âm tính (bảng ở brief).
 **Vấp ở đâu**: Kiểm "giá trị có null không" để suy ra thất bại chỉ đúng với kiểu tham chiếu; phải dựa vào trạng thái thất bại của lớp cha. Hai `Error` cùng `Code` nhưng khác `Extensions` không bằng nhau vì `Extensions` là reference type, nên test so `Code`/`Type`, không so cả `Error`.
 **Còn mở**: —
+
+## 2026-11-27 — M0-02 Domain primitives
+**Làm gì**: Viết `IEntityId` / `IEntityId<TSelf>`, `EntityId.New<TId>()`, `IDomainEvent`, `ValueObject`, `Entity<TId>`, `AggregateRoot<TId>` ở `Shared.Abstractions/Domain/` theo 9 test (21 case) ở `Shared.Tests/Domain/`.
+**Vì sao làm thế này**: Nếu handler quên gọi `DequeueDomainEvents` thì event vẫn còn trong aggregate (không được publish); gọi hai lần thì chỉ lần đầu có event. GUID v7 có timestamp nên sắp xếp được, tối ưu hơn cho index của database so với bản cũ (v4 ngẫu nhiên).
+**Phương án khác và vì sao không**: Mỗi typed id tự gọi `Guid.CreateVersion7()`, typed id tự chặn `Guid.Empty` (B9 "Không chọn").
+**Test chứng minh, đỏ khi nào**: 8 phép thử âm tính, mỗi cái làm đỏ đúng test của nó: `NewGuid` → `TypedId_new_is_uuidv7_and_ordered`; bỏ so `GetType()` → `Entities_with_different_id_or_type_are_not_equal`; `Dequeue` trả list nội bộ hoặc không `Clear` → `Dequeue_returns_events_and_clears`; `Id` có `set` → `Entity_has_no_public_setters`; bỏ chặn id rỗng → `TypedId_default_is_rejected_by_entity`; hash theo tham chiếu → `Entities_with_same_id_are_equal`; `ValueObject` có property `set` → `ValueObject_is_immutable`.
+**Vấp ở đâu**: UUIDv7 chỉ tăng dần giữa các mili-giây; trong cùng mili-giây phần đuôi là ngẫu nhiên, nên test thứ tự phải tạo id cách nhau ≥ 1 ms.
+**Còn mở**:
+- Vì sao `ValueObject` chỉ là record marker, không cần `GetEqualityComponents()`.
+- Vì sao `Entity.Equals` phải tự so `GetType()` dù `record` tự so kiểu.

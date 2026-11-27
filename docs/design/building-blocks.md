@@ -359,6 +359,7 @@ base class áp cho aggregate được nạp thành object.
 | `ValueObject` | `abstract record` làm marker: bất biến, bằng nhau theo giá trị (do `record` cho sẵn) | Không setter (init-only / positional); tạo qua factory `Create` trả `Result<T>`; arch test kiểm "không setter" |
 | `IDomainEvent` | Marker cho event, có `OccurredAt` | Event dùng cho module khác ⇒ type ở `<Module>.Contracts`; event chỉ trong module ⇒ ở `Domain/` |
 | `IEntityId` + typed id | Mỗi aggregate có id kiểu riêng (`UserId`, `BookingId`...) là struct bất biến bọc một `Guid` | Tạo mới bằng UUIDv7 (`Guid.CreateVersion7()`); EF converter tự động theo quy ước (B14); Dapper có type handler |
+| `IEntityId<TSelf>` + `EntityId` | `IEntityId<TSelf>` (kế thừa `IEntityId`) bắt typed id khai báo factory tĩnh `From(Guid)`; lớp tĩnh `EntityId` có `New<TId>()` là **chỗ duy nhất** gọi `Guid.CreateVersion7()` | `Entity<TId>` ràng buộc `TId : struct, IEntityId<TId>`; constructor của `Entity` từ chối id rỗng (`Guid.Empty`, tức `default`) bằng `ArgumentException` |
 
 Quy ước còn lại cho domain:
 
@@ -382,6 +383,11 @@ Quy ước còn lại cho domain:
 **Không chọn:**
 
 - *`ValueObject` kiểu `GetEqualityComponents()`*: `record` đã cho value equality; thêm cơ chế tự viết là thừa.
+- *Mỗi typed id tự gọi `Guid.CreateVersion7()` trong `New()` của nó*: luật C-08 rải ở mọi id, test chỉ chứng
+  minh được id mẫu; `static abstract From(Guid)` còn cho converter EF / Dapper (B14) dựng id generic mà không
+  cần reflection.
+- *Typed id tự chặn `Guid.Empty`*: struct luôn có `default`, không chặn được; chặn ở constructor `Entity` là
+  chỗ id thực sự đi vào domain.
 - *Typed id chỉ khi đi qua `.Contracts`* (quyết định cũ): hai kiểu id (`Guid` trần và typed) trong cùng codebase
   làm quy ước EF / Dapper phải có hai nhánh.
 - *Anemic model* (entity chỉ có property public set, logic ở handler): invariant khi đó được bảo vệ
