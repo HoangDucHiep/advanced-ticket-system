@@ -1,7 +1,7 @@
 # M0-02: Domain primitives — `Entity`, `AggregateRoot`, `ValueObject`, `IDomainEvent`, typed id
 
 Mode: pair-tdd
-Status: ready
+Status: done
 Blocked by: M0-01
 Traces to: —
 Concurrency: —
@@ -52,5 +52,5 @@ AI viết các test này trước. Dùng các class mẫu chỉ có trong test p
 3. Vì sao UUIDv7 thay vì `Guid.NewGuid()` cho khoá chính (liên hệ index B-tree)?
 
 ## Done khi
-- [ ] Các test trên xanh; `Shared.Abstractions` vẫn không phụ thuộc hạ tầng (arch test hiện có xanh)
-- [ ] Không có setter public ở các base class; không `!` (C-13)
+- [x] Các test trên xanh; `Shared.Abstractions` vẫn không phụ thuộc hạ tầng (arch test hiện có xanh)
+- [x] Không có setter public ở các base class; không `!` (C-13)
