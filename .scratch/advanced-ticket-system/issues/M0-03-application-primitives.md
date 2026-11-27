@@ -1,7 +1,7 @@
 # M0-03: Application primitives — handler, đăng ký theo quét, decorator, event bus + integration event, `ICurrentUser`, `IOutboxWriter`
 
 Mode: pair-tdd
-Status: ready
+Status: done
 Blocked by: M0-02
 Traces to: —
 Concurrency: —
@@ -63,6 +63,6 @@ Postgres thật với `IUnitOfWork` đã có trong skeleton (`TicketSystem.Integ
 3. Vì sao decorator không mở transaction, dù nó bọc mọi handler?
 
 ## Done khi
-- [ ] Các test trên xanh; test rollback chạy trên Postgres thật
-- [ ] Quét đăng ký chỉ chạy lúc khởi động, không reflection mỗi request
-- [ ] `ICurrentUser`, `IOutboxWriter` chỉ là interface, không có hiện thực rỗng "cho có"
+- [x] Các test trên xanh; test rollback chạy trên Postgres thật
+- [x] Quét đăng ký chỉ chạy lúc khởi động, không reflection mỗi request
+- [x] `ICurrentUser`, `IOutboxWriter` chỉ là interface, không có hiện thực rỗng "cho có"
